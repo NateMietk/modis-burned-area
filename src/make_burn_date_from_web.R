@@ -54,12 +54,12 @@ tiles = c("h08v04",
           "h13v04")
 
 names <- c("BurnDate", "BurnDateUncertainty")
-# first, download the files
+
+layers <- c("Burn Date", "Burn Date Uncertainty", "QA", "First Day", "Last Day")
 
 for(d in 1:2){ 
   
   for(j in 1:length(tiles)){
-    
     dir.create(paste0(top_directory, tiles[j]), recursive = TRUE)
     filenames <- getURL(paste0(url,tiles[j],"/"), userpwd = u_p, v=T, ftp.use.epsv = FALSE, dirlistonly = TRUE)
     filenames = paste0(strsplit(filenames, "\r*\n")[[1]])
@@ -84,11 +84,15 @@ for(d in 1:2){
     newfilename1 <- paste0(names[d], filename, ".tif")
     
     for (M in 1:length(hdfs)) {
+     ### # Fix this to read HDF # ###
       M = 1
-      
-      sds = get_subdatasets(paste0(top_directory, hdfs[M]))
-      r <- raster(hdfs[M])
-      gdal_translate(sds[d], dst_dataset = newfilename1[M])
+      sds = paste0("HDF4_EOS:EOS_GRID:",
+                    basename(hdfs[M]),
+                    ":MOD_Grid_Monthly_500m_DB_BA:",
+                    layers[d])
+      #sds = get_subdatasets(paste0(top_directory, hdfs[M]))
+      r <- raster(sds)
+      #gdal_translate(sds[d], dst_dataset = newfilename1[M])
     }
     
     
