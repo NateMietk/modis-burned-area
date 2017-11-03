@@ -10,6 +10,15 @@
 # ftp://fuoco.geog.umd.edu/db/MCD64A1/
 # username: fire
 # password: burnt
+
+# filenames from subdatastes
+## "HDF4_EOS:EOS_GRID:MCD64A1.A2014213.h10v04.051.2014284031847.hdf:MOD_Grid_Monthly_500m_DB_BA:Burn Date" 
+# [1] "HDF4_EOS:EOS_GRID:MCD64A1.A2014213.h10v04.051.2014284031847.hdf:MOD_Grid_Monthly_500m_DB_BA:Burn Date"            
+# [2] "HDF4_EOS:EOS_GRID:MCD64A1.A2014213.h10v04.051.2014284031847.hdf:MOD_Grid_Monthly_500m_DB_BA:Burn Date Uncertainty"
+# [3] "HDF4_EOS:EOS_GRID:MCD64A1.A2014213.h10v04.051.2014284031847.hdf:MOD_Grid_Monthly_500m_DB_BA:QA"                   
+# [4] "HDF4_EOS:EOS_GRID:MCD64A1.A2014213.h10v04.051.2014284031847.hdf:MOD_Grid_Monthly_500m_DB_BA:First Day"            
+# [5] "HDF4_EOS:EOS_GRID:MCD64A1.A2014213.h10v04.051.2014284031847.hdf:MOD_Grid_Monthly_500m_DB_BA:Last Day" 
+
 library(tidyverse)
 library(raster)
 library(RCurl)
