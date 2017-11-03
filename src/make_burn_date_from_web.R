@@ -10,14 +10,14 @@
 # ftp://fuoco.geog.umd.edu/db/MCD64A1/
 # username: fire
 # password: burnt
-
+library(tidyverse)
 library(raster)
 library(RCurl)
 library(gdalUtils)
 
-top_directory = "~/DATA/MODIS/"
-output_directory = "~/DATA/MODIS/output/"
-final_output = "~/DATA/MODIS/USA_BURNDATE/"
+top_directory = "data/MODIS/"
+output_directory = "data/MODIS/output/"
+final_output = "data/MODIS/USA_BURNDATE/"
 
 #optional
 dir.create(paste0(top_directory))
@@ -44,83 +44,97 @@ tiles = c("h08v04",
           "h12v05",
           "h13v04")
 
-
+names <- c("BurnDate", "BurnDateUncertainty")
 # first, download the files
 
-for(j in 1:length(tiles)){
-  dir.create(paste0(top_directory, tiles[j]))
-  setwd(paste0(top_directory, tiles[j]))
-  filenames <- getURL(paste0(url,tiles[j],"/"), userpwd = u_p, v=T, ftp.use.epsv = FALSE, dirlistonly = TRUE)
-  filenames = paste0(strsplit(filenames, "\r*\n")[[1]])
-  for(L in 1:length(filenames)){
-    download.file(paste0(url,tiles[j],"/",filenames[L]),paste0(top_directory,tiles[j],"/",filenames[L]))
+for(d in 1:2){ 
+  
+  for(j in 1:length(tiles)){
+    
+    dir.create(paste0(top_directory, tiles[j]), recursive = TRUE)
+    filenames <- getURL(paste0(url,tiles[j],"/"), userpwd = u_p, v=T, ftp.use.epsv = FALSE, dirlistonly = TRUE)
+    filenames = paste0(strsplit(filenames, "\r*\n")[[1]])
+    for(L in 1:length(filenames)){
+      output_file_name <- file.path(paste0(top_directory,tiles[j]), filenames[L])
+      if(!file.exists(output_file_name)) {
+        download.file(paste0(url,tiles[j],"/",filenames[L]),
+                      output_file_name)
+      } 
+    }
+    
+    # next, take the burn date rasters out of the .hdfs
+    
+    hdfs = list.files(top_directory, pattern = ".hdf", 
+                      recursive = TRUE)
+    
+    filename = strsplit(hdfs, "\\.") %>%
+      lapply(`[`, 2:3) %>%
+      lapply(paste, collapse = "_") %>%
+      unlist
+    
+    newfilename1 <- paste0(names[d], filename, ".tif")
+    
+    for (M in 1:length(hdfs)) {
+      M = 1
+      
+      sds = get_subdatasets(paste0(top_directory, hdfs[M]))
+      r <- raster(hdfs[M])
+      gdal_translate(sds[d], dst_dataset = newfilename1[M])
+    }
+    
+    
+    for(i in 2000:2016){
+      tile_files = Sys.glob(paste(names[d], i,"*.tif", sep = ""))
+      print(tile_files)
+      
+      one_stack_of_stuff = stack(tile_files)
+      two_reclassified_stuff = reclassify(one_stack_of_stuff, reclassification_matrix_to_take_out_NAs)
+      three_whole_year_of_fire = calc(two_reclassified_stuff, max)
+      
+      filename_for_the_tilefile = paste(output_directory, "AllYear_BD_", tiles[j], "_", i, ".tif", sep="")
+      
+      writeRaster(three_whole_year_of_fire, filename_for_the_tilefile, format = "GTiff")
+      
+    }
+    
+    files_to_delete = list.files(paste0(top_directory,tiles[j],"/"))
+    file.remove(files_to_delete)
   }
-  
-  # next, take the burn date rasters out of the .hdfs
-  
-  hdfs = dir(pattern = ".hdf")
-  filename = paste(substr(hdfs, 10,16), substr(hdfs, 18, 23), sep="_")
-  
-  newfilename1 <- paste0("BurnDate", filename, ".tif")
-  
-  for (M in 1:length(hdfs)) {
-    sds = get_subdatasets(hdfs[M])
-    gdal_translate(sds[1], dst_dataset = newfilename1[M])
-  }
-  
-  
-  for(i in 2000:2016){
-    tile_files = Sys.glob(paste("BurnDate",i,"*.tif", sep = ""))
-    print(tile_files)
-    
-    one_stack_of_stuff = stack(tile_files)
-    two_reclassified_stuff = reclassify(one_stack_of_stuff, reclassification_matrix_to_take_out_NAs)
-    three_whole_year_of_fire = calc(two_reclassified_stuff, max)
-    
-    filename_for_the_tilefile = paste(output_directory, "AllYear_BD_", tiles[j], "_", i, ".tif", sep="")
-    
-    writeRaster(three_whole_year_of_fire, filename_for_the_tilefile, format = "GTiff")
-    
-  }
-  
-  files_to_delete = list.files(paste0(top_directory,tiles[j],"/"))
-  file.remove(files_to_delete)
 }
 
 ######################## Then, stitch them all together
 
-for(k in 2000:2016){
+for(d in 1:2) {
+  for(k in 2000:2016){
   
-  setwd(output_directory)
-  
-  list_of_maxxed_tiles = as.vector(Sys.glob(paste0("*", k, ".tif")))
-  
-  whole_damn_country = raster::merge(raster(paste("AllYear_BD_h08v04_",k,".tif", sep = "")),
-                                     raster(paste("AllYear_BD_h08v05_",k,".tif", sep = "")),
-                                     raster(paste("AllYear_BD_h09v04_",k,".tif", sep = "")),
-                                     raster(paste("AllYear_BD_h09v05_",k,".tif", sep = "")),
-                                     raster(paste("AllYear_BD_h10v04_",k,".tif", sep = "")),
-                                     raster(paste("AllYear_BD_h10v05_",k,".tif", sep = "")),
-                                     raster(paste("AllYear_BD_h10v06_",k,".tif", sep = "")),
-                                     raster(paste("AllYear_BD_h11v04_",k,".tif", sep = "")),
-                                     raster(paste("AllYear_BD_h11v05_",k,".tif", sep = "")),
-                                     raster(paste("AllYear_BD_h12v04_",k,".tif", sep = "")),
-                                     raster(paste("AllYear_BD_h12v05_",k,".tif", sep = "")),
-                                     raster(paste("AllYear_BD_h13v04_",k,".tif", sep = "")))
-  
-  
-  ### need to find a more generic way to merge, it's in the help file for raster::merge
-  # whole_damn_country = sapply()
-  #   raster::merge(
-  #   for(N in 1:length(tiles)){
-  #     raster(paste0("AllYear_BD_",tiles[N],"_",k,".tif"))
-  #   }
-  # )
-  
-  
-  whole_damn_country_filename = paste0(final_output,"USA_burn_date_courtesy_of_Adam_Mahood", k, ".tif")
-  
-  writeRaster(whole_damn_country, whole_damn_country_filename, format = "GTiff")
-  
+    list_of_maxxed_tiles = as.vector(Sys.glob(paste0(output_directory, "*", k, ".tif")))
+    
+    whole_damn_country = raster::merge(raster(paste("AllYear_BD_h08v04_",k,".tif", sep = "")),
+                                       raster(paste("AllYear_BD_h08v05_",k,".tif", sep = "")),
+                                       raster(paste("AllYear_BD_h09v04_",k,".tif", sep = "")),
+                                       raster(paste("AllYear_BD_h09v05_",k,".tif", sep = "")),
+                                       raster(paste("AllYear_BD_h10v04_",k,".tif", sep = "")),
+                                       raster(paste("AllYear_BD_h10v05_",k,".tif", sep = "")),
+                                       raster(paste("AllYear_BD_h10v06_",k,".tif", sep = "")),
+                                       raster(paste("AllYear_BD_h11v04_",k,".tif", sep = "")),
+                                       raster(paste("AllYear_BD_h11v05_",k,".tif", sep = "")),
+                                       raster(paste("AllYear_BD_h12v04_",k,".tif", sep = "")),
+                                       raster(paste("AllYear_BD_h12v05_",k,".tif", sep = "")),
+                                       raster(paste("AllYear_BD_h13v04_",k,".tif", sep = "")))
+    
+    
+    ### need to find a more generic way to merge, it's in the help file for raster::merge
+    # whole_damn_country = sapply()
+    #   raster::merge(
+    #   for(N in 1:length(tiles)){
+    #     raster(paste0("AllYear_BD_",tiles[N],"_",k,".tif"))
+    #   }
+    # )
+    
+    
+    whole_damn_country_filename = paste0(final_output,"USA_", names[d], "_courtesy_of_Adam_Mahood", k, ".tif")
+    
+    writeRaster(whole_damn_country, whole_damn_country_filename, format = "GTiff")
+  }
 }
 
