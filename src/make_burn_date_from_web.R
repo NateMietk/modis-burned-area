@@ -40,7 +40,6 @@ u_p = "fire:burnt"
 
 reclassification_matrix_to_take_out_NAs = matrix(c(-Inf, 0, 0, 367, Inf, 0), byrow=TRUE, ncol=3)
 
-
 tiles = c("h08v04", 
           "h08v05", 
           "h09v04", 
@@ -53,6 +52,11 @@ tiles = c("h08v04",
           "h12v04",
           "h12v05",
           "h13v04")
+
+# or 
+# area_of_interest = readOGR(dsn = "data/CUS/", layer = "CUS")
+# area_of_interest = spTransform(area_of_interest, MODIS_projection) #might be necessary
+# tiles = MODIS::getTile(area_of_interest)[1]
 
 names <- c("BurnDate", "BurnDateUncertainty")
 
