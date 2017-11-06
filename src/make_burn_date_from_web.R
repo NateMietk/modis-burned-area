@@ -19,6 +19,7 @@
 # [4] "HDF4_EOS:EOS_GRID:MCD64A1.A2014213.h10v04.051.2014284031847.hdf:MOD_Grid_Monthly_500m_DB_BA:First Day"            
 # [5] "HDF4_EOS:EOS_GRID:MCD64A1.A2014213.h10v04.051.2014284031847.hdf:MOD_Grid_Monthly_500m_DB_BA:Last Day" 
 
+library(MODIS)
 library(tidyverse)
 library(raster)
 library(RCurl)
@@ -29,9 +30,9 @@ output_directory = "data/MODIS/output/"
 final_output = "data/MODIS/USA_BURNDATE/"
 
 #optional
-dir.create(paste0(top_directory))
-dir.create(paste0(output_directory))
-dir.create(paste0(final_output))
+dir.create(paste0(top_directory), recursive = TRUE)
+dir.create(paste0(output_directory), recursive = TRUE)
+dir.create(paste0(final_output), recursive = TRUE)
 
 
 url = "ftp://fire:burnt@fuoco.geog.umd.edu/MCD64A1/C6/"
@@ -58,7 +59,6 @@ names <- c("BurnDate", "BurnDateUncertainty")
 layers <- c("Burn Date", "Burn Date Uncertainty", "QA", "First Day", "Last Day")
 
 for(d in 1:2){ 
-  
   for(j in 1:length(tiles)){
     dir.create(paste0(top_directory, tiles[j]), recursive = TRUE)
     filenames <- getURL(paste0(url,tiles[j],"/"), userpwd = u_p, v=T, ftp.use.epsv = FALSE, dirlistonly = TRUE)
@@ -84,15 +84,9 @@ for(d in 1:2){
     newfilename1 <- paste0(names[d], filename, ".tif")
     
     for (M in 1:length(hdfs)) {
-     ### # Fix this to read HDF # ###
-      M = 1
-      sds = paste0("HDF4_EOS:EOS_GRID:",
-                    basename(hdfs[M]),
-                    ":MOD_Grid_Monthly_500m_DB_BA:",
-                    layers[d])
-      #sds = get_subdatasets(paste0(top_directory, hdfs[M]))
-      r <- raster(sds)
-      #gdal_translate(sds[d], dst_dataset = newfilename1[M])
+      sds <- getSds(paste0(top_directory, hdfs[M]))
+      r <- raster(sds$SDS4gdal[d])
+      writeRaster(r, newfilename1[M])
     }
     
     
@@ -119,7 +113,7 @@ for(d in 1:2){
 
 for(d in 1:2) {
   for(k in 2000:2016){
-  
+    
     list_of_maxxed_tiles = as.vector(Sys.glob(paste0(output_directory, "*", k, ".tif")))
     
     whole_damn_country = raster::merge(raster(paste("AllYear_BD_h08v04_",k,".tif", sep = "")),

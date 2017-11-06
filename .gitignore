@@ -1,3 +1,9 @@
+# tif files
+*.tif
+
+# data dir
+data/*
+
 # History files
 .Rhistory
 .Rapp.history
