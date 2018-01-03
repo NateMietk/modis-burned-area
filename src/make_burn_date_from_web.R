@@ -7,7 +7,7 @@
 ###################################################
 
 # Download from:
-# ftp://fuoco.geog.umd.edu/db/MCD64A1/
+# ftp://fuoco.geog.umd.edu/MCD64A1/C6/
 # username: fire
 # password: burnt
 
@@ -94,7 +94,7 @@ for(d in 1:2){
     }
     
     
-    for(i in 2000:2016){
+    for(i in 2000:2017){
       tile_files = Sys.glob(paste(names[d], i,"*.tif", sep = ""))
       print(tile_files)
       
@@ -116,7 +116,7 @@ for(d in 1:2){
 ######################## Then, stitch them all together
 
 for(d in 1:2) {
-  for(k in 2000:2016){
+  for(k in 2000:2017){
     
     list_of_maxxed_tiles = as.vector(Sys.glob(paste0(output_directory, "*", k, ".tif")))
     
