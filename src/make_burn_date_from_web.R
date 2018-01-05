@@ -38,7 +38,8 @@ dir.create(paste0(final_output), recursive = TRUE)
 url = "ftp://fire:burnt@fuoco.geog.umd.edu/MCD64A1/C6/"
 u_p = "fire:burnt"
 
-reclassification_matrix_to_take_out_NAs = matrix(c(-Inf, 0, 0, 367, Inf, 0), byrow=TRUE, ncol=3)
+# Reclassification matrix to remove NA values
+mtrx = matrix(c(-Inf, 0, 0, 367, Inf, 0), byrow=TRUE, ncol=3)
 
 tiles = c("h08v04", 
           "h08v05", 
@@ -53,31 +54,28 @@ tiles = c("h08v04",
           "h12v05",
           "h13v04")
 
-# or 
-# area_of_interest = readOGR(dsn = "data/CUS/", layer = "CUS")
-# area_of_interest = spTransform(area_of_interest, MODIS_projection) #might be necessary
-# tiles = MODIS::getTile(area_of_interest)[1]
-
 names <- c("BurnDate", "BurnDateUncertainty")
 
 layers <- c("Burn Date", "Burn Date Uncertainty", "QA", "First Day", "Last Day")
 
+for(j in 1:length(tiles)){
+  dir.create(paste0(top_directory, tiles[j]), recursive = TRUE)
+  filenames <- getURL(paste0(url,tiles[j],"/"), userpwd = u_p, v=T, ftp.use.epsv = FALSE, dirlistonly = TRUE)
+  filenames = paste0(strsplit(filenames, "\r*\n")[[1]])
+  for(L in 1:length(filenames)){
+    output_file_name <- file.path(paste0(top_directory,tiles[j]), filenames[L])
+    if(!file.exists(output_file_name)) {
+      download.file(paste0(url,tiles[j],"/",filenames[L]),
+                    output_file_name)
+    } 
+  }
+}
+
+# next, take the burn date rasters out of the .hdfs
 for(d in 1:2){ 
-  for(j in 1:length(tiles)){
-    dir.create(paste0(top_directory, tiles[j]), recursive = TRUE)
-    filenames <- getURL(paste0(url,tiles[j],"/"), userpwd = u_p, v=T, ftp.use.epsv = FALSE, dirlistonly = TRUE)
-    filenames = paste0(strsplit(filenames, "\r*\n")[[1]])
-    for(L in 1:length(filenames)){
-      output_file_name <- file.path(paste0(top_directory,tiles[j]), filenames[L])
-      if(!file.exists(output_file_name)) {
-        download.file(paste0(url,tiles[j],"/",filenames[L]),
-                      output_file_name)
-      } 
-    }
+  for(j in 1:length(tiles)){    
     
-    # next, take the burn date rasters out of the .hdfs
-    
-    hdfs = list.files(top_directory, pattern = ".hdf", 
+    hdfs = list.files(paste0(top_directory, tiles[j]), pattern = ".hdf", 
                       recursive = TRUE)
     
     filename = strsplit(hdfs, "\\.") %>%
@@ -87,24 +85,29 @@ for(d in 1:2){
     
     newfilename1 <- paste0(names[d], filename, ".tif")
     
-    for (M in 1:length(hdfs)) {
-      sds <- getSds(paste0(top_directory, hdfs[M]))
+    hdfs_full = list.files(paste0(top_directory, tiles[j]), pattern = ".hdf", 
+                           recursive = TRUE, full.names = TRUE)
+    
+    for (M in 1:length(hdfs_full)) {
+      sds <- getSds(hdfs_full[M])
       r <- raster(sds$SDS4gdal[d])
-      writeRaster(r, newfilename1[M])
+      if(!file.exists(paste0(top_directory, tiles[j], "/", newfilename1[M]))) {
+        writeRaster(r, paste0(top_directory, tiles[j], "/", newfilename1[M]))
+      }
     }
     
-    
     for(i in 2000:2017){
-      tile_files = Sys.glob(paste(names[d], i,"*.tif", sep = ""))
-      print(tile_files)
-      
-      one_stack_of_stuff = stack(tile_files)
-      two_reclassified_stuff = reclassify(one_stack_of_stuff, reclassification_matrix_to_take_out_NAs)
-      three_whole_year_of_fire = calc(two_reclassified_stuff, max)
-      
-      filename_for_the_tilefile = paste(output_directory, "AllYear_BD_", tiles[j], "_", i, ".tif", sep="")
-      
-      writeRaster(three_whole_year_of_fire, filename_for_the_tilefile, format = "GTiff")
+      tile_files = list.files(paste0(top_directory, tiles[j]), 
+                              pattern = "*.tif$", full.names=TRUE)
+      if(!file.exists(paste(output_directory, "AllYear_BD_", tiles[j], "_", i, ".tif", sep=""))){
+        rst_stk = raster::stack(tile_files)
+        rcls = reclassify(rst_stk, mtrx)
+        fire = calc(rcls, max)
+        
+        tfilename = paste(output_directory, "AllYear_BD_", tiles[j], "_", i, ".tif", sep="")
+        
+        writeRaster(fire, tfilename, format = "GTiff")
+      }
       
     }
     
