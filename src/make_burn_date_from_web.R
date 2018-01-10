@@ -24,6 +24,8 @@ library(tidyverse)
 library(raster)
 library(RCurl)
 library(gdalUtils)
+library(foreach)
+library(doParallel)
 
 top_directory = "data/MODIS/"
 output_directory = "data/MODIS/output/"
@@ -58,9 +60,14 @@ names <- c("BurnDate", "BurnDateUncertainty")
 
 layers <- c("Burn Date", "Burn Date Uncertainty", "QA", "First Day", "Last Day")
 
-for(j in 1:length(tiles)){
+#setup parallel backend to use many processors
+cores=detectCores()
+cl <- makeCluster(cores) #not to overload your computer
+registerDoParallel(cl)
+
+foreach(j = 1:length(tiles)) %dopar% {
   dir.create(paste0(top_directory, tiles[j]), recursive = TRUE)
-  filenames <- getURL(paste0(url,tiles[j],"/"), userpwd = u_p, v=T, ftp.use.epsv = FALSE, dirlistonly = TRUE)
+  filenames <- RCurl::getURL(paste0(url,tiles[j],"/"), userpwd = u_p, v=T, ftp.use.epsv = FALSE, dirlistonly = TRUE)
   filenames = paste0(strsplit(filenames, "\r*\n")[[1]])
   for(L in 1:length(filenames)){
     output_file_name <- file.path(paste0(top_directory,tiles[j]), filenames[L])
@@ -70,11 +77,13 @@ for(j in 1:length(tiles)){
     } 
   }
 }
+#stop cluster
+stopCluster(cl)
 
 # next, take the burn date rasters out of the .hdfs
-for(d in 1:2){ 
-  for(j in 1:length(tiles)){    
-    
+registerDoParallel(cl)
+foreach (d = 1:2) %:% # nesting operator
+  foreach (j = 1:length(tiles)) %dopar% {
     hdfs = list.files(paste0(top_directory, tiles[j]), pattern = ".hdf", 
                       recursive = TRUE)
     
@@ -108,13 +117,11 @@ for(d in 1:2){
         
         writeRaster(fire, tfilename, format = "GTiff")
       }
-      
     }
-    
     files_to_delete = list.files(paste0(top_directory,tiles[j],"/"))
     file.remove(files_to_delete)
   }
-}
+stopCluster(cl)
 
 ######################## Then, stitch them all together
 
