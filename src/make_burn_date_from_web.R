@@ -46,7 +46,7 @@ foreach(j = 1:length(tiles)) %dopar% {
     if(!file.exists(output_file_name)) {
       download.file(paste0(url,tiles[j],"/",filenames[L]),
                     output_file_name)
-    } 
+    }
   }
 }
 stopCluster(cl)
@@ -55,19 +55,19 @@ stopCluster(cl)
 registerDoParallel(cl)
 foreach (d = 1:2) %:% # nesting operator
   foreach (j = 1:length(tiles)) %dopar% {
-    hdfs = list.files(paste0(top_directory, tiles[j]), pattern = ".hdf", 
+    hdfs = list.files(paste0(top_directory, tiles[j]), pattern = ".hdf",
                       recursive = TRUE)
-    
+
     filename = strsplit(hdfs, "\\.") %>%
       lapply(`[`, 2:3) %>%
       lapply(paste, collapse = "_") %>%
       unlist
-    
+
     newfilename1 <- paste0(names[d], filename, ".tif")
-    
-    hdfs_full = list.files(paste0(top_directory, tiles[j]), pattern = ".hdf", 
+
+    hdfs_full = list.files(paste0(top_directory, tiles[j]), pattern = ".hdf",
                            recursive = TRUE, full.names = TRUE)
-    
+
     for (M in 1:length(hdfs_full)) {
       sds <- getSds(hdfs_full[M])
       r <- raster(sds$SDS4gdal[d])
@@ -82,15 +82,15 @@ stopCluster(cl)
 registerDoParallel(cl)
 foreach (j = 1:length(tiles)) %:% # nesting operator
   foreach (i = 2000:2017) %dopar% {
-      tile_files = list.files(paste0(top_directory, tiles[j]), 
+      tile_files = list.files(paste0(top_directory, tiles[j]),
                               pattern = "*.tif$", full.names=TRUE)
       if(!file.exists(paste(output_directory, "AllYear_BD_", tiles[j], "_", i, ".tif", sep=""))){
         rst_stk = raster::stack(tile_files)
         rcls = reclassify(rst_stk, mtrx)
         fire = calc(rcls, max)
-        
+
         tfilename = paste(output_directory, "AllYear_BD_", tiles[j], "_", i, ".tif", sep="")
-        
+
         writeRaster(fire, tfilename, format = "GTiff")
       }
     files_to_delete = list.files(paste0(top_directory,tiles[j],"/"))
@@ -101,9 +101,9 @@ stopCluster(cl)
 # Then, stitch them all together
 for(d in 1:2) {
   for(k in 2000:2017){
-    
+
     list_of_maxxed_tiles = as.vector(Sys.glob(paste0(output_directory, "*", k, ".tif")))
-    
+
     whole_damn_country = raster::merge(raster(paste("AllYear_BD_h08v04_",k,".tif", sep = "")),
                                        raster(paste("AllYear_BD_h08v05_",k,".tif", sep = "")),
                                        raster(paste("AllYear_BD_h09v04_",k,".tif", sep = "")),
@@ -116,8 +116,8 @@ for(d in 1:2) {
                                        raster(paste("AllYear_BD_h12v04_",k,".tif", sep = "")),
                                        raster(paste("AllYear_BD_h12v05_",k,".tif", sep = "")),
                                        raster(paste("AllYear_BD_h13v04_",k,".tif", sep = "")))
-    
-    
+
+
     ### need to find a more generic way to merge, it's in the help file for raster::merge
     # whole_damn_country = sapply()
     #   raster::merge(
@@ -125,11 +125,10 @@ for(d in 1:2) {
     #     raster(paste0("AllYear_BD_",tiles[N],"_",k,".tif"))
     #   }
     # )
-    
-    
+
+
     whole_damn_country_filename = paste0(final_output,"USA_", names[d], k, ".tif")
-    
+
     writeRaster(whole_damn_country, whole_damn_country_filename, format = "GTiff")
   }
 }
-
