@@ -25,24 +25,33 @@ tiles = c("h08v04", "h08v05", "h09v04", "h09v05", "h10v04", "h10v05",
 names <- c("BurnDate")
 layers <- c("Burn Date", "Burn Date Uncertainty", "QA", "First Day", "Last Day")
 
-for(j in 1:length(tiles)){
+#setup parallel backend to use many processors
+cores <- detectCores()
+
+# Download all tiles for the conterminous US
+cl <- makeCluster(cores)
+registerDoParallel(cl)
+foreach(j = 1:length(tiles)) %dopar% {
   dir.create(paste0(top_directory, tiles[j]), recursive = TRUE)
-  filenames <- getURL(paste0(url,tiles[j],"/"), userpwd = u_p, v=T, ftp.use.epsv = FALSE, dirlistonly = TRUE)
+  filenames <- RCurl::getURL(paste0(url,tiles[j],"/"), userpwd = u_p, v=T, ftp.use.epsv = FALSE, dirlistonly = TRUE)
   filenames = paste0(strsplit(filenames, "\r*\n")[[1]])
   for(L in 1:length(filenames)){
     output_file_name <- file.path(paste0(top_directory,tiles[j]), filenames[L])
     if(!file.exists(output_file_name)) {
       download.file(paste0(url,tiles[j],"/",filenames[L]),
                     output_file_name)
-    } 
+    }
   }
 }
+stopCluster(cl)
 
-# next, take the burn date rasters out of the .hdfs
-for(d in 1:2){ 
-  for(j in 1:length(tiles)){    
+# Take the burn date rasters out of the .hdfs and convert to .tif files
+cl <- makeCluster(cores)
+registerDoParallel(cl)
+foreach (d = 1) %:% # nesting operator
+  foreach (j = 1:length(tiles)) %dopar% {
     
-    hdfs = list.files(paste0(top_directory, tiles[j]), pattern = ".hdf", 
+    hdfs = list.files(paste0(top_directory, tiles[j]), pattern = ".hdf",
                       recursive = TRUE)
     
     filename = strsplit(hdfs, "\\.") %>%
@@ -52,39 +61,41 @@ for(d in 1:2){
     
     newfilename1 <- paste0(names[d], filename, ".tif")
     
-    hdfs_full = list.files(paste0(top_directory, tiles[j]), pattern = ".hdf", 
+    hdfs_full = list.files(paste0(top_directory, tiles[j]), pattern = ".hdf",
                            recursive = TRUE, full.names = TRUE)
     
     for (M in 1:length(hdfs_full)) {
-      sds <- getSds(hdfs_full[M])
-      r <- raster(sds$SDS4gdal[d])
+      sds <- MODIS::getSds(hdfs_full[M])
+      r <- raster::raster(sds$SDS4gdal[d])
       if(!file.exists(paste0(top_directory, tiles[j], "/", newfilename1[M]))) {
-        writeRaster(r, paste0(top_directory, tiles[j], "/", newfilename1[M]))
+        raster::writeRaster(r, paste0(top_directory, tiles[j], "/", newfilename1[M]))
       }
     }
-    
-    for(i in 2016:2017){
-      tile_files = list.files(paste0(top_directory, tiles[j]), 
-                              pattern = "*.tif$", full.names=TRUE)
-      if(!file.exists(paste(output_directory, "AllYear_BD_", tiles[j], "_", i, ".tif", sep=""))){
-        rst_stk = raster::stack(tile_files)
-        rcls = reclassify(rst_stk, mtrx)
-        fire = calc(rcls, max)
-        
-        tfilename = paste(output_directory, "AllYear_BD_", tiles[j], "_", i, ".tif", sep="")
-        
-        writeRaster(fire, tfilename, format = "GTiff")
-      }
+  }
+stopCluster(cl)
+
+# Create yearly composites for all tiles
+cl <- makeCluster(cores)
+registerDoParallel(cl)
+foreach (j = 1:length(tiles)) %:% # nesting operator
+  foreach (i = 2000:2017) %dopar% {
+    tile_files = list.files(paste0(top_directory, tiles[1]),
+                            pattern = "*.tif$", full.names=TRUE)
+    if(!file.exists(paste(output_directory, "AllYear_BD_", tiles[j], "_", i, ".tif", sep=""))){
+      rst_stk = raster::stack(tile_files)
+      rcls = raster::reclassify(rst_stk, mtrx)
+      fire = raster::calc(rcls, max)
       
+      tfilename = paste(output_directory, "AllYear_BD_", tiles[j], "_", i, ".tif", sep="")
+      
+      raster::writeRaster(fire, tfilename, format = "GTiff")
     }
-    
     files_to_delete = list.files(paste0(top_directory,tiles[j],"/"))
     file.remove(files_to_delete)
   }
-}
+stopCluster(cl)
 
-######################## Then, stitch them all together
-
+# Then, stitch them all together
 for(d in 1:2) {
   for(k in 2000:2017){
     
@@ -111,6 +122,7 @@ for(d in 1:2) {
     #     raster(paste0("AllYear_BD_",tiles[N],"_",k,".tif"))
     #   }
     # )
+    
     
     whole_damn_country_filename = paste0(final_output,"USA_", names[d], k, ".tif")
     
