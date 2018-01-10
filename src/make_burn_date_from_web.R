@@ -146,7 +146,7 @@ for(d in 1:2) {
     # )
     
     
-    whole_damn_country_filename = paste0(final_output,"USA_", names[d], "_courtesy_of_Adam_Mahood", k, ".tif")
+    whole_damn_country_filename = paste0(final_output,"USA_", names[d], k, ".tif")
     
     writeRaster(whole_damn_country, whole_damn_country_filename, format = "GTiff")
   }
