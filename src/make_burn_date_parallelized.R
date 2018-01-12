@@ -110,7 +110,8 @@ foreach(d = 1) %:% # nesting operator
       
       r.list <- list()
       for(N in 1:length(tiles)){  
-        r.list[[N]] <- raster::raster(paste0(output_directory, "/AllYear_BD_", tiles[N], "_", k, ".tif"))  
+
+        r.list[[N]] <- raster(paste0(output_directory, "/AllYear_BD_", tiles[N], "_", k, ".tif"))  
       } 
       final <- do.call(merge, r.list)
       
@@ -119,5 +120,4 @@ foreach(d = 1) %:% # nesting operator
     }
   }
 stopCluster(cl)
-
 

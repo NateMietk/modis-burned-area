@@ -63,6 +63,7 @@ for(d in 1){
       }
     }
     
+
     for(i in 2001:2017){
       tile_files = list.files(paste0(top_directory, tiles[j]), 
                               pattern = "*.tif$", full.names=TRUE)
@@ -84,7 +85,8 @@ for(d in 1){
 # Then, stitch them all together
 
 for(d in 1) {
-  for(k in 2016:2017){
+  for(k in 2001:2017){
+
     output_directory <- file.path("data", "MCD64A1", "C6", "yearly_tiles")
     
     tile_files = list.files(output_directory, 
