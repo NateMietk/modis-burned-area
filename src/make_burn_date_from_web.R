@@ -1,30 +1,5 @@
 
-# Download from:
-# ftp://fuoco.geog.umd.edu/MCD64A1/C6/
-# username: fire
-# password: burnt
-x <- c("MODIS", "tidyverse", "magrittr", "raster", "RCurl", "gdalUtils", "foreach", "doParallel")
-lapply(x, library, character.only = TRUE, verbose = FALSE)
-
-top_directory = paste0(file.path("data", "MCD64A1", "C6"), "/")
-output_directory = paste0(file.path("data", "MCD64A1", "C6", "yearly_tiles"), "/")
-final_output = paste0(file.path("data", "MCD64A1", "C6", "usa_burndate"), "/")
-
-# Check if directory exists for all variable aggregate outputs, if not then create
-var_dir <- list(top_directory, output_directory, final_output)
-lapply(var_dir, function(x) if(!dir.exists(x)) dir.create(x, showWarnings = FALSE))
-
-url = "ftp://fire:burnt@fuoco.geog.umd.edu/MCD64A1/C6/"
-u_p = "fire:burnt"
-
-# Reclassification matrix to remove NA values
-mtrx = matrix(c(-Inf, 0, 0, 367, Inf, 0), byrow=TRUE, ncol=3)
-tiles = c("h08v04", "h08v05", "h09v04", "h09v05", "h10v04", "h10v05",
-          "h10v06", "h11v04", "h11v05", "h12v04", "h12v05", "h13v04")
-
-names <- c("BurnDate")
-layers <- c("Burn Date", "Burn Date Uncertainty", "QA", "First Day", "Last Day")
-
+# Download all .hdf files from ftp site for the Conterminous US
 for(j in 1:length(tiles)){
   dir.create(paste0(top_directory, tiles[j]), recursive = TRUE)
   filenames <- getURL(paste0(url,tiles[j],"/"), userpwd = u_p, v=T, ftp.use.epsv = FALSE, dirlistonly = TRUE)
@@ -38,7 +13,7 @@ for(j in 1:length(tiles)){
   }
 }
 
-# next, take the burn date rasters out of the .hdfs
+# Convert .hdfs to .tifs, project to albers equal area, and reclassify to just julian date
 for(d in 1){ 
   for(j in 1:length(tiles)){    
     
@@ -57,34 +32,36 @@ for(d in 1){
     
     for (M in 1:length(hdfs_full)) {
       sds <- getSds(hdfs_full[M])
-      r <- raster(sds$SDS4gdal[d])
+      r <- raster::raster(sds$SDS4gdal[d]) %>%
+        raster::reclassify(., mtrx)
+      
       if(!file.exists(paste0(top_directory, tiles[j], "/", newfilename1[M]))) {
-        writeRaster(r, paste0(top_directory, tiles[j], "/", newfilename1[M]))
+        writeRaster(r, paste0(top_directory, tiles[j], "/", newfilename1[M]), overwrite=TRUE)
       }
     }
-    
-    for(i in 2001:2017){
-      tile_files = list.files(paste0(top_directory, tiles[j]), 
-                              pattern = "*.tif$", full.names=TRUE)
-      if(!file.exists(paste(output_directory, "AllYear_BD_", tiles[j], "_", i, ".tif", sep=""))){
-        rst_stk = raster::stack(tile_files)
-        rcls = reclassify(rst_stk, mtrx)
-        fire = calc(rcls, max)
-        
-        tfilename = paste(output_directory, "AllYear_BD_", tiles[j], "_", i, ".tif", sep="")
-        writeRaster(fire, tfilename, format = "GTiff")
-      }
-    }
-    
-    files_to_delete = list.files(paste0(top_directory,tiles[j],"/"))
-    file.remove(files_to_delete)
   }
 }
 
-# Then, stitch them all together
+# Create yearly composites for all tiles
+for(i in 2001:2017){
+  tile_files = list.files(paste0(top_directory, tiles[j]), 
+                          pattern = "*.tif$", full.names=TRUE)
+  if(!file.exists(paste(output_directory, "AllYear_BD_", tiles[j], "_", i, ".tif", sep=""))){
+    fire = raster::stack(tile_files) %>%
+      calc(., max)
+    
+    tfilename = paste(output_directory, "AllYear_BD_", tiles[j], "_", i, ".tif", sep="")
+    writeRaster(fire, tfilename, format = "GTiff")
+  }
+  #}
+  # files_to_delete = list.files(paste0(top_directory,tiles[j],"/"))
+  # file.remove(files_to_delete)
+}
 
+# Create mosaic of burned area for the lower 48 US for each year
 for(d in 1) {
   for(k in 2016:2017){
+    
     output_directory <- file.path("data", "MCD64A1", "C6", "yearly_tiles")
     
     tile_files = list.files(output_directory, 
@@ -95,7 +72,10 @@ for(d in 1) {
       for(N in 1:length(tiles)){  
         r.list[[N]] <- raster(paste0(output_directory, "/AllYear_BD_", tiles[N], "_", k, ".tif"))  
       } 
-      final <- do.call(merge, r.list)
+      final <- do.call(merge, r.list) %>%
+        raster::crop(as(wus_ms, "Spatial")) %>%
+        raster::mask(as(wus_ms, "Spatial")) %>%
+        raster::projectRaster(crs = p4string_ea, res = 500)
       
       final_name <- paste0(final_output,"USA_", names[d], k, ".tif")
       writeRaster(final, final_name, format = "GTiff")
