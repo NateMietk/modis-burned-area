@@ -39,7 +39,7 @@ for(j in 1:length(tiles)){
 }
 
 # next, take the burn date rasters out of the .hdfs
-for(d in 1:2){ 
+for(d in 1){ 
   for(j in 1:length(tiles)){    
     
     hdfs = list.files(paste0(top_directory, tiles[j]), pattern = ".hdf", 
@@ -84,7 +84,7 @@ for(d in 1:2){
 # Then, stitch them all together
 
 for(d in 1) {
-  for(k in 2001:2017){
+  for(k in 2016:2017){
     output_directory <- file.path("data", "MCD64A1", "C6", "yearly_tiles")
     
     tile_files = list.files(output_directory, 
