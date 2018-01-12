@@ -63,7 +63,11 @@ for(d in 1:2){
       }
     }
     
+<<<<<<< HEAD
     for(i in 2001:2017){
+=======
+    for(i in 2016:2017){
+>>>>>>> dfa6cbadb743acbdcd76d7ed956184c762efa7ed
       tile_files = list.files(paste0(top_directory, tiles[j]), 
                               pattern = "*.tif$", full.names=TRUE)
       if(!file.exists(paste(output_directory, "AllYear_BD_", tiles[j], "_", i, ".tif", sep=""))){
@@ -84,7 +88,11 @@ for(d in 1:2){
 # Then, stitch them all together
 
 for(d in 1) {
+<<<<<<< HEAD
   for(k in 2001:2017){
+=======
+  for(k in 2016:2017){
+>>>>>>> dfa6cbadb743acbdcd76d7ed956184c762efa7ed
     output_directory <- file.path("data", "MCD64A1", "C6", "yearly_tiles")
     
     tile_files = list.files(output_directory, 
