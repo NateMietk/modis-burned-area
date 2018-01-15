@@ -81,7 +81,11 @@ foreach(d = 1) %:% # nesting operator
       
       r.list <- list()
       for(N in 1:length(tiles)){  
+<<<<<<< HEAD
         
+=======
+
+>>>>>>> 8b2cb4cb916cad65adfff8d6ec18ff0dbf53a415
         r.list[[N]] <- raster(paste0(output_directory, "/AllYear_BD_", tiles[N], "_", k, ".tif"))  
       } 
       final <- do.call(merge, r.list) %>%
