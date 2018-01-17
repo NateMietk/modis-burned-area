@@ -15,13 +15,15 @@ raw_prefix <- file.path(prefix, "raw")
 us_prefix <- file.path(raw_prefix, "cb_2016_us_state_20m")
 
 # Output folders
-MCD64A1_dir <- paste0(file.path(prefix, "MCD64A1"))
-top_directory = paste0(file.path("data", "MCD64A1", "C6"), "/")
-output_directory = paste0(file.path(top_directory, "yearly_tiles"), "/")
-final_output = paste0(file.path(top_directory, "usa_burndate"), "/")
+MCD64A1_dir <- file.path(prefix, "MCD64A1")
+top_directory <- file.path("data", "MCD64A1", "C6")
+hdf_months <- file.path(top_directory, "hdf_months")
+tif_months <- file.path(top_directory, "tif_months")
+tif_year <- file.path(top_directory, "tif_years")
+final_output <- file.path(top_directory, "usa_burndate")
 
 # Check if directory exists for all variable aggregate outputs, if not then create
-var_dir <- list(prefix, raw_prefix, us_prefix, MCD64A1_dir, top_directory, output_directory, final_output)
+var_dir <- list(prefix, raw_prefix, us_prefix, MCD64A1_dir, hdf_months, tif_months, tif_year, final_output)
 lapply(var_dir, function(x) if(!dir.exists(x)) dir.create(x, showWarnings = FALSE))
 
 url = "ftp://fire:burnt@fuoco.geog.umd.edu/MCD64A1/C6/"
