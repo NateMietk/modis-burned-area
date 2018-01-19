@@ -77,11 +77,11 @@ for(k in 2001:2017) {
       tile_files = as.vector(Sys.glob(paste0(tif_year, "/", "*", k, "*", ".tif")))
       final <- lapply(tile_files, raster)
       final <- do.call(merge, final) %>%
-        raster::crop(wus_ms) %>%
-        raster::mask(wus_ms) %>%
+        raster::crop(usa_ms) %>%
+        raster::mask(usa_ms) %>%
         raster::projectRaster(crs = p4string_ea, res = 500) %>%
-        raster::crop(as(wus_shp, "Spatial")) %>%
-        raster::mask(as(wus_shp, "Spatial"))
+        raster::crop(as(usa_shp, "Spatial")) %>%
+        raster::mask(as(usa_shp, "Spatial"))
 
       final_name <- paste0(final_output,"/USA_", names, "_", k, ".tif")
       raster::writeRaster(final, final_name, format = "GTiff")

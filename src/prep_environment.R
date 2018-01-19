@@ -51,6 +51,17 @@ if (!file.exists(us_shp)) {
   assert_that(file.exists(us_shp))
 }
 
+usa_shp <- st_read(dsn = us_prefix,
+                   layer = "cb_2016_us_state_20m", quiet= TRUE) %>%
+  filter(!(STUSPS %in% c("AK", "HI", "PR"))) %>%
+  dplyr::select(STUSPS) %>%
+  st_transform(p4string_ea) 
+names(usa_shp) %<>% tolower
+
+usa_ms <- st_transform(usa_shp, crs = p4string_ms) %>%
+  as(., "Spatial")
+
+
 wus_shp <- st_read(dsn = us_prefix,
                    layer = "cb_2016_us_state_20m", quiet= TRUE) %>%
   filter(STUSPS %in% c("CO", "WA", "OR", "NV", "CA", "ID", "UT",
