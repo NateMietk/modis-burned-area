@@ -52,8 +52,12 @@ if (!file.exists(us_shp)) {
   assert_that(file.exists(us_shp))
 }
 
-usa_shp <- st_read(dsn = us_prefix,
-                   layer = "cb_2016_us_state_20m", quiet= TRUE) %>%
+modis_grid <- st_read(modis_shp, quiet= TRUE) %>%
+  mutate(h = if_else(nchar(as.character(h)) == 1, paste0("h0", as.character(h)), paste0("h", as.character(h))),
+         v = if_else(nchar(as.character(v)) == 1, paste0("v0", as.character(v)), paste0("v", as.character(v))),
+         hv = paste0(h, v, sep = " "))
+
+usa_shp <- st_read(us_shp, quiet= TRUE) %>%
   filter(!(STUSPS %in% c("AK", "HI", "PR"))) %>%
   dplyr::select(STUSPS) %>%
   st_transform(p4string_ea) 
