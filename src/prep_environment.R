@@ -33,7 +33,7 @@ u_p = "fire:burnt"
 #Download the MODIS tile grid -------------------------
 modis_shp <- file.path(modis_tiles_dir, "modis_sinusoidal_grid_world.shp")
 if (!file.exists(modis_shp)) {
-  loc <- "http://book.ecosens.org/wp-content/uploads/2016/06/modis_grid.zip"
+  loc <- "https://s3-us-west-2.amazonaws.com/modis-grids/modis_grid.zip"
   dest <- paste0(modis_tiles_dir, ".zip")
   download.file(loc, dest)
   unzip(dest, exdir = modis_tiles_dir)
