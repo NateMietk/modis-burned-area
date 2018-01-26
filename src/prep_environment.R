@@ -3,11 +3,38 @@
 # ftp://fuoco.geog.umd.edu/MCD64A1/C6/
 # username: fire
 # password: burnt
+
 x <- c("MODIS", "tidyverse", "magrittr", "raster", "RCurl", 
        "gdalUtils", "foreach", "doParallel", "sf", "assertthat")
 lapply(x, library, character.only = TRUE, verbose = TRUE)
 
-p4string_ea <- "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs"   #http://spatialreference.org/ref/sr-org/6903/
+# shapefiles --------------------------------
+# input shapefile of interest
+shp_dsn <- "src/es"          # this is the directory where the shapefile is stored
+shp_layer <- "CBR" 
+get_tiles <- function(dsn, layer){
+  shp_dsn <- dsn          # this is the directory where the shapefile is stored
+  shp_layer <- layer        # this is the pre-extension name of the files associated with the shapfile
+  shp_oi <- st_read(dsn = shp_dsn,
+                    layer = shp_layer, 
+                    quiet= TRUE)
+  
+  # input modis shapefile
+  ms_dsn <- "src/ms"
+  ms_layer <- "modis_sinusoidal_grid_world"
+  shp_ms <- st_read(dsn = ms_dsn,
+                    layer = ms_layer, 
+                    quiet= TRUE)
+  
+  tiles <- shp_oi %>%
+    sf::st_transform(st_crs(shp_ms)) %>%
+    st_intersection(shp_ms) %>%
+    as.data.frame()%>%
+    select(h, v) 
+  tiles <- as.vector()
+}
+
+p4string_ea <- st_crs(shp_oi)
 p4string_ms <- "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs "
 
 # Raw data folders
@@ -21,7 +48,7 @@ top_directory <- file.path("data", "MCD64A1", "C6")
 hdf_months <- file.path(top_directory, "hdf_months")
 tif_months <- file.path(top_directory, "tif_months")
 tif_year <- file.path(top_directory, "tif_years")
-final_output <- file.path(top_directory, "usa_burndate")
+final_output <- file.path(top_directory, "result")
 
 # Check if directory exists for all variable aggregate outputs, if not then create
 var_dir <- list(prefix, raw_prefix, us_prefix, modis_tiles_dir, MCD64A1_dir, hdf_months, tif_months, tif_year, final_output)
@@ -87,5 +114,3 @@ wus_shp <- st_read(dsn = us_prefix,
   st_transform(p4string_ea) 
 names(wus_shp) %<>% tolower
 
-wus_ms <- st_transform(wus_shp, crs = p4string_ms) %>%
-  as(., "Spatial")
