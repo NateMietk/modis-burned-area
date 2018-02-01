@@ -1,116 +1,107 @@
 
-# Download from:
-# ftp://fuoco.geog.umd.edu/MCD64A1/C6/
-# username: fire
-# password: burnt
-
-x <- c("MODIS", "tidyverse", "magrittr", "raster", "RCurl", 
-       "gdalUtils", "foreach", "doParallel", "sf", "assertthat")
+x <- c("MODIS", "tidyverse", "magrittr", "raster", "RCurl", "gdalUtils", "foreach", "doParallel", "sf", "assertthat")
 lapply(x, library, character.only = TRUE, verbose = TRUE)
 
-# shapefiles --------------------------------
-# input shapefile of interest
-shp_dsn <- "src/es"          # this is the directory where the shapefile is stored
-shp_layer <- "CBR" 
-get_tiles <- function(dsn, layer){
-  shp_dsn <- dsn          # this is the directory where the shapefile is stored
-  shp_layer <- layer        # this is the pre-extension name of the files associated with the shapfile
-  shp_oi <- st_read(dsn = shp_dsn,
-                    layer = shp_layer, 
-                    quiet= TRUE)
-  
-  # input modis shapefile
-  ms_dsn <- "src/ms"
-  ms_layer <- "modis_sinusoidal_grid_world"
-  shp_ms <- st_read(dsn = ms_dsn,
-                    layer = ms_layer, 
-                    quiet= TRUE)
-  
-  tiles <- shp_oi %>%
-    sf::st_transform(st_crs(shp_ms)) %>%
-    st_intersection(shp_ms) %>%
-    as.data.frame()%>%
-    select(h, v) 
-  tiles <- as.vector()
-}
-
-p4string_ea <- st_crs(shp_oi)
-p4string_ms <- "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs "
+p4string_ea <- "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs" 
+p4string_ms <- "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
 
 # Raw data folders
 prefix <- "data"
 raw_prefix <- file.path(prefix, "raw")
 us_prefix <- file.path(raw_prefix, "cb_2016_us_state_20m")
-modis_tiles_dir <- file.path(raw_prefix, "modis_grid")
+
 # Output folders
 MCD64A1_dir <- file.path(prefix, "MCD64A1")
-top_directory <- file.path("data", "MCD64A1", "C6")
-hdf_months <- file.path(top_directory, "hdf_months")
-tif_months <- file.path(top_directory, "tif_months")
-tif_year <- file.path(top_directory, "tif_years")
-final_output <- file.path(top_directory, "result")
+version_dir <- file.path(MCD64A1_dir, "C6")
+hdf_months <- file.path(version_dir, "hdf_months")
+tif_months <- file.path(version_dir, "tif_months")
+tif_year <- file.path(version_dir, "tif_years")
+final_output <- file.path(version_dir, "yearly_composites")
 
 # Check if directory exists for all variable aggregate outputs, if not then create
-var_dir <- list(prefix, raw_prefix, us_prefix, modis_tiles_dir, MCD64A1_dir, hdf_months, tif_months, tif_year, final_output)
+var_dir <- list(prefix, raw_prefix, us_prefix, MCD64A1_dir, version_dir, 
+                hdf_months, tif_months, tif_year, final_output)
 lapply(var_dir, function(x) if(!dir.exists(x)) dir.create(x, showWarnings = FALSE))
 
-url = "ftp://fire:burnt@fuoco.geog.umd.edu/MCD64A1/C6/"
-u_p = "fire:burnt"
-
-#Download the MODIS tile grid -------------------------
-modis_shp <- file.path(modis_tiles_dir, "modis_sinusoidal_grid_world.shp")
-if (!file.exists(modis_shp)) {
-  loc <- "https://s3-us-west-2.amazonaws.com/modis-grids/modis_grid.zip"
-  dest <- paste0(modis_tiles_dir, ".zip")
-  download.file(loc, dest)
-  unzip(dest, exdir = modis_tiles_dir)
-  unlink(dest)
-  assert_that(file.exists(modis_shp))
+# Function to download files
+file.download <- function(shp_path_name, shp_dir, url){
+  if (!file.exists(shp_path_name)) {
+    dest <- paste0(shp_dir, ".zip")
+    download.file(url, dest)
+    unzip(dest, exdir = shp_dir)
+    unlink(dest)
+    assert_that(file.exists(shp_path_name))
+  }
 }
 
-#Download the USA States layer -------------------------
-us_shp <- file.path(us_prefix, "cb_2016_us_state_20m.shp")
-if (!file.exists(us_shp)) {
-  loc <- "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_state_20m.zip"
-  dest <- paste0(us_prefix, ".zip")
-  download.file(loc, dest)
-  unzip(dest, exdir = us_prefix)
-  unlink(dest)
-  assert_that(file.exists(us_shp))
-}
+# Download the USA States layer -------------------------
+file.download(file.path(us_prefix, "cb_2016_us_state_20m.shp"), 
+              us_prefix, "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_state_20m.zip")
 
-modis_grid <- st_read(modis_shp, quiet= TRUE) %>%
-  mutate(h = if_else(nchar(as.character(h)) == 1, paste0("h0", as.character(h)), paste0("h", as.character(h))),
-         v = if_else(nchar(as.character(v)) == 1, paste0("v0", as.character(v)), paste0("v", as.character(v))),
-         hv = paste0(h, v, sep = " "))
-
-usa_shp <- st_read(us_shp, quiet= TRUE) %>%
+# Import and prep the USA shapefile
+usa <- st_read(file.path(us_prefix, "cb_2016_us_state_20m.shp"),
+               quiet= TRUE) %>%
   filter(!(STUSPS %in% c("AK", "HI", "PR"))) %>%
   dplyr::select(STUSPS) %>%
   st_transform(p4string_ea) 
-names(usa_shp) %<>% tolower
+names(usa) %<>% tolower
 
-# Reclassification matrix to remove NA values
-mtrx = matrix(c(-Inf, 0, 0, 367, Inf, 0), byrow=TRUE, ncol=3)
-tiles = c("h08v04", "h08v05", "h09v04", "h09v05", "h10v04", "h10v05",
-          "h10v06", "h11v04", "h11v05", "h12v04", "h12v05", "h13v04")
-
-names <- c("BurnDate")
-layers <- c("Burn Date", "Burn Date Uncertainty", "QA", "First Day", "Last Day")
-
-#setup parallel backend to use many processors
-cores <- detectCores()
-
-
-usa_ms <- st_transform(usa_shp, crs = p4string_ms) %>%
+# Reproject USA shapefile to MODIS sinusoidal
+usa_ms <- st_transform(usa, crs = p4string_ms) %>%
   as(., "Spatial")
 
-
-wus_shp <- st_read(dsn = us_prefix,
-                   layer = "cb_2016_us_state_20m", quiet= TRUE) %>%
+# Import and prep the USA shapefile and extract for only the Western US
+wus <- st_read(file.path(us_prefix, "cb_2016_us_state_20m.shp"), 
+                   quiet= TRUE) %>%
   filter(STUSPS %in% c("CO", "WA", "OR", "NV", "CA", "ID", "UT",
                        "WY", "NM", "AZ", "MT")) %>%
   dplyr::select(STUSPS) %>%
   st_transform(p4string_ea) 
 names(wus_shp) %<>% tolower
+
+# Reproject WUS shapefile to MODIS sinusoidal
+wus_ms <- st_transform(wus, crs = p4string_ms) %>%
+  as(., "Spatial")
+
+# This function extracts the MODIS tiles that intersect with the shapefile area of interest
+get_tiles <- function(aoi_mask){
+   # aoi_mask = The shapefile mask where the tiles numbers are to be expected by.  
+    # This shapefile mask object is expected to be an sf object
+  
+  #Download the MODIS tile grid -------------------------
+  dir.create("tmp", showWarnings = FALSE)
+  dir_path <- file.path("tmp")
+  loc <- "https://s3-us-west-2.amazonaws.com/modis-grids/modis_grid.zip"
+  dest <- paste0(dir_path, ".zip")
+  download.file(loc, dest)
+  unzip(dest, exdir = dir_path)
+  unlink(dest)
+
+  modis_grid <- sf::st_read( file.path(dir_path, "modis_sinusoidal_grid_world.shp"), quiet= TRUE) %>%
+    dplyr::mutate(h = if_else(nchar(as.character(h)) == 1, paste0("h0", as.character(h)), paste0("h", as.character(h))),
+           v = if_else(nchar(as.character(v)) == 1, paste0("v0", as.character(v)), paste0("v", as.character(v))),
+           hv = paste0(h, v, sep = " "))
+  unlink(dir_path, recursive = TRUE)
+  
+  tiles <- aoi_mask %>%
+    sf::st_transform(st_crs(modis_grid)) %>%
+    st_intersection(modis_grid) %>%
+    as.data.frame() %>%
+    dplyr::select(hv) %>%
+    distinct(., hv) 
+  return(as.vector(tiles$hv) %>%
+           stringr::str_trim(., side = "both"))
+}
+
+# Vector of MODIS tiles to download
+tiles <- get_tiles(usa)
+
+names <- c("BurnDate")
+layers <- c("Burn Date", "Burn Date Uncertainty", "QA", "First Day", "Last Day")
+
+
+
+
+
+
 

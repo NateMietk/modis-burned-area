@@ -1,0 +1,1707 @@
+0:dplyr::select(hv) %>%
+0:distinct(., hv)
+0:return(as.vector(tiles$hv) %>%
+0:stringr::str_trim(., side = "both"))
+0:}
+0:# Vector of MODIS tiles to download
+0:tiles <- get_tiles(usa)
+0:# Reclassification matrix to remove NA values
+0:mtrx = matrix(c(-Inf, 1, 0, 366, Inf, 0), byrow=TRUE, ncol=3)
+0:names <- c("BurnDate")
+0:layers <- c("Burn Date", "Burn Date Uncertainty", "QA", "First Day", "Last Day")
+0:url = "ftp://fire:burnt@fuoco.geog.umd.edu/MCD64A1/C6/"
+0:u_p = "fire:burnt"
+0:#setup parallel backend to use many processors
+0:cores <- detectCores()
+0:cl <- makeCluster(cores)
+0:registerDoParallel(cl)
+0:foreach(j = 1:length(tiles)) %dopar% {
+0:filenames <- RCurl::getURL(paste0(url, tiles[j],"/"), userpwd = u_p, v=T, ftp.use.epsv = FALSE, dirlistonly = TRUE)
+0:filenames = paste0(strsplit(filenames, "\r*\n")[[1]])
+0:for(L in 1:length(filenames)){
+0:output_file_name <- file.path(hdf_months, filenames[L])
+0:if(!file.exists(output_file_name)) {
+0:download.file(paste0(url, tiles[j],"/",filenames[L]),
+0:output_file_name)
+0:}
+0:}
+0:}
+0:stopCluster(cl)
+0:# Raw data folders
+0:prefix <- "data"
+0:raw_prefix <- file.path(prefix, "raw")
+0:us_prefix <- file.path(raw_prefix, "cb_2016_us_state_20m")
+0:# Output folders
+0:MCD64A1_dir <- file.path(prefix, "MCD64A1")
+0:version_dir <- file.path(MCD64A1_dir, "C6")
+0:hdf_months <- file.path(version_dir, "hdf_months")
+0:tif_months <- file.path(version_dir, "tif_months")
+0:tif_year <- file.path(version_dir, "tif_years")
+0:final_output <- file.path(version_dir, "yearly_composites")
+0:# Check if directory exists for all variable aggregate outputs, if not then create
+0:var_dir <- list(prefix, raw_prefix, us_prefix, MCD64A1_dir, version_dir,
+0:hdf_months, tif_months, tif_year, final_output)
+0:lapply(var_dir, function(x) if(!dir.exists(x)) dir.create(x, showWarnings = FALSE))
+0:# Create yearly composites for all tiles
+0:cl <- makeCluster(cores/2)
+0:registerDoParallel(cl)
+0:foreach (j = 1:length(tiles)) %dopar% {
+0:for(i in 2001:2017) {
+0:require(magrittr)
+0:require(raster)
+0:tile_files = as.vector(Sys.glob(paste0(tif_months, "/", "*", "2017", "*", tiles[1], ".tif")))
+0:print(tile_files)}}
+0:if(!file.exists(paste(tif_year, "/Yearly_BD_", tiles[j], "_", i, ".tif", sep=""))){
+0:fire = raster::stack(tile_files) %>%
+0:raster::reclassify(., mtrx) %>%
+0:raster::calc(., max)
+0:tfilename = paste(tif_year, "/Yearly_BD_", tiles[j], "_", i, ".tif", sep="")
+0:raster::writeRaster(fire, tfilename, format = "GTiff", overwrite=TRUE)
+0:}
+0:}
+0:}
+0:stopCluster(cl)
+0:# Create yearly composites for all tiles
+0:cl <- makeCluster(cores/2)
+0:registerDoParallel(cl)
+0:foreach (j = 1:length(tiles)) %dopar% {
+0:for(i in 2001:2017) {
+0:require(magrittr)
+0:require(raster)
+0:tile_files = as.vector(Sys.glob(paste0(tif_months, "/", "*", i, "*", tiles[j], ".tif")))
+0:if(!file.exists(paste(tif_year, "/Yearly_BD_", tiles[j], "_", i, ".tif", sep=""))){
+0:fire = raster::stack(tile_files) %>%
+0:raster::reclassify(., mtrx) %>%
+0:raster::calc(., max)
+0:tfilename = paste(tif_year, "/Yearly_BD_", tiles[j], "_", i, ".tif", sep="")
+0:raster::writeRaster(fire, tfilename, format = "GTiff", overwrite=TRUE)
+0:}
+0:}
+0:}
+0:stopCluster(cl)
+0:tiles
+0:# Create yearly composites for all tiles
+0:cl <- makeCluster(cores/2)
+0:registerDoParallel(cl)
+0:foreach (j = 1:length(tiles)) %dopar% {
+0:for(i in 2001:2017) {
+0:require(magrittr)
+0:require(raster)
+0:tile_files = as.vector(Sys.glob(paste0(tif_months, "/", "*", i, "*", tiles[[j]], ".tif")))
+0:if(!file.exists(paste(tif_year, "/Yearly_BD_", tiles[[j]], "_", i, ".tif", sep=""))){
+0:fire = raster::stack(tile_files) %>%
+0:raster::reclassify(., mtrx) %>%
+0:raster::calc(., max)
+0:tfilename = paste(tif_year, "/Yearly_BD_", tiles[[j]], "_", i, ".tif", sep="")
+0:raster::writeRaster(fire, tfilename, format = "GTiff", overwrite=TRUE)
+0:}
+0:}
+0:}
+0:stopCluster(cl)
+0:cl <- makeCluster(cores)
+0:registerDoParallel(cl)
+0:foreach (j = 1:length(tiles)) %dopar% {
+0:require(magrittr)
+0:require(raster)
+0:require(MODIS)
+0:hdfs = list.files(hdf_months, pattern = ".hdf",
+0:recursive = TRUE)
+0:filename = strsplit(hdfs, "\\.") %>%
+0:lapply(`[`, 2:3) %>%
+0:lapply(paste, collapse = "_") %>%
+0:unlist
+0:outname <- paste0(names, filename, ".tif")
+0:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+0:recursive = TRUE, full.names = TRUE)
+0:for (M in 1:length(hdfs_full)) {
+0:sds <- MODIS::getSds(hdfs_full[M])
+0:r <- raster::raster(sds$SDS4gdal[d])
+0:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+0:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+0:}
+0:}
+0:}
+0:stopCluster(cl)
+0:install.packages("MODIS")
+0:library(MODIS)
+0:cl <- makeCluster(cores)
+0:registerDoParallel(cl)
+0:foreach (j = 1:length(tiles)) %dopar% {
+0:require(magrittr)
+0:require(raster)
+0:require(MODIS)
+0:hdfs = list.files(hdf_months, pattern = ".hdf",
+0:recursive = TRUE)
+0:filename = strsplit(hdfs, "\\.") %>%
+0:lapply(`[`, 2:3) %>%
+0:lapply(paste, collapse = "_") %>%
+0:unlist
+0:outname <- paste0(names, filename, ".tif")
+0:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+0:recursive = TRUE, full.names = TRUE)
+0:for (M in 1:length(hdfs_full)) {
+0:sds <- MODIS::getSds(hdfs_full[M])
+0:r <- raster::raster(sds$SDS4gdal[d])
+0:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+0:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+0:}
+0:}
+0:}
+0:stopCluster(cl)
+0:devtools::install_github("MatMatt/MODIS", ref = "develop")
+0:library(MODIS)
+0:cl <- makeCluster(cores)
+0:registerDoParallel(cl)
+0:foreach (j = 1:length(tiles)) %dopar% {
+0:require(magrittr)
+0:require(raster)
+0:require(MODIS)
+0:hdfs = list.files(hdf_months, pattern = ".hdf",
+0:recursive = TRUE)
+0:filename = strsplit(hdfs, "\\.") %>%
+0:lapply(`[`, 2:3) %>%
+0:lapply(paste, collapse = "_") %>%
+0:unlist
+0:outname <- paste0(names, filename, ".tif")
+0:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+0:recursive = TRUE, full.names = TRUE)
+0:for (M in 1:length(hdfs_full)) {
+0:sds <- MODIS::getSds(hdfs_full[M])
+0:r <- raster::raster(sds$SDS4gdal[d])
+0:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+0:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+0:}
+0:}
+0:}
+0:stopCluster(cl)
+0:# Download from:
+0:# ftp://fuoco.geog.umd.edu/MCD64A1/C6/
+0:# username: fire
+0:# password: burnt
+0:x <- c("MODIS", "tidyverse", "magrittr", "raster", "RCurl",
+0:"gdalUtils", "foreach", "doParallel", "sf", "assertthat")
+0:lapply(x, library, character.only = TRUE, verbose = TRUE)
+0:p4string_ea <- "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs"
+0:# Raw data folders
+0:prefix <- "data"
+0:raw_prefix <- file.path(prefix, "raw")
+0:us_prefix <- file.path(raw_prefix, "cb_2016_us_state_20m")
+0:# Output folders
+0:MCD64A1_dir <- file.path(prefix, "MCD64A1")
+0:version_dir <- file.path(MCD64A1_dir, "C6")
+0:hdf_months <- file.path(version_dir, "hdf_months")
+0:tif_months <- file.path(version_dir, "tif_months")
+0:tif_year <- file.path(version_dir, "tif_years")
+0:final_output <- file.path(version_dir, "yearly_composites")
+0:# Check if directory exists for all variable aggregate outputs, if not then create
+0:var_dir <- list(prefix, raw_prefix, us_prefix, MCD64A1_dir, version_dir,
+0:hdf_months, tif_months, tif_year, final_output)
+0:lapply(var_dir, function(x) if(!dir.exists(x)) dir.create(x, showWarnings = FALSE))
+0:# Function to download files
+0:file.download <- function(shp_path_name, shp_dir, url){
+0:if (!file.exists(shp_path_name)) {
+0:dest <- paste0(shp_dir, ".zip")
+0:download.file(url, dest)
+0:unzip(dest, exdir = shp_dir)
+0:unlink(dest)
+0:assert_that(file.exists(shp_path_name))
+0:}
+0:}
+0:#Download the USA States layer -------------------------
+0:file.download(file.path(us_prefix, "cb_2016_us_state_20m.shp"),
+0:us_prefix, "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_state_20m.zip")
+0:# Import and prep the USA shapefile
+0:usa <- st_read(file.path(us_prefix, "cb_2016_us_state_20m.shp"),
+0:quiet= TRUE) %>%
+0:filter(!(STUSPS %in% c("AK", "HI", "PR"))) %>%
+0:dplyr::select(STUSPS) %>%
+0:st_transform(p4string_ea)
+0:names(usa) %<>% tolower
+0:# Reproject USA shapefile to MODIS sinusoidal
+0:usa_ms <- st_transform(usa_shp, crs = p4string_ms) %>%
+0:as(., "Spatial")
+0:# Import and prep the USA shapefile and extract for only the Western US
+0:wus_shp <- st_read(file.path(us_prefix, "cb_2016_us_state_20m.shp"),
+0:quiet= TRUE) %>%
+0:filter(STUSPS %in% c("CO", "WA", "OR", "NV", "CA", "ID", "UT",
+0:"WY", "NM", "AZ", "MT")) %>%
+0:dplyr::select(STUSPS) %>%
+0:st_transform(p4string_ea)
+0:names(wus_shp) %<>% tolower
+0:# Reproject WUS shapefile to MODIS sinusoidal
+0:wus_ms <- st_transform(wus_shp, crs = p4string_ms) %>%
+0:as(., "Spatial")
+0:# This function extracts the MODIS tiles that intersect with the shapefile area of interest
+0:get_tiles <- function(aoi_mask){
+0:# aoi_mask = The shapefile mask where the tiles numbers are to be expected by.
+0:# This shapefile mask object is expected to be an sf object
+0:#Download the MODIS tile grid -------------------------
+0:dir.create("tmp", showWarnings = FALSE)
+0:dir_path <- file.path("tmp")
+0:loc <- "https://s3-us-west-2.amazonaws.com/modis-grids/modis_grid.zip"
+0:dest <- paste0(dir_path, ".zip")
+0:download.file(loc, dest)
+0:unzip(dest, exdir = dir_path)
+0:unlink(dest)
+0:modis_grid <- sf::st_read( file.path(dir_path, "modis_sinusoidal_grid_world.shp"), quiet= TRUE) %>%
+0:dplyr::mutate(h = if_else(nchar(as.character(h)) == 1, paste0("h0", as.character(h)), paste0("h", as.character(h))),
+0:v = if_else(nchar(as.character(v)) == 1, paste0("v0", as.character(v)), paste0("v", as.character(v))),
+0:hv = paste0(h, v, sep = " "))
+0:unlink(dir_path, recursive = TRUE)
+0:tiles <- aoi_mask %>%
+0:sf::st_transform(st_crs(modis_grid)) %>%
+0:st_intersection(modis_grid) %>%
+0:as.data.frame() %>%
+0:dplyr::select(hv) %>%
+0:distinct(., hv)
+0:return(as.vector(tiles$hv) %>%
+0:stringr::str_trim(., side = "both"))
+0:}
+0:# Vector of MODIS tiles to download
+0:tiles <- get_tiles(usa)
+0:# Reclassification matrix to remove NA values
+0:mtrx = matrix(c(-Inf, 1, 0, 366, Inf, 0), byrow=TRUE, ncol=3)
+0:names <- c("BurnDate")
+0:layers <- c("Burn Date", "Burn Date Uncertainty", "QA", "First Day", "Last Day")
+0:url = "ftp://fire:burnt@fuoco.geog.umd.edu/MCD64A1/C6/"
+0:u_p = "fire:burnt"
+0:#setup parallel backend to use many processors
+0:cores <- detectCores()
+0:install.packages("MODIS")
+0:# Download from:
+0:# ftp://fuoco.geog.umd.edu/MCD64A1/C6/
+0:# username: fire
+0:# password: burnt
+0:x <- c("MODIS", "tidyverse", "magrittr", "raster", "RCurl",
+0:"gdalUtils", "foreach", "doParallel", "sf", "assertthat")
+0:lapply(x, library, character.only = TRUE, verbose = TRUE)
+0:p4string_ea <- "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs"
+0:# Raw data folders
+0:prefix <- "data"
+0:raw_prefix <- file.path(prefix, "raw")
+0:us_prefix <- file.path(raw_prefix, "cb_2016_us_state_20m")
+0:# Output folders
+0:MCD64A1_dir <- file.path(prefix, "MCD64A1")
+0:version_dir <- file.path(MCD64A1_dir, "C6")
+0:hdf_months <- file.path(version_dir, "hdf_months")
+0:tif_months <- file.path(version_dir, "tif_months")
+0:tif_year <- file.path(version_dir, "tif_years")
+0:final_output <- file.path(version_dir, "yearly_composites")
+0:# Check if directory exists for all variable aggregate outputs, if not then create
+0:var_dir <- list(prefix, raw_prefix, us_prefix, MCD64A1_dir, version_dir,
+0:hdf_months, tif_months, tif_year, final_output)
+0:lapply(var_dir, function(x) if(!dir.exists(x)) dir.create(x, showWarnings = FALSE))
+0:# Function to download files
+0:file.download <- function(shp_path_name, shp_dir, url){
+0:if (!file.exists(shp_path_name)) {
+0:dest <- paste0(shp_dir, ".zip")
+0:download.file(url, dest)
+0:unzip(dest, exdir = shp_dir)
+0:unlink(dest)
+0:assert_that(file.exists(shp_path_name))
+0:}
+0:}
+0:#Download the USA States layer -------------------------
+0:file.download(file.path(us_prefix, "cb_2016_us_state_20m.shp"),
+0:us_prefix, "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_state_20m.zip")
+0:# Import and prep the USA shapefile
+0:usa <- st_read(file.path(us_prefix, "cb_2016_us_state_20m.shp"),
+0:quiet= TRUE) %>%
+0:filter(!(STUSPS %in% c("AK", "HI", "PR"))) %>%
+0:dplyr::select(STUSPS) %>%
+0:st_transform(p4string_ea)
+0:names(usa) %<>% tolower
+0:# Reproject USA shapefile to MODIS sinusoidal
+0:usa_ms <- st_transform(usa_shp, crs = p4string_ms) %>%
+0:as(., "Spatial")
+0:# Import and prep the USA shapefile and extract for only the Western US
+0:wus_shp <- st_read(file.path(us_prefix, "cb_2016_us_state_20m.shp"),
+0:quiet= TRUE) %>%
+0:filter(STUSPS %in% c("CO", "WA", "OR", "NV", "CA", "ID", "UT",
+0:"WY", "NM", "AZ", "MT")) %>%
+0:dplyr::select(STUSPS) %>%
+0:st_transform(p4string_ea)
+0:names(wus_shp) %<>% tolower
+0:# Reproject WUS shapefile to MODIS sinusoidal
+0:wus_ms <- st_transform(wus_shp, crs = p4string_ms) %>%
+0:as(., "Spatial")
+0:# This function extracts the MODIS tiles that intersect with the shapefile area of interest
+0:get_tiles <- function(aoi_mask){
+0:# aoi_mask = The shapefile mask where the tiles numbers are to be expected by.
+0:# This shapefile mask object is expected to be an sf object
+0:#Download the MODIS tile grid -------------------------
+0:dir.create("tmp", showWarnings = FALSE)
+0:dir_path <- file.path("tmp")
+0:loc <- "https://s3-us-west-2.amazonaws.com/modis-grids/modis_grid.zip"
+0:dest <- paste0(dir_path, ".zip")
+0:download.file(loc, dest)
+0:unzip(dest, exdir = dir_path)
+0:unlink(dest)
+0:modis_grid <- sf::st_read( file.path(dir_path, "modis_sinusoidal_grid_world.shp"), quiet= TRUE) %>%
+0:dplyr::mutate(h = if_else(nchar(as.character(h)) == 1, paste0("h0", as.character(h)), paste0("h", as.character(h))),
+0:v = if_else(nchar(as.character(v)) == 1, paste0("v0", as.character(v)), paste0("v", as.character(v))),
+0:hv = paste0(h, v, sep = " "))
+0:unlink(dir_path, recursive = TRUE)
+0:tiles <- aoi_mask %>%
+0:sf::st_transform(st_crs(modis_grid)) %>%
+0:st_intersection(modis_grid) %>%
+0:as.data.frame() %>%
+0:dplyr::select(hv) %>%
+0:distinct(., hv)
+0:return(as.vector(tiles$hv) %>%
+0:stringr::str_trim(., side = "both"))
+0:}
+0:# Vector of MODIS tiles to download
+0:tiles <- get_tiles(usa)
+0:# Reclassification matrix to remove NA values
+0:mtrx = matrix(c(-Inf, 1, 0, 366, Inf, 0), byrow=TRUE, ncol=3)
+0:names <- c("BurnDate")
+0:layers <- c("Burn Date", "Burn Date Uncertainty", "QA", "First Day", "Last Day")
+0:url = "ftp://fire:burnt@fuoco.geog.umd.edu/MCD64A1/C6/"
+0:u_p = "fire:burnt"
+0:#setup parallel backend to use many processors
+0:cores <- detectCores()
+0:cl <- makeCluster(cores)
+0:registerDoParallel(cl)
+0:foreach(j = 1:length(tiles)) %dopar% {
+0:filenames <- RCurl::getURL(paste0(url, tiles[j],"/"), userpwd = u_p, v=T, ftp.use.epsv = FALSE, dirlistonly = TRUE)
+0:filenames = paste0(strsplit(filenames, "\r*\n")[[1]])
+0:for(L in 1:length(filenames)){
+0:output_file_name <- file.path(hdf_months, filenames[L])
+0:if(!file.exists(output_file_name)) {
+0:download.file(paste0(url, tiles[j],"/",filenames[L]),
+0:output_file_name)
+0:}
+0:}
+0:}
+0:stopCluster(cl)
+0:cl <- makeCluster(cores)
+0:registerDoParallel(cl)
+0:foreach(j = 1:length(tiles)) %dopar% {
+0:filenames <- RCurl::getURL(paste0(url, tiles[j],"/"), userpwd = u_p, v=T, ftp.use.epsv = FALSE, dirlistonly = TRUE)
+0:filenames = paste0(strsplit(filenames, "\r*\n")[[1]])
+0:for(L in 1:length(filenames)){
+0:output_file_name <- file.path(hdf_months, filenames[L])
+0:if(!file.exists(output_file_name)) {
+0:download.file(paste0(url, tiles[j],"/",filenames[L]),
+0:output_file_name)
+0:}
+0:}
+0:}
+0:stopCluster(cl)
+0:cl <- makeCluster(cores)
+0:registerDoParallel(cl)
+0:foreach (j = 1:length(tiles)) %dopar% {
+0:require(magrittr)
+0:require(raster)
+0:require(MODIS)
+0:hdfs = list.files(hdf_months, pattern = ".hdf",
+0:recursive = TRUE)
+0:filename = strsplit(hdfs, "\\.") %>%
+0:lapply(`[`, 2:3) %>%
+0:lapply(paste, collapse = "_") %>%
+0:unlist
+0:outname <- paste0(names, filename, ".tif")
+0:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+0:recursive = TRUE, full.names = TRUE)
+0:for (M in 1:length(hdfs_full)) {
+0:sds <- MODIS::getSds(hdfs_full[M])
+0:r <- raster::raster(sds$SDS4gdal[d])
+0:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+0:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+0:}
+0:}
+0:}
+0:stopCluster(cl)
+0:tiles = c("h08v04")
+0:type(tiles)
+0:str(tiles)
+0:# Vector of MODIS tiles to download
+0:tiles <- get_tiles(usa)
+0:str(tiles)
+0:tiles = c("h08v04", "test", "hvn1")
+0:str(tiles)
+0:# Download all .hdf files from ftp site for the Conterminous US
+0:cl <- makeCluster(cores)
+0:registerDoParallel(cl)
+0:foreach(j = 1:length(tiles)) %dopar% {
+0:filenames <- RCurl::getURL(paste0(url, tiles[j],"/"), userpwd = u_p, v=T, ftp.use.epsv = FALSE, dirlistonly = TRUE)
+0:filenames = paste0(strsplit(filenames, "\r*\n")[[1]])
+0:for(L in 1:length(filenames)){
+0:output_file_name <- file.path(hdf_months, filenames[L])
+0:if(!file.exists(output_file_name)) {
+0:download.file(paste0(url, tiles[j],"/",filenames[L]),
+0:output_file_name)
+0:}
+0:}
+0:}
+0:stopCluster(cl)
+0:# Download all .hdf files from ftp site for the Conterminous US
+0:cl <- makeCluster(cores)
+0:registerDoParallel(cl)
+0:foreach(j = 1:length(tiles)) %dopar% {
+0:filenames <- RCurl::getURL(paste0(url, tiles[j],"/"), userpwd = u_p, v=T, ftp.use.epsv = FALSE, dirlistonly = TRUE)
+0:filenames = paste0(strsplit(filenames, "\r*\n")[[1]])
+0:for(L in 1:length(filenames)){
+0:output_file_name <- file.path(hdf_months, filenames[L])
+0:if(!file.exists(output_file_name)) {
+0:download.file(paste0(url, tiles[j],"/",filenames[L]),
+0:output_file_name)
+0:}
+0:}
+0:}
+0:stopCluster(cl)
+0:tiles
+0:# Vector of MODIS tiles to download
+0:tiles <- get_tiles(usa)
+0:tiles
+0:# Download all .hdf files from ftp site for the Conterminous US
+0:cl <- makeCluster(cores)
+0:registerDoParallel(cl)
+0:foreach(j = 1:length(tiles)) %dopar% {
+0:filenames <- RCurl::getURL(paste0(url, tiles[j],"/"), userpwd = u_p, v=T, ftp.use.epsv = FALSE, dirlistonly = TRUE)
+0:filenames = paste0(strsplit(filenames, "\r*\n")[[1]])
+0:for(L in 1:length(filenames)){
+0:output_file_name <- file.path(hdf_months, filenames[L])
+0:if(!file.exists(output_file_name)) {
+0:download.file(paste0(url, tiles[j],"/",filenames[L]),
+0:output_file_name)
+0:}
+0:}
+0:}
+0:stopCluster(cl)
+0:tiles
+0:tiles <- c("h08v06", "h09v06", "h10v06", "h08v05", "h09v05", "h10v05", "h11v05", "h12v05", "h08v04", "h09v04", "h10v04", "h11v04", "h12v04", "h13v04")
+0:cl <- makeCluster(cores)
+0:registerDoParallel(cl)
+0:foreach(j = 1:length(tiles)) %dopar% {
+0:filenames <- RCurl::getURL(paste0(url, tiles[j],"/"), userpwd = u_p, v=T, ftp.use.epsv = FALSE, dirlistonly = TRUE)
+0:filenames = paste0(strsplit(filenames, "\r*\n")[[1]])
+0:for(L in 1:length(filenames)){
+0:output_file_name <- file.path(hdf_months, filenames[L])
+0:if(!file.exists(output_file_name)) {
+0:download.file(paste0(url, tiles[j],"/",filenames[L]),
+0:output_file_name)
+0:}
+0:}
+0:}
+0:stopCluster(cl)
+0:cl <- makeCluster(cores)
+0:registerDoParallel(cl)
+0:foreach (j = 1:length(tiles)) %dopar% {
+0:require(magrittr)
+0:require(raster)
+0:require(MODIS)
+0:hdfs = list.files(hdf_months, pattern = ".hdf",
+0:recursive = TRUE)
+0:filename = strsplit(hdfs, "\\.") %>%
+0:lapply(`[`, 2:3) %>%
+0:lapply(paste, collapse = "_") %>%
+0:unlist
+0:outname <- paste0(names, filename, ".tif")
+0:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+0:recursive = TRUE, full.names = TRUE)
+0:for (M in 1:length(hdfs_full)) {
+0:sds <- MODIS::getSds(hdfs_full[M])
+0:r <- raster::raster(sds$SDS4gdal[d])
+0:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+0:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+0:}
+0:}
+0:}
+0:stopCluster(cl)
+1517362677623:# Download from:
+1517362677629:# ftp://fuoco.geog.umd.edu/MCD64A1/C6/
+1517362677635:# username: fire
+1517362677641:# password: burnt
+1517362677649:x <- c("MODIS", "tidyverse", "magrittr", "raster", "RCurl",
+1517362677655:"gdalUtils", "foreach", "doParallel", "sf", "assertthat")
+1517362677661:lapply(x, library, character.only = TRUE, verbose = TRUE)
+1517362683590:p4string_ea <- "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs"
+1517362683598:p4string_ms <- "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
+1517362683607:# Raw data folders
+1517362683617:prefix <- "data"
+1517362683625:raw_prefix <- file.path(prefix, "raw")
+1517362683633:us_prefix <- file.path(raw_prefix, "cb_2016_us_state_20m")
+1517362683644:# Output folders
+1517362683653:MCD64A1_dir <- file.path(prefix, "MCD64A1")
+1517362683663:version_dir <- file.path(MCD64A1_dir, "C6")
+1517362683670:hdf_months <- file.path(version_dir, "hdf_months")
+1517362683682:tif_months <- file.path(version_dir, "tif_months")
+1517362683690:tif_year <- file.path(version_dir, "tif_years")
+1517362683701:final_output <- file.path(version_dir, "yearly_composites")
+1517362683713:# Check if directory exists for all variable aggregate outputs, if not then create
+1517362683723:var_dir <- list(prefix, raw_prefix, us_prefix, MCD64A1_dir, version_dir,
+1517362683730:hdf_months, tif_months, tif_year, final_output)
+1517362683740:lapply(var_dir, function(x) if(!dir.exists(x)) dir.create(x, showWarnings = FALSE))
+1517362683787:# Function to download files
+1517362683797:file.download <- function(shp_path_name, shp_dir, url){
+1517362683805:if (!file.exists(shp_path_name)) {
+1517362683813:dest <- paste0(shp_dir, ".zip")
+1517362683823:download.file(url, dest)
+1517362683831:unzip(dest, exdir = shp_dir)
+1517362683843:unlink(dest)
+1517362683851:assert_that(file.exists(shp_path_name))
+1517362683862:}
+1517362683872:}
+1517362683885:#Download the USA States layer -------------------------
+1517362683894:file.download(file.path(us_prefix, "cb_2016_us_state_20m.shp"),
+1517362683904:us_prefix, "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_state_20m.zip")
+1517362683920:# Import and prep the USA shapefile
+1517362683928:usa <- st_read(file.path(us_prefix, "cb_2016_us_state_20m.shp"),
+1517362683938:quiet= TRUE) %>%
+1517362683945:filter(!(STUSPS %in% c("AK", "HI", "PR"))) %>%
+1517362683953:dplyr::select(STUSPS) %>%
+1517362683962:st_transform(p4string_ea)
+1517362684426:names(usa) %<>% tolower
+1517362684435:# Reproject USA shapefile to MODIS sinusoidal
+1517362684440:usa_ms <- st_transform(usa, crs = p4string_ms) %>%
+1517362684448:as(., "Spatial")
+1517362684535:# Import and prep the USA shapefile and extract for only the Western US
+1517362684541:wus <- st_read(file.path(us_prefix, "cb_2016_us_state_20m.shp"),
+1517362684549:quiet= TRUE) %>%
+1517362684555:filter(STUSPS %in% c("CO", "WA", "OR", "NV", "CA", "ID", "UT",
+1517362684562:"WY", "NM", "AZ", "MT")) %>%
+1517362684570:dplyr::select(STUSPS) %>%
+1517362684578:st_transform(p4string_ea)
+1517362684761:names(wus_shp) %<>% tolower
+1517362684769:# Reproject WUS shapefile to MODIS sinusoidal
+1517362684776:wus_ms <- st_transform(wus, crs = p4string_ms) %>%
+1517362684782:as(., "Spatial")
+1517362684997:# This function extracts the MODIS tiles that intersect with the shapefile area of interest
+1517362685002:get_tiles <- function(aoi_mask){
+1517362685008:# aoi_mask = The shapefile mask where the tiles numbers are to be expected by.
+1517362685018:# This shapefile mask object is expected to be an sf object
+1517362685029:#Download the MODIS tile grid -------------------------
+1517362685037:dir.create("tmp", showWarnings = FALSE)
+1517362685042:dir_path <- file.path("tmp")
+1517362685048:loc <- "https://s3-us-west-2.amazonaws.com/modis-grids/modis_grid.zip"
+1517362685057:dest <- paste0(dir_path, ".zip")
+1517362685064:download.file(loc, dest)
+1517362685073:unzip(dest, exdir = dir_path)
+1517362685083:unlink(dest)
+1517362685098:modis_grid <- sf::st_read( file.path(dir_path, "modis_sinusoidal_grid_world.shp"), quiet= TRUE) %>%
+1517362685105:dplyr::mutate(h = if_else(nchar(as.character(h)) == 1, paste0("h0", as.character(h)), paste0("h", as.character(h))),
+1517362685113:v = if_else(nchar(as.character(v)) == 1, paste0("v0", as.character(v)), paste0("v", as.character(v))),
+1517362685122:hv = paste0(h, v, sep = " "))
+1517362685129:unlink(dir_path, recursive = TRUE)
+1517362685141:tiles <- aoi_mask %>%
+1517362685147:sf::st_transform(st_crs(modis_grid)) %>%
+1517362685157:st_intersection(modis_grid) %>%
+1517362685165:as.data.frame() %>%
+1517362685173:dplyr::select(hv) %>%
+1517362685183:distinct(., hv)
+1517362685191:return(as.vector(tiles$hv) %>%
+1517362685203:stringr::str_trim(., side = "both"))
+1517362685211:}
+1517362685226:# Vector of MODIS tiles to download
+1517362685234:tiles <- get_tiles(usa)
+1517362686478:# Reclassification matrix to remove NA values
+1517362686488:mtrx = matrix(c(-Inf, 1, 0, 366, Inf, 0), byrow=TRUE, ncol=3)
+1517362686499:names <- c("BurnDate")
+1517362686509:layers <- c("Burn Date", "Burn Date Uncertainty", "QA", "First Day", "Last Day")
+1517362686521:url = "ftp://fire:burnt@fuoco.geog.umd.edu/MCD64A1/C6/"
+1517362686531:u_p = "fire:burnt"
+1517362686547:#setup parallel backend to use many processors
+1517362686555:cores <- detectCores()
+1517362694851:cl <- makeCluster(cores)
+1517362696261:registerDoParallel(cl)
+1517362696273:foreach(j = 1:length(tiles)) %dopar% {
+1517362696283:filenames <- RCurl::getURL(paste0(url, tiles[j],"/"), userpwd = u_p, v=T, ftp.use.epsv = FALSE, dirlistonly = TRUE)
+1517362696291:filenames = paste0(strsplit(filenames, "\r*\n")[[1]])
+1517362696301:for(L in 1:length(filenames)){
+1517362696309:output_file_name <- file.path(hdf_months, filenames[L])
+1517362696319:if(!file.exists(output_file_name)) {
+1517362696328:download.file(paste0(url, tiles[j],"/",filenames[L]),
+1517362696340:output_file_name)
+1517362696348:}
+1517362696359:}
+1517362696367:}
+1517362702358:stopCluster(cl)
+1517362720099:MCD64A1_dir
+1517362724908:cl <- makeCluster(cores)
+1517362726020:registerDoParallel(cl)
+1517362726070:foreach (j = 1:length(tiles)) %dopar% {
+1517362726075:require(magrittr)
+1517362726083:require(raster)
+1517362726090:require(MODIS)
+1517362726099:hdfs = list.files(hdf_months, pattern = ".hdf",
+1517362726107:recursive = TRUE)
+1517362726116:filename = strsplit(hdfs, "\\.") %>%
+1517362726122:lapply(`[`, 2:3) %>%
+1517362726129:lapply(paste, collapse = "_") %>%
+1517362726134:unlist
+1517362726143:outname <- paste0(names, filename, ".tif")
+1517362726152:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+1517362726158:recursive = TRUE, full.names = TRUE)
+1517362726168:for (M in 1:length(hdfs_full)) {
+1517362726172:sds <- MODIS::getSds(hdfs_full[M])
+1517362726177:r <- raster::raster(sds$SDS4gdal[d])
+1517362726185:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+1517362726189:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+1517362726194:}
+1517362726198:}
+1517362726205:}
+1517362902652:stopCluster(cl)
+1517362957951:cl <- makeCluster(cores)
+1517362959197:registerDoParallel(cl)
+1517362959207:foreach(j = 1:length(tiles)) %dopar% {
+1517362959216:filenames <- RCurl::getURL(paste0(url, tiles[j],"/"), userpwd = u_p, v=T, ftp.use.epsv = FALSE, dirlistonly = TRUE)
+1517362959225:filenames = paste0(strsplit(filenames, "\r*\n")[[1]])
+1517362959232:for(L in 1:length(filenames)){
+1517362959241:output_file_name <- file.path(hdf_months, filenames[L])
+1517362959249:if(!file.exists(output_file_name)) {
+1517362959258:download.file(paste0(url, tiles[j],"/",filenames[L]),
+1517362959268:output_file_name)
+1517362959277:}
+1517362959286:}
+1517362959295:}
+1517362966038:stopCluster(cl)
+1517362974160:cl <- makeCluster(cores)
+1517362975387:registerDoParallel(cl)
+1517362975393:foreach (j = 1:length(tiles)) %dopar% {
+1517362975399:require(magrittr)
+1517362975407:require(raster)
+1517362975413:require(MODIS)
+1517362975422:hdfs = list.files(hdf_months, pattern = ".hdf",
+1517362975430:recursive = TRUE)
+1517362975439:filename = strsplit(hdfs, "\\.") %>%
+1517362975447:lapply(`[`, 2:3) %>%
+1517362975453:lapply(paste, collapse = "_") %>%
+1517362975460:unlist
+1517362975472:outname <- paste0(names, filename, ".tif")
+1517362975486:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+1517362975493:recursive = TRUE, full.names = TRUE)
+1517362975503:for (M in 1:length(hdfs_full)) {
+1517362975512:sds <- MODIS::getSds(hdfs_full[M])
+1517362975518:r <- raster::raster(sds$SDS4gdal[d])
+1517362975526:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+1517362975533:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+1517362975538:}
+1517362975546:}
+1517362975553:}
+1517363427409:stopCluster(cl)
+1517363886335:cl <- makeCluster(cores)
+1517363887453:registerDoParallel(cl)
+1517363887461:foreach (j = 1:length(tiles)) %dopar% {
+1517363887468:require(magrittr)
+1517363887473:require(raster)
+1517363887480:require(MODIS)
+1517363887492:hdfs = list.files(hdf_months, pattern = ".hdf",
+1517363887499:recursive = TRUE)
+1517363887509:filename = strsplit(hdfs, "\\.") %>%
+1517363887515:lapply(`[`, 2:3) %>%
+1517363887521:lapply(paste, collapse = "_") %>%
+1517363887528:unlist
+1517363887535:outname <- paste0(names, filename, ".tif")
+1517363887542:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+1517363887547:recursive = TRUE, full.names = TRUE)
+1517363887553:read.hdfs <- function(file, ...) {
+1517363887557:res <- tryCatch(st_read(file, ...),
+1517363887562:error = function(c) {
+1517363887567:c$message <- paste0(c$message, " (in ", file, ")")
+1517363887571:warning(c)
+1517363887575:}
+1517363887580:)
+1517363887586:if (!is.character(res)) {
+1517363887591:# add source file as a column
+1517363887596:res <- res %>%
+1517363887602:mutate(source_file = file)
+1517363887609:}
+1517363887613:return(res)
+1517363887618:}
+1517363887624:for (M in 1:length(hdfs_full)) {
+1517363887629:sds <- MODIS::getSds(hdfs_full[M])
+1517363887634:r <- read.hdfs(raster::raster(sds$SDS4gdal[d]))
+1517363887638:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+1517363887642:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+1517363887648:}
+1517363887653:}
+1517363887657:}
+1517363920017:stopCluster(cl)
+1517363970629:cl <- makeCluster(cores)
+1517363971805:registerDoParallel(cl)
+1517363971810:foreach (j = 1:length(tiles)) %dopar% {
+1517363971817:require(magrittr)
+1517363971824:require(raster)
+1517363971829:require(MODIS)
+1517363971838:hdfs = list.files(hdf_months, pattern = ".hdf",
+1517363971845:recursive = TRUE)
+1517363971857:filename = strsplit(hdfs, "\\.") %>%
+1517363971865:lapply(`[`, 2:3) %>%
+1517363971872:lapply(paste, collapse = "_") %>%
+1517363971881:unlist
+1517363971890:outname <- paste0(names, filename, ".tif")
+1517363971899:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+1517363971904:recursive = TRUE, full.names = TRUE)
+1517363971909:read.hdfs <- function(file, ...) {
+1517363971916:res <- tryCatch(raster::raster(file, ...),
+1517363971921:error = function(c) {
+1517363971927:c$message <- paste0(c$message, " (in ", file, ")")
+1517363971933:warning(c)
+1517363971937:}
+1517363971942:)
+1517363971948:if (!is.character(res)) {
+1517363971954:# add source file as a column
+1517363971960:res <- res %>%
+1517363971966:mutate(source_file = file)
+1517363971973:}
+1517363971979:return(res)
+1517363971985:}
+1517363971989:for (M in 1:length(hdfs_full)) {
+1517363971995:sds <- MODIS::getSds(hdfs_full[M])
+1517363972001:r <- read.hdfs(sds$SDS4gdal[d])
+1517363972006:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+1517363972011:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+1517363972016:}
+1517363972021:}
+1517363972026:}
+1517364006511:stopCluster(cl)
+1517364035271:cl <- makeCluster(cores)
+1517364036637:registerDoParallel(cl)
+1517364036650:foreach (j = 1:length(tiles)) %dopar% {
+1517364036670:require(magrittr)
+1517364036691:require(raster)
+1517364036710:require(MODIS)
+1517364036721:require(tidyverse)
+1517364036729:hdfs = list.files(hdf_months, pattern = ".hdf",
+1517364036742:recursive = TRUE)
+1517364036757:filename = strsplit(hdfs, "\\.") %>%
+1517364036765:lapply(`[`, 2:3) %>%
+1517364036772:lapply(paste, collapse = "_") %>%
+1517364036783:unlist
+1517364036800:outname <- paste0(names, filename, ".tif")
+1517364036828:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+1517364036843:recursive = TRUE, full.names = TRUE)
+1517364036852:read.hdfs <- function(file, ...) {
+1517364036862:res <- tryCatch(raster::raster(file, ...),
+1517364036869:error = function(c) {
+1517364036884:c$message <- paste0(c$message, " (in ", file, ")")
+1517364036892:warning(c)
+1517364036904:}
+1517364036912:)
+1517364036925:if (!is.character(res)) {
+1517364036936:# add source file as a column
+1517364036945:res <- res %>%
+1517364036956:dplyr::mutate(source_file = file)
+1517364036967:}
+1517364036973:return(res)
+1517364036984:}
+1517364036992:for (M in 1:length(hdfs_full)) {
+1517364037004:sds <- MODIS::getSds(hdfs_full[M])
+1517364037012:r <- read.hdfs(sds$SDS4gdal[d])
+1517364037020:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+1517364037029:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+1517364037038:}
+1517364037049:}
+1517364037059:}
+1517364091858:stopCluster(cl)
+1517364756962:cl <- makeCluster(cores)
+1517364758076:registerDoParallel(cl)
+1517364758085:foreach (j = 1:length(tiles)) %dopar% {
+1517364758092:require(magrittr)
+1517364758099:require(raster)
+1517364758107:require(MODIS)
+1517364758113:require(tidyverse)
+1517364758120:hdfs = list.files(hdf_months, pattern = ".hdf",
+1517364758128:recursive = TRUE)
+1517364758137:filename = strsplit(hdfs, "\\.") %>%
+1517364758146:lapply(`[`, 2:3) %>%
+1517364758152:lapply(paste, collapse = "_") %>%
+1517364758158:unlist
+1517364758167:outname <- paste0(names, filename, ".tif")
+1517364758177:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+1517364758182:recursive = TRUE, full.names = TRUE)
+1517364758188:read.hdfs <- function(file, ...) {
+1517364758193:res <- tryCatch(raster::raster(file, ...),
+1517364758198:error = function(c) {
+1517364758204:c$message <- paste0(c$message, " (in ", file, ")")
+1517364758210:warning(c)
+1517364758214:}
+1517364758219:)
+1517364758227:}
+1517364758231:for (M in 1:length(hdfs_full)) {
+1517364758236:sds <- MODIS::getSds(hdfs_full[M])
+1517364758240:r <- read.hdfs(sds$SDS4gdal[d])
+1517364758246:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+1517364758251:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+1517364758256:}
+1517364758262:}
+1517364758267:}
+1517365071536:stopCluster(cl)
+1517365108315:cl <- makeCluster(cores)
+1517365109437:registerDoParallel(cl)
+1517365109442:foreach (j = 1:length(tiles)) %dopar% {
+1517365109447:require(magrittr)
+1517365109454:require(raster)
+1517365109459:require(MODIS)
+1517365109464:require(tidyverse)
+1517365109469:hdfs = list.files(hdf_months, pattern = ".hdf",
+1517365109475:recursive = TRUE)
+1517365109484:filename = strsplit(hdfs, "\\.") %>%
+1517365109490:lapply(`[`, 2:3) %>%
+1517365109498:lapply(paste, collapse = "_") %>%
+1517365109505:unlist
+1517365109516:outname <- paste0(names, filename, ".tif")
+1517365109526:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+1517365109532:recursive = TRUE, full.names = TRUE)
+1517365109541:read.hdfs <- function(file, ...) {
+1517365109547:res <- tryCatch(raster::raster(file, ...),
+1517365109555:error = function(c) {
+1517365109560:c$message <- paste0(c$message, " (in ", file, ")")
+1517365109564:warning(c)
+1517365109569:}
+1517365109575:)
+1517365109580:}
+1517365109585:for (M in 1:length(hdfs_full)) {
+1517365109591:sds <- MODIS::getSds(hdfs_full[M])
+1517365109601:r <- read.hdfs(sds$SDS4gdal[d])
+1517365109607:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+1517365109615:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+1517365109621:}
+1517365109626:}
+1517365109632:}
+1517365564836:stopCluster(cl)
+1517371911779:cl <- makeCluster(cores)
+1517371912967:registerDoParallel(cl)
+1517371912974:foreach(j = 1:length(tiles)) %dopar% {
+1517371912980:url = "ftp://fire:burnt@fuoco.geog.umd.edu/MCD64A1/C6/"
+1517371912990:u_p = "fire:burnt"
+1517371912998:filenames <- RCurl::getURL(paste0(url, tiles[j],"/"), userpwd = u_p, v=T, ftp.use.epsv = FALSE, dirlistonly = TRUE)
+1517371913009:filenames = paste0(strsplit(filenames, "\r*\n")[[1]])
+1517371913018:for(L in 1:length(filenames)){
+1517371913027:output_file_name <- file.path(hdf_months, filenames[L])
+1517371913034:if(!file.exists(output_file_name)) {
+1517371913043:download.file(paste0(url, tiles[j],"/",filenames[L]),
+1517371913055:output_file_name)
+1517371913064:}
+1517371913073:}
+1517371913080:}
+1517371921715:stopCluster(cl)
+1517371933669:cl <- makeCluster(cores)
+1517371934743:registerDoParallel(cl)
+1517371934748:foreach (j = 1:length(tiles)) %dopar% {
+1517371934755:require(magrittr)
+1517371934761:require(raster)
+1517371934767:require(MODIS)
+1517371934775:require(dplyr)
+1517371934781:hdfs = list.files(hdf_months, pattern = ".hdf",
+1517371934786:recursive = TRUE)
+1517371934796:filename = strsplit(hdfs, "\\.") %>%
+1517371934801:lapply(`[`, 2:3) %>%
+1517371934807:lapply(paste, collapse = "_") %>%
+1517371934812:unlist
+1517371934822:outname <- paste0(names, filename, ".tif")
+1517371934830:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+1517371934837:recursive = TRUE, full.names = TRUE)
+1517371934842:read.hdfs <- function(file, ...) {
+1517371934848:res <- tryCatch(raster::raster(file, ...),
+1517371934854:error = function(c) {
+1517371934859:c$message <- paste0(c$message, " (in ", file, ")")
+1517371934864:warning(c)
+1517371934868:}
+1517371934874:)
+1517371934879:}
+1517371934884:for (M in 1:length(hdfs_full)) {
+1517371934888:sds <- MODIS::getSds(hdfs_full[M])
+1517371934895:r <- read.hdfs(sds$SDS4gdal[d])
+1517371934901:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+1517371934907:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+1517371934912:}
+1517371934918:}
+1517371934923:}
+1517372339953:stopCluster(cl)
+1517372397530:for(j in 1:length(tiles)){
+1517372397536:url = "ftp://fire:burnt@fuoco.geog.umd.edu/MCD64A1/C6/"
+1517372397541:u_p = "fire:burnt"
+1517372397546:filenames <- RCurl::getURL(paste0(url, tiles[j],"/"), userpwd = u_p, v=T, ftp.use.epsv = FALSE, dirlistonly = TRUE)
+1517372397550:filenames = paste0(strsplit(filenames, "\r*\n")[[1]])
+1517372397553:for(L in 1:length(filenames)){
+1517372397556:output_file_name <- file.path(hdf_months, filenames[L])
+1517372397561:if(!file.exists(output_file_name)) {
+1517372397565:download.file(paste0(url, tiles[j],"/",filenames[L]),
+1517372397569:output_file_name)
+1517372397572:}
+1517372397576:}
+1517372397579:}
+1517372498040:for (j in 1:length(tiles)){
+1517372498047:require(magrittr)
+1517372498054:require(raster)
+1517372498058:require(MODIS)
+1517372498064:require(dplyr)
+1517372498068:hdfs = list.files(hdf_months, pattern = ".hdf",
+1517372498075:recursive = TRUE)
+1517372498083:filename = strsplit(hdfs, "\\.") %>%
+1517372498088:lapply(`[`, 2:3) %>%
+1517372498093:lapply(paste, collapse = "_") %>%
+1517372498099:unlist
+1517372498107:outname <- paste0(names, filename, ".tif")
+1517372498117:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+1517372498121:recursive = TRUE, full.names = TRUE)
+1517372498125:read.hdfs <- function(file, ...) {
+1517372498129:res <- tryCatch(raster::raster(file, ...),
+1517372498135:error = function(c) {
+1517372498139:c$message <- paste0(c$message, " (in ", file, ")")
+1517372498143:warning(c)
+1517372498147:} ) }
+1517372498153:for (M in 1:length(hdfs_full)) {
+1517372498161:sds <- MODIS::getSds(hdfs_full[M])
+1517372498167:r <- read.hdfs(sds$SDS4gdal[d])
+1517372498172:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+1517372498177:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+1517372498182:}
+1517372498187:}
+1517372498192:}
+1517372636774:for (j in 1:length(tiles)){
+1517372636780:require(magrittr)
+1517372636786:require(raster)
+1517372636792:require(MODIS)
+1517372636798:require(dplyr)
+1517372636803:hdfs = list.files(hdf_months, pattern = ".hdf",
+1517372636806:recursive = TRUE)
+1517372636812:filename = strsplit(hdfs, "\\.") %>%
+1517372636816:lapply(`[`, 2:3) %>%
+1517372636819:lapply(paste, collapse = "_") %>%
+1517372636823:unlist
+1517372636827:outname <- paste0(names, filename, ".tif")
+1517372636832:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+1517372636836:recursive = TRUE, full.names = TRUE)
+1517372636840:read.hdfs <- function(file, ...) {
+1517372636843:res <- tryCatch(raster::raster(file, ...),
+1517372636847:error = function(c) {
+1517372636850:c$message <- paste0(c$message, " (in ", file, ")")
+1517372636853:warning(c)
+1517372636858:} ) }
+1517372636861:for (M in 1:length(hdfs_full)) {
+1517372636863:sds <- MODIS::getSds(hdfs_full[M])
+1517372636867:r <- read.hdfs(sds$SDS4gdal[d])
+1517372636871:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+1517372636875:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+1517372636878:}
+1517372636881:}
+1517372636884:}
+1517372882636:for (j in 1:length(tiles)){
+1517372882641:require(magrittr)
+1517372882645:require(raster)
+1517372882653:require(MODIS)
+1517372882661:require(dplyr)
+1517372882666:hdfs = list.files(hdf_months, pattern = ".hdf",
+1517372882670:recursive = TRUE)
+1517372882675:filename = strsplit(hdfs, "\\.") %>%
+1517372882679:lapply(`[`, 2:3) %>%
+1517372882682:lapply(paste, collapse = "_") %>%
+1517372882685:unlist
+1517372882692:outname <- paste0(names, filename, ".tif")
+1517372882697:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+1517372882701:recursive = TRUE, full.names = TRUE)
+1517372882705:read.hdfs <- function(file, ...) {
+1517372882708:res <- tryCatch(raster::raster(file, ...),
+1517372882712:error = function(c) {
+1517372882716:c$message <- paste0(c$message, " (in ", file, ")")
+1517372882719:warning(c)
+1517372882723:} ) }
+1517372882727:for (M in 1:length(hdfs_full)) {
+1517372882732:sds <- MODIS::getSds(hdfs_full[M])
+1517372882737:r <- read.hdfs(sds$SDS4gdal[d])
+1517372882741:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+1517372882744:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+1517372882747:}
+1517372882752:}
+1517372882757:}
+1517373072676:cl <- makeCluster(cores)
+1517373073838:registerDoParallel(cl)
+1517373073844:foreach (j = 1:length(tiles)) %dopar% {
+1517373073852:require(magrittr)
+1517373073861:require(raster)
+1517373073867:require(MODIS)
+1517373073873:require(dplyr)
+1517373073881:hdfs = list.files(hdf_months, pattern = ".hdf",
+1517373073887:recursive = TRUE)
+1517373073898:filename = strsplit(hdfs, "\\.") %>%
+1517373073904:lapply(`[`, 2:3) %>%
+1517373073910:lapply(paste, collapse = "_") %>%
+1517373073917:unlist
+1517373073925:outname <- paste0(names, filename, ".tif")
+1517373073935:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+1517373073940:recursive = TRUE, full.names = TRUE)
+1517373073945:read.hdfs <- function(file, ...) {
+1517373073950:res <- tryCatch(raster::raster(file, ...),
+1517373073957:error = function(c) {
+1517373073962:c$message <- paste0(c$message, " (in ", file, ")")
+1517373073967:warning(c)
+1517373073977:} ) }
+1517373073982:for (M in 1:length(hdfs_full)) {
+1517373073988:sds <- read.hdfs(MODIS::getSds(hdfs_full[M]))
+1517373073995:r <- raster::raster(sds$SDS4gdal[d])
+1517373074000:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+1517373074005:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+1517373074011:}
+1517373074018:}
+1517373074024:}
+1517373099447:stopCluster(cl)
+1517373337174:cl <- makeCluster(cores)
+1517373338290:registerDoParallel(cl)
+1517373338296:foreach (j = 1:length(tiles)) %dopar% {
+1517373338303:require(magrittr)
+1517373338312:require(raster)
+1517373338318:require(MODIS)
+1517373338325:require(dplyr)
+1517373338332:hdfs = list.files(hdf_months, pattern = ".hdf",
+1517373338338:recursive = TRUE)
+1517373338347:filename = strsplit(hdfs, "\\.") %>%
+1517373338353:lapply(`[`, 2:3) %>%
+1517373338357:lapply(paste, collapse = "_") %>%
+1517373338363:unlist
+1517373338372:outname <- paste0(names, filename, ".tif")
+1517373338378:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+1517373338385:recursive = TRUE, full.names = TRUE)
+1517373338389:read.hdfs <- function(file, ...) {
+1517373338393:res <- tryCatch(MODIS::getSds(file, ...),
+1517373338398:error = function(c) {
+1517373338405:c$message <- paste0(c$message, " (in ", file, ")")
+1517373338410:warning(c)
+1517373338414:}
+1517373338418:)
+1517373338425:if (!is.character(res)) {
+1517373338430:# add source file as a column
+1517373338435:res <- res %>%
+1517373338440:mutate(source_file = file)
+1517373338446:}
+1517373338451:return(res)
+1517373338457:}
+1517373338463:for (M in 1:length(hdfs_full)) {
+1517373338470:sds <- read.hdfs(hdfs_full[M])
+1517373338475:r <- raster::raster(sds$SDS4gdal[d])
+1517373338480:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+1517373338486:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+1517373338491:}
+1517373338496:}
+1517373338501:}
+1517373364211:stopCluster(cl)
+1517373408350:cl <- makeCluster(cores)
+1517373409373:registerDoParallel(cl)
+1517373409382:foreach (j = 1:length(tiles)) %dopar% {
+1517373409393:require(magrittr)
+1517373409399:require(raster)
+1517373409408:require(MODIS)
+1517373409414:require(dplyr)
+1517373409419:hdfs = list.files(hdf_months, pattern = ".hdf",
+1517373409428:recursive = TRUE)
+1517373409435:filename = strsplit(hdfs, "\\.") %>%
+1517373409439:lapply(`[`, 2:3) %>%
+1517373409443:lapply(paste, collapse = "_") %>%
+1517373409448:unlist
+1517373409454:outname <- paste0(names, filename, ".tif")
+1517373409461:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+1517373409466:recursive = TRUE, full.names = TRUE)
+1517373409471:read.hdfs <- function(file, ...) {
+1517373409475:res <- tryCatch(MODIS::getSds(file, ...),
+1517373409478:error = function(c) {
+1517373409483:c$message <- paste0(c$message, " (in ", file, ")")
+1517373409487:warning(c)
+1517373409491:} ) }
+1517373409495:for (M in 1:length(hdfs_full)) {
+1517373409499:sds <- read.hdfs(hdfs_full[M])
+1517373409505:r <- raster::raster(sds$SDS4gdal[d])
+1517373409509:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+1517373409513:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+1517373409517:}
+1517373409522:}
+1517373409528:}
+1517374167288:stopCluster(cl)
+1517374319438:cl <- makeCluster(cores)
+1517374320612:registerDoParallel(cl)
+1517374320619:foreach (j = 1:length(tiles)) %dopar% {
+1517374320627:require(magrittr)
+1517374320634:require(raster)
+1517374320640:require(MODIS)
+1517374320648:require(dplyr)
+1517374320654:hdfs = list.files(hdf_months, pattern = ".hdf",
+1517374320660:recursive = TRUE)
+1517374320669:filename = strsplit(hdfs, "\\.") %>%
+1517374320675:lapply(`[`, 2:3) %>%
+1517374320681:lapply(paste, collapse = "_") %>%
+1517374320686:unlist
+1517374320694:outname <- paste0(names, filename, ".tif")
+1517374320705:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+1517374320710:recursive = TRUE, full.names = TRUE)
+1517374320714:read.hdfs <- function(file, ...) {
+1517374320718:res <- tryCatch(MODIS::getSds(file, ...),
+1517374320723:error = function(c) {
+1517374320727:c$message <- paste0(c$message, " (in ", file, ")")
+1517374320732:warning(c)
+1517374320736:} ) }
+1517374320740:for (M in 1:length(hdfs_full)) {
+1517374320749:sds <- read.hdfs(hdfs_full[M])
+1517374320755:r <- raster::raster(sds$SDS4gdal[d])
+1517374320761:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+1517374320769:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+1517374320774:}
+1517374320778:}
+1517374320785:}
+1517375369647:stopCluster(cl)
+1517375399129:cl <- makeCluster(cores)
+1517375400312:registerDoParallel(cl)
+1517375400316:foreach (j = 1:length(tiles)) %dopar% {
+1517375400320:require(magrittr)
+1517375400326:require(raster)
+1517375400332:require(MODIS)
+1517375400338:require(dplyr)
+1517375400345:hdfs = list.files(hdf_months, pattern = ".hdf",
+1517375400351:recursive = TRUE)
+1517375400359:filename = strsplit(hdfs, "\\.") %>%
+1517375400367:lapply(`[`, 2:3) %>%
+1517375400372:lapply(paste, collapse = "_") %>%
+1517375400380:unlist
+1517375400390:outname <- paste0(names, filename, ".tif")
+1517375400399:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+1517375400406:recursive = TRUE, full.names = TRUE)
+1517375400412:read.hdfs <- function(file, ...) {
+1517375400417:res <- tryCatch(MODIS::getSds(file, ...),
+1517375400421:error = function(c) {
+1517375400427:c$message <- paste0(c$message, " (in ", file, ")")
+1517375400431:warning(c)
+1517375400435:} ) }
+1517375400439:for (M in 1:length(hdfs_full)) {
+1517375400445:sds <- read.hdfs(hdfs_full[M])
+1517375400449:r <- raster::raster(sds$SDS4gdal[d])
+1517375400454:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+1517375400459:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+1517375400465:}
+1517375400469:}
+1517375400474:}
+1517375722362:stopCluster(cl)
+1517375754544:cl <- makeCluster(cores)
+1517375759503:registerDoParallel(cl)
+1517375759517:foreach (j = 1:length(tiles)) %dopar% {
+1517375759532:require(magrittr)
+1517375759553:require(raster)
+1517375759565:require(MODIS)
+1517375759604:require(dplyr)
+1517375759672:hdfs = list.files(hdf_months, pattern = ".hdf",
+1517375759718:recursive = TRUE)
+1517375759759:filename = strsplit(hdfs, "\\.") %>%
+1517375759775:lapply(`[`, 2:3) %>%
+1517375759796:lapply(paste, collapse = "_") %>%
+1517375759812:unlist
+1517375759846:outname <- paste0(names, filename, ".tif")
+1517375759890:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+1517375759907:recursive = TRUE, full.names = TRUE)
+1517375759937:read.hdfs <- function(file, ...) {
+1517375759967:res <- tryCatch(MODIS::getSds(file, ...),
+1517375759988:error = function(c) {
+1517375760007:c$message <- paste0(c$message, " (in ", file, ")")
+1517375760023:warning(c)
+1517375760043:} ) }
+1517375760055:read.rst <- function(file, ...) {
+1517375760074:res <- tryCatch(raster::raster(file, ...),
+1517375760086:error = function(c) {
+1517375760103:c$message <- paste0(c$message, " (in ", file, ")")
+1517375760115:warning(c)
+1517375760157:} ) }
+1517375760187:for (M in 1:length(hdfs_full)) {
+1517375760211:sds <- read.hdfs(hdfs_full[M])
+1517375760244:r <- read.rst(sds$SDS4gdal[d])
+1517375760254:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+1517375760271:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+1517375760291:}
+1517375760305:}
+1517375760322:}
+1517377060309:stopCluster(cl)
+1517377421386:cl <- makeCluster(cores)
+1517377422565:registerDoParallel(cl)
+1517377422569:foreach (j = 1:length(tiles)) %dopar% {
+1517377422573:require(magrittr)
+1517377422578:require(raster)
+1517377422584:require(MODIS)
+1517377422589:require(dplyr)
+1517377422593:hdfs = list.files(hdf_months, pattern = ".hdf",
+1517377422597:recursive = TRUE)
+1517377422605:filename = strsplit(hdfs, "\\.") %>%
+1517377422610:lapply(`[`, 2:3) %>%
+1517377422614:lapply(paste, collapse = "_") %>%
+1517377422618:unlist
+1517377422627:outname <- paste0(names, filename, ".tif")
+1517377422633:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+1517377422637:recursive = TRUE, full.names = TRUE)
+1517377422644:read.hdfs <- function(file, ...) {
+1517377422648:res <- tryCatch(MODIS::getSds(file, ...),
+1517377422652:error = function(c) {
+1517377422656:c$message <- paste0(c$message, " (in ", file, ")")
+1517377422660:warning(c)
+1517377422665:} ) }
+1517377422669:read.rst <- function(file, ...) {
+1517377422674:res <- tryCatch(raster::raster(file, ...),
+1517377422678:error = function(c) {
+1517377422686:c$message <- paste0(c$message, " (in ", file, ")")
+1517377422691:warning(c)
+1517377422695:} ) }
+1517377422706:for (M in 1:length(hdfs_full)) {
+1517377422710:sds <- read.hdfs(hdfs_full[M])
+1517377422715:r <- read.rst(sds$SDS4gdal[d])
+1517377422719:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+1517377422728:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+1517377422732:}
+1517377422735:}
+1517377422740:}
+1517378313932:stopCluster(cl)
+1517378430217:cl <- makeCluster(cores)
+1517378431614:registerDoParallel(cl)
+1517378431621:for(j in 1:length(tiles)){
+1517378431629:url = "ftp://fire:burnt@fuoco.geog.umd.edu/MCD64A1/C6/"
+1517378431635:u_p = "fire:burnt"
+1517378431641:filenames <- RCurl::getURL(paste0(url, tiles[j],"/"), userpwd = u_p, v=T, ftp.use.epsv = FALSE, dirlistonly = TRUE)
+1517378431652:filenames = paste0(strsplit(filenames, "\r*\n")[[1]])
+1517378431658:for(L in 1:length(filenames)){
+1517378431667:output_file_name <- file.path(hdf_months, filenames[L])
+1517378431675:if(!file.exists(output_file_name)) {
+1517378431683:download.file(paste0(url, tiles[j],"/",filenames[L]),
+1517378431692:output_file_name)
+1517378431699:}
+1517378431706:}
+1517378431712:}
+1517378498841:stopCluster(cl)
+1517378509225:cl <- makeCluster(cores)
+1517378511012:registerDoParallel(cl)
+1517378511023:foreach (j = 1:length(tiles)) %dopar% {
+1517378511034:require(magrittr)
+1517378511042:require(raster)
+1517378511052:require(MODIS)
+1517378511060:require(dplyr)
+1517378511072:hdfs = list.files(hdf_months, pattern = ".hdf",
+1517378511080:recursive = TRUE)
+1517378511096:filename = strsplit(hdfs, "\\.") %>%
+1517378511108:lapply(`[`, 2:3) %>%
+1517378511116:lapply(paste, collapse = "_") %>%
+1517378511126:unlist
+1517378511139:outname <- paste0(names, filename, ".tif")
+1517378511153:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+1517378511160:recursive = TRUE, full.names = TRUE)
+1517378511175:read.hdfs <- function(file, ...) {
+1517378511182:res <- tryCatch(MODIS::getSds(file, ...),
+1517378511192:error = function(c) {
+1517378511199:c$message <- paste0(c$message, " (in ", file, ")")
+1517378511209:warning(c)
+1517378511217:} ) }
+1517378511227:read.rst <- function(file, ...) {
+1517378511236:res <- tryCatch(raster::raster(file, ...),
+1517378511243:error = function(c) {
+1517378511254:c$message <- paste0(c$message, " (in ", file, ")")
+1517378511262:warning(c)
+1517378511272:} ) }
+1517378511286:for (M in 1:length(hdfs_full)) {
+1517378511294:sds <- read.hdfs(hdfs_full[M])
+1517378511302:r <- read.rst(sds$SDS4gdal[d])
+1517378511312:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+1517378511320:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+1517378511331:}
+1517378511340:}
+1517378511349:}
+1517380498034:stopCluster(cl)
+1517380617585:cl <- makeCluster(cores)
+1517380618703:registerDoParallel(cl)
+1517380618709:foreach (j = 1:length(tiles)) %dopar% {
+1517380618718:require(magrittr)
+1517380618724:require(raster)
+1517380618731:require(MODIS)
+1517380618742:require(dplyr)
+1517380618748:hdfs = list.files(hdf_months, pattern = ".hdf",
+1517380618757:recursive = TRUE)
+1517380618767:filename = strsplit(hdfs, "\\.") %>%
+1517380618774:lapply(`[`, 2:3) %>%
+1517380618779:lapply(paste, collapse = "_") %>%
+1517380618785:unlist
+1517380618792:outname <- paste0(names, filename, ".tif")
+1517380618806:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+1517380618813:recursive = TRUE, full.names = TRUE)
+1517380618823:read.hdfs <- function(file, ...) {
+1517380618828:res <- tryCatch(MODIS::getSds(file, ...),
+1517380618838:error = function(c) {
+1517380618842:c$message <- paste0(c$message, " (in ", file, ")")
+1517380618847:warning(c)
+1517380618852:} ) }
+1517380618858:read.rst <- function(file, ...) {
+1517380618863:res <- tryCatch(raster::raster(file, ...),
+1517380618868:error = function(c) {
+1517380618874:c$message <- paste0(c$message, " (in ", file, ")")
+1517380618879:warning(c)
+1517380618885:} ) }
+1517380618893:for (M in 1:length(hdfs_full)) {
+1517380618898:sds <- read.hdfs(hdfs_full[M])
+1517380618904:r <- read.rst(sds$SDS4gdal[d])
+1517380618910:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+1517380618916:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+1517380618921:}
+1517380618926:}
+1517380618931:}
+1517382505326:stopCluster(cl)
+1517405087037:cl <- makeCluster(cores)
+1517405088370:registerDoParallel(cl)
+1517405088379:foreach (j = 1:length(tiles)) %dopar% {
+1517405088388:require(magrittr)
+1517405088393:require(raster)
+1517405088401:require(MODIS)
+1517405088410:require(dplyr)
+1517405088418:hdfs = list.files(hdf_months, pattern = ".hdf",
+1517405088426:recursive = TRUE)
+1517405088436:filename = strsplit(hdfs, "\\.") %>%
+1517405088443:lapply(`[`, 2:3) %>%
+1517405088451:lapply(paste, collapse = "_") %>%
+1517405088458:unlist
+1517405088470:outname <- paste0(names, filename, ".tif")
+1517405088480:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+1517405088488:recursive = TRUE, full.names = TRUE)
+1517405088497:read.hdfs <- function(file, ...) {
+1517405088506:res <- tryCatch(MODIS::getSds(file, ...),
+1517405088512:error = function(c) {
+1517405088518:c$message <- paste0(c$message, " (in ", file, ")")
+1517405088526:warning(c)
+1517405088533:} ) }
+1517405088539:read.rst <- function(file, ...) {
+1517405088550:res <- tryCatch(raster::raster(file, ...),
+1517405088557:error = function(c) {
+1517405088566:c$message <- paste0(c$message, " (in ", file, ")")
+1517405088572:warning(c)
+1517405088578:} ) }
+1517405088590:for (M in 1:length(hdfs_full)) {
+1517405088597:sds <- read.hdfs(hdfs_full[M])
+1517405088606:r <- read.rst(sds$SDS4gdal[d])
+1517405088612:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+1517405088619:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+1517405088628:}
+1517405088635:}
+1517405088642:}
+1517407183336:stopCluster(cl)
+1517410511634:cl <- makeCluster(cores)
+1517410512717:registerDoParallel(cl)
+1517410512767:foreach (j = 1:length(tiles)) %dopar% {
+1517410512773:require(magrittr)
+1517410512778:require(raster)
+1517410512785:require(MODIS)
+1517410512791:require(dplyr)
+1517410512796:hdfs = list.files(hdf_months, pattern = ".hdf",
+1517410512803:recursive = TRUE)
+1517410512812:filename = strsplit(hdfs, "\\.") %>%
+1517410512818:lapply(`[`, 2:3) %>%
+1517410512827:lapply(paste, collapse = "_") %>%
+1517410512832:unlist
+1517410512841:outname <- paste0(names, filename, ".tif")
+1517410512851:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+1517410512855:recursive = TRUE, full.names = TRUE)
+1517410512863:read.hdfs <- function(file, ...) {
+1517410512869:res <- tryCatch(MODIS::getSds(file, ...),
+1517410512874:error = function(c) {
+1517410512879:c$message <- paste0(c$message, " (in ", file, ")")
+1517410512887:warning(c)
+1517410512892:} ) }
+1517410512898:read.rst <- function(file, ...) {
+1517410512906:res <- tryCatch(raster::raster(file, ...),
+1517410512912:error = function(c) {
+1517410512918:c$message <- paste0(c$message, " (in ", file, ")")
+1517410512927:warning(c)
+1517410512934:} ) }
+1517410512947:for (M in 1:length(hdfs_full)) {
+1517410512953:sds <- read.hdfs(hdfs_full[M])
+1517410512959:r <- read.rst(sds$SDS4gdal[d])
+1517410512968:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+1517410512975:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+1517410512983:}
+1517410512991:}
+1517410512997:}
+1517413097471:stopCluster(cl)
+1517414640596:cl <- makeCluster(cores)
+1517414641930:registerDoParallel(cl)
+1517414641937:foreach (j = 1:length(tiles)) %dopar% {
+1517414641943:require(magrittr)
+1517414641950:require(raster)
+1517414641956:require(MODIS)
+1517414641962:require(dplyr)
+1517414641971:hdfs = list.files(hdf_months, pattern = ".hdf",
+1517414641977:recursive = TRUE)
+1517414641988:filename = strsplit(hdfs, "\\.") %>%
+1517414641994:lapply(`[`, 2:3) %>%
+1517414641999:lapply(paste, collapse = "_") %>%
+1517414642007:unlist
+1517414642016:outname <- paste0(names, filename, ".tif")
+1517414642026:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+1517414642032:recursive = TRUE, full.names = TRUE)
+1517414642039:read.hdfs <- function(file, ...) {
+1517414642046:res <- tryCatch(MODIS::getSds(file, ...),
+1517414642051:error = function(c) {
+1517414642057:c$message <- paste0(c$message, " (in ", file, ")")
+1517414642062:warning(c)
+1517414642069:} ) }
+1517414642074:read.rst <- function(file, ...) {
+1517414642080:res <- tryCatch(raster::raster(file, ...),
+1517414642088:error = function(c) {
+1517414642094:c$message <- paste0(c$message, " (in ", file, ")")
+1517414642102:warning(c)
+1517414642110:} ) }
+1517414642120:for (M in 1:length(hdfs_full)) {
+1517414642128:sds <- read.hdfs(hdfs_full[M])
+1517414642134:r <- read.rst(sds$SDS4gdal[d])
+1517414642140:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+1517414642148:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+1517414642154:}
+1517414642161:}
+1517414642168:}
+1517417232134:stopCluster(cl)
+1517417343100:cl <- makeCluster(cores)
+1517417344190:registerDoParallel(cl)
+1517417344199:foreach (j = 1:length(tiles)) %dopar% {
+1517417344207:require(magrittr)
+1517417344214:require(raster)
+1517417344221:require(MODIS)
+1517417344226:require(dplyr)
+1517417344234:hdfs = list.files(hdf_months, pattern = ".hdf",
+1517417344241:recursive = TRUE)
+1517417344253:filename = strsplit(hdfs, "\\.") %>%
+1517417344261:lapply(`[`, 2:3) %>%
+1517417344268:lapply(paste, collapse = "_") %>%
+1517417344273:unlist
+1517417344281:outname <- paste0(names, filename, ".tif")
+1517417344290:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+1517417344294:recursive = TRUE, full.names = TRUE)
+1517417344301:read.hdfs <- function(file, ...) {
+1517417344307:res <- tryCatch(MODIS::getSds(file, ...),
+1517417344312:error = function(c) {
+1517417344317:c$message <- paste0(c$message, " (in ", file, ")")
+1517417344325:warning(c)
+1517417344330:} ) }
+1517417344333:read.rst <- function(file, ...) {
+1517417344338:res <- tryCatch(raster::raster(file, ...),
+1517417344344:error = function(c) {
+1517417344348:c$message <- paste0(c$message, " (in ", file, ")")
+1517417344352:warning(c)
+1517417344356:} ) }
+1517417344365:for (M in 1:length(hdfs_full)) {
+1517417344371:sds <- read.hdfs(hdfs_full[M])
+1517417344376:r <- read.rst(sds$SDS4gdal[d])
+1517417344382:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+1517417344391:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+1517417344398:}
+1517417344405:}
+1517417344410:}
+1517420923584:stopCluster(cl)
+1517421004494:cl <- makeCluster(cores)
+1517421005762:registerDoParallel(cl)
+1517421005777:foreach (j = 1:length(tiles)) %dopar% {
+1517421005784:require(magrittr)
+1517421005792:require(raster)
+1517421005800:require(MODIS)
+1517421005807:require(dplyr)
+1517421005815:hdfs = list.files(hdf_months, pattern = ".hdf",
+1517421005825:recursive = TRUE)
+1517421005838:filename = strsplit(hdfs, "\\.") %>%
+1517421005846:lapply(`[`, 2:3) %>%
+1517421005852:lapply(paste, collapse = "_") %>%
+1517421005860:unlist
+1517421005871:outname <- paste0(names, filename, ".tif")
+1517421005880:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+1517421005885:recursive = TRUE, full.names = TRUE)
+1517421005896:read.hdfs <- function(file, ...) {
+1517421005904:res <- tryCatch(MODIS::getSds(file, ...),
+1517421005909:error = function(c) {
+1517421005917:c$message <- paste0(c$message, " (in ", file, ")")
+1517421005923:warning(c)
+1517421005929:} ) }
+1517421005936:read.rst <- function(file, ...) {
+1517421005943:res <- tryCatch(raster::raster(file, ...),
+1517421005947:error = function(c) {
+1517421005952:c$message <- paste0(c$message, " (in ", file, ")")
+1517421005960:warning(c)
+1517421005966:} ) }
+1517421005975:for (M in 1:length(hdfs_full)) {
+1517421005985:sds <- read.hdfs(hdfs_full[M])
+1517421005991:r <- read.rst(sds$SDS4gdal[d])
+1517421005997:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+1517421006005:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+1517421006012:}
+1517421006019:}
+1517421006024:}
+1517424950354:stopCluster(cl)
+1517424981798:cl <- makeCluster(cores)
+1517424982965:registerDoParallel(cl)
+1517424982991:foreach (j = 1:length(tiles)) %dopar% {
+1517424982998:require(magrittr)
+1517424983008:require(raster)
+1517424983012:require(MODIS)
+1517424983017:require(dplyr)
+1517424983025:hdfs = list.files(hdf_months, pattern = ".hdf",
+1517424983031:recursive = TRUE)
+1517424983040:filename = strsplit(hdfs, "\\.") %>%
+1517424983047:lapply(`[`, 2:3) %>%
+1517424983052:lapply(paste, collapse = "_") %>%
+1517424983057:unlist
+1517424983068:outname <- paste0(names, filename, ".tif")
+1517424983076:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+1517424983082:recursive = TRUE, full.names = TRUE)
+1517424983090:read.hdfs <- function(file, ...) {
+1517424983094:res <- tryCatch(MODIS::getSds(file, ...),
+1517424983100:error = function(c) {
+1517424983104:c$message <- paste0(c$message, " (in ", file, ")")
+1517424983112:warning(c)
+1517424983117:} ) }
+1517424983122:read.rst <- function(file, ...) {
+1517424983127:res <- tryCatch(raster::raster(file, ...),
+1517424983132:error = function(c) {
+1517424983136:c$message <- paste0(c$message, " (in ", file, ")")
+1517424983143:warning(c)
+1517424983148:} ) }
+1517424983157:for (M in 1:length(hdfs_full)) {
+1517424983164:sds <- read.hdfs(hdfs_full[M])
+1517424983168:r <- read.rst(sds$SDS4gdal[d])
+1517424983172:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+1517424983178:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+1517424983186:}
+1517424983190:}
+1517424983195:}
+1517429669853:stopCluster(cl)
+1517431964908:cl <- makeCluster(cores)
+1517431966106:registerDoParallel(cl)
+1517431966111:foreach (j = 1:length(tiles)) %dopar% {
+1517431966118:require(magrittr)
+1517431966126:require(raster)
+1517431966131:require(MODIS)
+1517431966137:require(dplyr)
+1517431966144:hdfs = list.files(hdf_months, pattern = ".hdf",
+1517431966151:recursive = TRUE)
+1517431966163:filename = strsplit(hdfs, "\\.") %>%
+1517431966171:lapply(`[`, 2:3) %>%
+1517431966179:lapply(paste, collapse = "_") %>%
+1517431966187:unlist
+1517431966196:outname <- paste0(names, filename, ".tif")
+1517431966207:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+1517431966213:recursive = TRUE, full.names = TRUE)
+1517431966225:read.hdfs <- function(file, ...) {
+1517431966230:res <- tryCatch(MODIS::getSds(file, ...),
+1517431966236:error = function(c) {
+1517431966245:c$message <- paste0(c$message, " (in ", file, ")")
+1517431966252:warning(c)
+1517431966263:} ) }
+1517431966271:read.rst <- function(file, ...) {
+1517431966279:res <- tryCatch(raster::raster(file, ...),
+1517431966289:error = function(c) {
+1517431966298:c$message <- paste0(c$message, " (in ", file, ")")
+1517431966307:warning(c)
+1517431966315:} ) }
+1517431966328:for (M in 1:length(hdfs_full)) {
+1517431966335:sds <- read.hdfs(hdfs_full[M])
+1517431966346:r <- read.rst(sds$SDS4gdal[d])
+1517431966353:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+1517431966362:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+1517431966369:}
+1517431966376:}
+1517431966385:}
+1517436777767:stopCluster(cl)
+1517436777814:cl <- makeCluster(cores)
+1517436779133:registerDoParallel(cl)
+1517436779156:foreach (j = 1:length(tiles)) %dopar% {
+1517436779162:require(magrittr)
+1517436779172:require(raster)
+1517436779178:require(MODIS)
+1517436779184:require(dplyr)
+1517436779195:hdfs = list.files(hdf_months, pattern = ".hdf",
+1517436779205:recursive = TRUE)
+1517436779217:filename = strsplit(hdfs, "\\.") %>%
+1517436779228:lapply(`[`, 2:3) %>%
+1517436779235:lapply(paste, collapse = "_") %>%
+1517436779240:unlist
+1517436779254:outname <- paste0(names, filename, ".tif")
+1517436779264:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+1517436779275:recursive = TRUE, full.names = TRUE)
+1517436779282:read.hdfs <- function(file, ...) {
+1517436779292:res <- tryCatch(MODIS::getSds(file, ...),
+1517436779298:error = function(c) {
+1517436779304:c$message <- paste0(c$message, " (in ", file, ")")
+1517436779315:warning(c)
+1517436779320:} ) }
+1517436779327:read.rst <- function(file, ...) {
+1517436779333:res <- tryCatch(raster::raster(file, ...),
+1517436779339:error = function(c) {
+1517436779348:c$message <- paste0(c$message, " (in ", file, ")")
+1517436779358:warning(c)
+1517436779363:} ) }
+1517436779373:for (M in 1:length(hdfs_full)) {
+1517436779381:sds <- read.hdfs(hdfs_full[M])
+1517436779391:r <- read.rst(sds$SDS4gdal[d])
+1517436779402:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+1517436779411:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+1517436779422:}
+1517436779430:}
+1517436779437:}
+1517441304196:stopCluster(cl)
+1517443792833:cl <- makeCluster(cores)
+1517443794044:registerDoParallel(cl)
+1517443794050:foreach (j = 1:length(tiles)) %dopar% {
+1517443794056:require(magrittr)
+1517443794063:require(raster)
+1517443794068:require(MODIS)
+1517443794074:require(dplyr)
+1517443794080:hdfs = list.files(hdf_months, pattern = ".hdf",
+1517443794086:recursive = TRUE)
+1517443794094:filename = strsplit(hdfs, "\\.") %>%
+1517443794101:lapply(`[`, 2:3) %>%
+1517443794105:lapply(paste, collapse = "_") %>%
+1517443794110:unlist
+1517443794118:outname <- paste0(names, filename, ".tif")
+1517443794127:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+1517443794132:recursive = TRUE, full.names = TRUE)
+1517443794142:read.hdfs <- function(file, ...) {
+1517443794147:res <- tryCatch(MODIS::getSds(file, ...),
+1517443794153:error = function(c) {
+1517443794159:c$message <- paste0(c$message, " (in ", file, ")")
+1517443794166:warning(c)
+1517443794170:} ) }
+1517443794176:read.rst <- function(file, ...) {
+1517443794183:res <- tryCatch(raster::raster(file, ...),
+1517443794187:error = function(c) {
+1517443794192:c$message <- paste0(c$message, " (in ", file, ")")
+1517443794197:warning(c)
+1517443794204:} ) }
+1517443794211:for (M in 1:length(hdfs_full)) {
+1517443794217:sds <- read.hdfs(hdfs_full[M])
+1517443794223:r <- read.rst(sds$SDS4gdal[d])
+1517443794228:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+1517443794234:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+1517443794241:}
+1517443794247:}
+1517443794252:}
+1517448883211:stopCluster(cl)
+1517456810864:cl <- makeCluster(cores)
+1517456812104:registerDoParallel(cl)
+1517456812115:foreach (j = 1:length(tiles)) %dopar% {
+1517456812127:require(magrittr)
+1517456812138:require(raster)
+1517456812147:require(MODIS)
+1517456812154:require(dplyr)
+1517456812166:hdfs = list.files(hdf_months, pattern = ".hdf",
+1517456812173:recursive = TRUE)
+1517456812185:filename = strsplit(hdfs, "\\.") %>%
+1517456812192:lapply(`[`, 2:3) %>%
+1517456812198:lapply(paste, collapse = "_") %>%
+1517456812205:unlist
+1517456812214:outname <- paste0(names, filename, ".tif")
+1517456812224:hdfs_full = list.files(hdf_months, pattern = ".hdf",
+1517456812231:recursive = TRUE, full.names = TRUE)
+1517456812249:read.hdfs <- function(file, ...) {
+1517456812258:res <- tryCatch(MODIS::getSds(file, ...),
+1517456812266:error = function(c) {
+1517456812273:c$message <- paste0(c$message, " (in ", file, ")")
+1517456812284:warning(c)
+1517456812310:} ) }
+1517456812320:read.rst <- function(file, ...) {
+1517456812332:res <- tryCatch(raster::raster(file, ...),
+1517456812339:error = function(c) {
+1517456812433:c$message <- paste0(c$message, " (in ", file, ")")
+1517456812443:warning(c)
+1517456812451:} ) }
+1517456812462:for (M in 1:length(hdfs_full)) {
+1517456812469:sds <- read.hdfs(hdfs_full[M])
+1517456812478:r <- read.rst(sds$SDS4gdal[d])
+1517456812489:if(!file.exists(paste0(tif_months, "/", outname[M]))) {
+1517456812496:raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+1517456812505:}
+1517456812516:}
+1517456812525:}
+1517461186461:stopCluster(cl)
