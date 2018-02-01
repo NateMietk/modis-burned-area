@@ -2,22 +2,45 @@
 cores <- detectCores()
 
 # Download all .hdf files from ftp site for the Conterminous US
-cl <- makeCluster(cores)
-registerDoParallel(cl)
-for(j in 1:length(tiles)){
-  url = "ftp://fire:burnt@fuoco.geog.umd.edu/MCD64A1/C6/"
-  u_p = "fire:burnt"
-  filenames <- RCurl::getURL(paste0(url, tiles[j],"/"), userpwd = u_p, v=T, ftp.use.epsv = FALSE, dirlistonly = TRUE)
-  filenames = paste0(strsplit(filenames, "\r*\n")[[1]])
-  for(L in 1:length(filenames)){
-    output_file_name <- file.path(hdf_months, filenames[L])
-    if(!file.exists(output_file_name)) {
-      download.file(paste0(url, tiles[j],"/",filenames[L]),
+url = "ftp://fire:burnt@fuoco.geog.umd.edu/MCD64A1/C6/"
+u_p = "fire:burnt"
+
+for (j in 1:length(tiles)){
+  filenames <- RCurl::getURL(paste0(url, tiles[j],"/"), userpwd = u_p, v=T, 
+                             ftp.use.epsv = FALSE)
+  
+  # write to a temporary file
+  cat(filenames, file = 'tmp.txt')
+  
+  # read the temporary file as a fixed width text file
+  dir_listing <- read_fwf('tmp.txt', fwf_empty('tmp.txt'))
+  
+  # give columns good names
+  names(dir_listing) <- c('z1', 'z2', 'z3', 'z4', 'size_in_bytes', 
+                          'month_modified', 'date_modified', 'year_modified', 
+                          'filename')
+  
+  # filter out columns we don't care about
+  dir_listing <- dplyr::select(dir_listing, -starts_with('z'))
+  
+  # iterate over the files and download each
+  for (i in 1:nrow(dir_listing)) {
+    output_file_name <- file.path(hdf_months, dir_listing$filename[i])
+    if (!file.exists(output_file_name)) {
+      download.file(paste0(url, tiles[j], "/", dir_listing$filename[i]),
                     output_file_name)
+      local_size <- file.info(output_file_name)$size
+      are_bytes_identical <- identical(as.integer(local_size), dir_listing$size_in_bytes[i])
+      if (!are_bytes_identical) {
+        # possible solution to handle incomplete downloads:
+        # 1. warn user, list files that were not complete
+        # 2. clean up incomplete files (delete fragments)
+        stop(paste('Mismatch in file size found for', dir_listing$filename[i]))
+      }
     }
   }
 }
-stopCluster(cl)
+
 
 # Convert .hdfs to .tifs, project to albers equal area, and reclassify to just julian date
 cl <- makeCluster(cores)

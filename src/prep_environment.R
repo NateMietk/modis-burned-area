@@ -57,7 +57,7 @@ wus <- st_read(file.path(us_prefix, "cb_2016_us_state_20m.shp"),
                        "WY", "NM", "AZ", "MT")) %>%
   dplyr::select(STUSPS) %>%
   st_transform(p4string_ea) 
-names(wus_shp) %<>% tolower
+names(wus) %<>% tolower
 
 # Reproject WUS shapefile to MODIS sinusoidal
 wus_ms <- st_transform(wus, crs = p4string_ms) %>%
