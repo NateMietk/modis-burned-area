@@ -32,14 +32,17 @@ for (j in 1:length(tiles)){
       local_size <- file.info(output_file_name)$size
       are_bytes_identical <- identical(as.integer(local_size), dir_listing$size_in_bytes[i])
       if (!are_bytes_identical) {
-        # possible solution to handle incomplete downloads:
-        # 1. warn user, list files that were not complete
-        # 2. clean up incomplete files (delete fragments)
-        stop(paste('Mismatch in file size found for', dir_listing$filename[i]))
+        warning(paste('Mismatch in file size found for', dir_listing$filename[i]))
+          # add source file as a column
+        res <- res %>%
+            mutate(source_file = dir_listing$filename[i])
+        unlink(dir_listing$filename[i])
+        return(res)
+      }
       }
     }
   }
-}
+
 
 
 # Convert .hdfs to .tifs, project to albers equal area, and reclassify to just julian date
