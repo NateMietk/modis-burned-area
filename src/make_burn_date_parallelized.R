@@ -27,18 +27,27 @@ for (j in 1:length(tiles)){
   for (i in 1:nrow(dir_listing)) {
     output_file_name <- file.path(hdf_months, dir_listing$filename[i])
     if (!file.exists(output_file_name)) {
+      # download the hdf file
       download.file(paste0(url, tiles[j], "/", dir_listing$filename[i]),
                     output_file_name)
+      
+      # check size of downloaded file
       local_size <- file.info(output_file_name)$size
+      
+      # check to see if the downloaded file size is identical to the servers file size
       are_bytes_identical <- identical(as.integer(local_size), dir_listing$size_in_bytes[i])
+      
       if (!are_bytes_identical) {
+        # add warning if the downloaded file is a fragment of the source file
         warning(paste('Mismatch in file size found for', dir_listing$filename[i]))
-          # add source file as a column
+
+        # write the name of the fragement to an output dataframe
         res <- res %>%
             mutate(source_file = dir_listing$filename[i])
+        
+        # delete the fragment file
         unlink(dir_listing$filename[i])
-        return(res)
-      }
+        }
       }
     }
   }
@@ -51,8 +60,9 @@ registerDoParallel(cl)
 foreach (j = 1:length(tiles)) %dopar% {
   require(magrittr)
   require(raster)
-  require(MODIS)
+  require(gdalUtils)
   require(dplyr)
+  
   hdfs = list.files(hdf_months, pattern = ".hdf",
                     recursive = TRUE)
 
@@ -60,22 +70,17 @@ foreach (j = 1:length(tiles)) %dopar% {
     lapply(`[`, 2:3) %>%
     lapply(paste, collapse = "_") %>%
     unlist
+  rm(hdfs)
 
   outname <- paste0(names, filename, ".tif")
 
   hdfs_full = list.files(hdf_months, pattern = ".hdf",
                          recursive = TRUE, full.names = TRUE)
-  read.hdfs <- function(file, ...) {
-    res <- tryCatch(MODIS::getSds(file, ...), 
-                    error = function(c) {
-                      c$message <- paste0(c$message, " (in ", file, ")")
-                      warning(c)
-                    } ) }
+
   for (M in 1:length(hdfs_full)) {
-    sds <- read.hdfs(hdfs_full[M])
-    r <- raster::raster(sds$SDS4gdal[d])
+    sds <- gdalUtils::get_subdatasets(hdfs_full[M])
     if(!file.exists(paste0(tif_months, "/", outname[M]))) {
-      raster::writeRaster(r, paste0(tif_months, "/", outname[M]), overwrite=TRUE)
+      gdalUtils::gdal_translate(sds[1], dst_dataset = paste0(tif_months, "/", outname[M]))
     }
   }
 }
