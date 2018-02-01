@@ -2,6 +2,7 @@
 tmp.txt
 # DS_Stores
 .DS_Store
+DS_Store
 # tif files
 *.tif
 # data dir
@@ -18,7 +19,9 @@ data/*
 # Output files from R CMD check
 /*.Rcheck/
 # RStudio files
+.Rproj
 .Rproj.user/
+rstudio
 .rstudio
 .rstudio/*x
 # produced vignettes
