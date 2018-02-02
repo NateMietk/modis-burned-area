@@ -2,7 +2,7 @@
 x <- c("tidyverse", "magrittr", "raster", "RCurl", "gdalUtils", "foreach", "doParallel", "sf", "assertthat")
 lapply(x, library, character.only = TRUE, verbose = TRUE)
 
-p4string_ea <- "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs" 
+p4string_ea <- "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs"
 p4string_ms <- "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
 
 # Raw data folders
@@ -16,11 +16,11 @@ version_dir <- file.path(MCD64A1_dir, "C6")
 hdf_months <- file.path(version_dir, "hdf_months")
 tif_months <- file.path(version_dir, "tif_months")
 tif_year <- file.path(version_dir, "tif_years")
-final_output <- file.path(version_dir, "yearly_composites")
+yearly_composites <- file.path(version_dir, "yearly_composites")
 
 # Check if directory exists for all variable aggregate outputs, if not then create
-var_dir <- list(prefix, raw_prefix, us_prefix, MCD64A1_dir, version_dir, 
-                hdf_months, tif_months, tif_year, final_output)
+var_dir <- list(prefix, raw_prefix, us_prefix, MCD64A1_dir, version_dir,
+                hdf_months, tif_months, tif_year, yearly_composites)
 lapply(var_dir, function(x) if(!dir.exists(x)) dir.create(x, showWarnings = FALSE))
 
 # Function to download files
@@ -35,7 +35,7 @@ file.download <- function(shp_path_name, shp_dir, url){
 }
 
 # Download the USA States layer -------------------------
-file.download(file.path(us_prefix, "cb_2016_us_state_20m.shp"), 
+file.download(file.path(us_prefix, "cb_2016_us_state_20m.shp"),
               us_prefix, "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_state_20m.zip")
 
 # Import and prep the USA shapefile
@@ -43,7 +43,7 @@ usa <- st_read(file.path(us_prefix, "cb_2016_us_state_20m.shp"),
                quiet= TRUE) %>%
   filter(!(STUSPS %in% c("AK", "HI", "PR"))) %>%
   dplyr::select(STUSPS) %>%
-  st_transform(p4string_ea) 
+  st_transform(p4string_ea)
 names(usa) %<>% tolower
 
 # Reproject USA shapefile to MODIS sinusoidal
@@ -51,12 +51,12 @@ usa_ms <- st_transform(usa, crs = p4string_ms) %>%
   as(., "Spatial")
 
 # Import and prep the USA shapefile and extract for only the Western US
-wus <- st_read(file.path(us_prefix, "cb_2016_us_state_20m.shp"), 
+wus <- st_read(file.path(us_prefix, "cb_2016_us_state_20m.shp"),
                    quiet= TRUE) %>%
   filter(STUSPS %in% c("CO", "WA", "OR", "NV", "CA", "ID", "UT",
                        "WY", "NM", "AZ", "MT")) %>%
   dplyr::select(STUSPS) %>%
-  st_transform(p4string_ea) 
+  st_transform(p4string_ea)
 names(wus) %<>% tolower
 
 # Reproject WUS shapefile to MODIS sinusoidal
@@ -65,9 +65,9 @@ wus_ms <- st_transform(wus, crs = p4string_ms) %>%
 
 # This function extracts the MODIS tiles that intersect with the shapefile area of interest
 get_tiles <- function(aoi_mask){
-   # aoi_mask = The shapefile mask where the tiles numbers are to be expected by.  
+   # aoi_mask = The shapefile mask where the tiles numbers are to be expected by.
     # This shapefile mask object is expected to be an sf object
-  
+
   #Download the MODIS tile grid -------------------------
   dir.create("tmp", showWarnings = FALSE)
   dir_path <- file.path("tmp")
@@ -82,13 +82,13 @@ get_tiles <- function(aoi_mask){
            v = if_else(nchar(as.character(v)) == 1, paste0("v0", as.character(v)), paste0("v", as.character(v))),
            hv = paste0(h, v, sep = " "))
   unlink(dir_path, recursive = TRUE)
-  
+
   tiles <- aoi_mask %>%
     sf::st_transform(st_crs(modis_grid)) %>%
     st_intersection(modis_grid) %>%
     as.data.frame() %>%
     dplyr::select(hv) %>%
-    distinct(., hv) 
+    distinct(., hv)
   return(as.vector(tiles$hv) %>%
            stringr::str_trim(., side = "both"))
 }
@@ -98,10 +98,3 @@ tiles <- get_tiles(usa)
 
 names <- c("BurnDate")
 layers <- c("Burn Date", "Burn Date Uncertainty", "QA", "First Day", "Last Day")
-
-
-
-
-
-
-
