@@ -126,7 +126,7 @@ for (j in 1:length(tiles)){
 
 
 # Create mosaic of burned area for the lower 48 US for each year
-for(k in 2001:2017) {
+for (k in 2001:2017) {
     require(magrittr)
     require(raster)
     if(!file.exists(paste0(yearly_composites,"/USA_", names, "_", k, ".tif"))){
@@ -136,10 +136,27 @@ for(k in 2001:2017) {
         raster::crop(usa_ms) %>%
         raster::mask(usa_ms) %>%
         raster::projectRaster(crs = p4string_ea, res = 500) %>%
-        raster::crop(as(usa_shp, "Spatial")) %>%
-        raster::mask(as(usa_shp, "Spatial"))
+        raster::crop(as(usa, "Spatial")) %>%
+        raster::mask(as(usa, "Spatial"))
 
       final_name <- paste0(yearly_composites,"/USA_", names, "_", k, ".tif")
       raster::writeRaster(final, final_name, format = "GTiff")
     }
+}
+
+# Create mosaic of burned area for the lower 48 US for each year
+
+for (k in 2001:2017) {
+  require(magrittr)
+  require(raster)
+  if(!file.exists(paste0(yearly_composites,"/WUS_", names, "_", k, ".tif"))){
+    tile_files = as.vector(Sys.glob(paste0(yearly_composites, "/USA_", "*", k, "*", ".tif")))
+    final <- raster(tile_files) %>%
+      raster::crop(as(wus, "Spatial")) %>%
+      raster::mask(as(wus, "Spatial"))
+    
+    final_name <- paste0(yearly_composites,"/WUS_", names, "_", k, ".tif")
+    raster::writeRaster(final, final_name, format = "GTiff")
   }
+}
+ 

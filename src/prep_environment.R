@@ -5,6 +5,7 @@ lapply(x, library, character.only = TRUE, verbose = TRUE)
 p4string_ea <- "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs"
 p4string_ms <- "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
 
++units=m +no_defs 
 # Raw data folders
 prefix <- "data"
 raw_prefix <- file.path(prefix, "raw")
