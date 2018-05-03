@@ -31,8 +31,18 @@ for (j in 1:length(tiles)){
 # then tally the numbers
 rasts <- list.files(tif_year)
 
+results <- data.frame(observation = NA, reburn_pct = NA)
+counter = 1
 for(i in 1:length(rasts)){
-  x <- raster(rasts[i])
+  print(i/length(rasts))
+  x <- raster(paste0("data/MCD64A1/C6/tif_years/",rasts[i]))
   y <- getValues(x)
-  table(y)
+  z <- as.data.frame(table(y))
+  
+  if (nrow(z)>2){
+    results[counter,1] <- rasts[i]
+    results[counter,2] <- sum(z$Freq[c(3:nrow(z))])/z$Freq[2]
+    print(results$reburn_pct[i])
+    counter <- counter +1
+  }else{print("nada")}
 }
