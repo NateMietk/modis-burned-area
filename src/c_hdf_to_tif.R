@@ -1,6 +1,10 @@
 
 # -----------------------------------------------------
+source("src/a_prep_environment.R")
 
+system("aws s3 sync s3://earthlab-natem/data/disturbances/fire/mcd64a1/tif_months data/MCD64A1/C6/tif_months")
+
+# need to throw in a while loop to only do the ones that aren't already done
 for (j in 1:length(tiles))  {
   require(magrittr)
   require(raster)
