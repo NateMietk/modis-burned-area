@@ -31,7 +31,7 @@ for (j in 1:length(tiles)){
 # then tally the numbers
 rasts <- list.files(tif_year)
 
-results <- data.frame(observation = NA, reburn_pct = NA)
+results <- data.frame(observation = NA, reburn_pct = NA, n2_or_more = NA, n1=NA)
 counter = 1
 for(i in 1:length(rasts)){
   print(i/length(rasts))
@@ -41,8 +41,12 @@ for(i in 1:length(rasts)){
   
   if (nrow(z)>2){
     results[counter,1] <- rasts[i]
-    results[counter,2] <- sum(z$Freq[c(3:nrow(z))])/z$Freq[2]
-    print(results$reburn_pct[i])
+    results[counter,2] <- round(sum(z$Freq[c(3:nrow(z))])/z$Freq[2]*100,2)
+    results[counter,3] <- sum(z$Freq[c(3:nrow(z))])
+    results[counter,4] <- z$Freq[2]
     counter <- counter +1
   }else{print("nada")}
 }
+
+write.csv(results,"data/intrayear_reburns.csv")
+system("aws s3 cp data/intrayear_reburns.csv s3://earthlab-modeling-human-ignitions/intrayear_reburns.csv")
