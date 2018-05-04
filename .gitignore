@@ -41,3 +41,4 @@ vignettes/*.pdf
 .local
 .dropbox
 Icon
+.DS_Store
