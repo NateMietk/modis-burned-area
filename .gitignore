@@ -36,3 +36,9 @@ vignettes/*.pdf
 *.utf8.md
 *.knit.md
 .Rproj.user
+.cache
+.ipython
+.local
+.dropbox
+Icon
+.DS_Store
