@@ -3,7 +3,7 @@ source("src/a_prep_environment.R")
 system("aws s3 sync s3://earthlab-natem/modis-burned-area/MCD64A1/C5/hdf_months data/MCD64A1/C5/hdf_months")
 
 # Download all .hdf files from ftp site for the Conterminous US
-url = "ftp://fire:burnt@fuoco.geog.umd.edu/MCD64A1/C5/"
+url = "ftp://fire:burnt@fuoco.geog.umd.edu/MCD64A1/C6/"
 u_p = "fire:burnt"
 
 # checking files after the fact and redownloading ----------------------------------
