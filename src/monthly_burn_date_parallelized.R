@@ -21,10 +21,7 @@ foreach (k = month_years) %dopar% {
       final <- do.call(merge, final) %>%
         raster::reclassify(mtrx) %>%
         raster::crop(usa_ms) %>%
-        raster::mask(usa_ms) # %>%
-        # raster::projectRaster(crs = p4string_ea, res = 500) %>%
-        # raster::crop(as(usa, "Spatial")) %>%
-        # raster::mask(as(usa, "Spatial"))
+        raster::mask(usa_ms) 
       final_name <- paste0(monthly,"/USA_", names, "_", k, ".tif")
       raster::writeRaster(final, final_name, format = "GTiff")
       system(paste("aws s3 cp",
