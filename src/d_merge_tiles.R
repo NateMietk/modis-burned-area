@@ -1,7 +1,6 @@
 
 files <- c('raw', 'cleaned', 'filled')
 
-
 # Create yearly composites for all tiles
 for (k in files) {
   for (j in 1:length(tiles)){
@@ -22,6 +21,7 @@ for (k in files) {
         raster::writeRaster(fire, tfilename, format = "GTiff", overwrite=TRUE)
       }
       setTxtProgressBar(pb, i)
+      system("aws s3 sync data/MCD64A1/C6 s3://earthlab-natem/modis-burned-area/MCD64A1/C6")
     }
   }
 }
@@ -41,6 +41,8 @@ for (k in files) {
       
       final_name <- paste0(yearly_composites,"/USA_", names, "_", i, "_", k, ".tif")
       raster::writeRaster(final, final_name, format = "GTiff", overwrite=TRUE)
+      system("aws s3 sync data/MCD64A1/C6 s3://earthlab-natem/modis-burned-area/MCD64A1/C6")
+      
     }
   }
 }
