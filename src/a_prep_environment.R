@@ -97,5 +97,6 @@ get_tiles <- function(aoi_mask){
 # Vector of MODIS tiles to download
 tiles <- get_tiles(usa)
 
+files <- c('raw', 'cleaned', 'filled')
 names <- c("BurnDate")
 layers <- c("Burn Date", "Burn Date Uncertainty", "QA", "First Day", "Last Day")
