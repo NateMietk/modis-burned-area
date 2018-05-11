@@ -24,22 +24,4 @@ mtbs_fire <- st_read(dsn = file.path(mtbs_prefix, 'mtbs_perimeter_data_v2'),
   dplyr::select(fire_id, fire_name, discovery_date, discovery_year, discovery_day, discovery_month, discovery_doy, acres) 
 
 
-# import all fire event tifs into raster stack
-event_list <- list.files(file.path(version_dir, 'yearly_events'),
-                         full.names = TRUE)
-
-conus_events <- stack(event_list) %>%
-  crop(as(usa, 'Spatial')) %>%
-  mask(as(usa, 'Spatial'))
-vx_events <- velox(conus_events)
-vx_events_poly <- vx_events$rasterize(spdf, field="id", background = NA)
-
-events <- stack(event_list[12]) %>%
-  setMinMax(.)
-
-events[events == 0] <- NA
-polylist <- lapply(as.list(events), rasterToPolygons, dissolve= TRUE)
-
-
-
 
