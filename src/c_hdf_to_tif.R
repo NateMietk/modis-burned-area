@@ -4,138 +4,248 @@ source("src/a_prep_environment.R")
 
 system("aws s3 sync s3://earthlab-natem/data/disturbances/fire/mcd64a1/tif_months data/MCD64A1/C6/tif_months")
 
-clean_dates <- function(input_raster, output = tif_months) {
-  outname <- gsub('_raw.tif', '_cleaned.tif', input_raster)
-  month_range <- strsplit(input_raster, "\\_") %>%
-    lapply(`[`, 2) %>%
-    substr(6, 8)
-  
-  ras <- raster(file.path(output, input_raster))
-  
-  if(month_range == '001') {
-    ras[ras < 1] <- NA
-    ras[ras >= 032] <- NA
-  } else if(month_range == '032') {
-    ras[ras < 032] <- NA
-    ras[ras >= 060] <- NA
-  } else if(month_range == '060') {
-    ras[ras < 060] <- NA
-    ras[ras >= 091] <- NA
-  } else if(month_range == '091') {
-    ras[ras < 091] <- NA
-    ras[ras >= 121] <- NA
-  } else if(month_range == '121') {
-    ras[ras < 121] <- NA
-    ras[ras >= 152] <- NA
-  } else if(month_range == '152') {
-    ras[ras < 152] <- NA
-    ras[ras >= 182] <- NA
-  } else if(month_range == '182') {
-    ras[ras < 182] <- NA
-    ras[ras >= 213] <- NA
-  } else if(month_range == '213') {
-    ras[ras < 213] <- NA
-    ras[ras >= 274] <- NA
-  } else if(month_range == '274') {
-    ras[ras < 274] <- NA
-    ras[ras >= 305] <- NA
-  } else if(month_range == '305') {
-    ras[ras < 305] <- NA
-    ras[ras >= 335] <- NA
-  } else if(month_range == '335') {
-    ras[ras < 335] <- NA
-    ras[ras > 366] <- NA
-  }
-  
-  writeRaster(ras, file.path(output, outname), format = "GTiff", overwrite=TRUE)
-  
-}
+cl <- makeCluster(detectCores())
+registerDoParallel(cl)
 
-fill_dates <- function(input_raster, output = tif_months) {
+foreach (j = 1:length(tiles), .packages = c('gdalUtils', 'tidyverse', 'raster')) %dopar% {
   
-  outname <- gsub('_raw.tif', '_filled.tif', input_raster)
-  month_range <- strsplit(input_raster, "\\_") %>%
-    lapply(`[`, 2) %>%
-    substr(6, 8)
-  
-  ras <- raster(file.path(output, input_raster))
-  
-  if(month_range == '001') {
-    ras[ras < 1] <- NA
-    ras[ras >= 032 & ras <= 366] <- 032
-    ras[ras > 366] <- NA
+  raw_dates <- function(input_raster, output = tif_months) {
     
-  } else if(month_range == '032') {
-    ras[ras < 1] <- NA
-    ras[ras >= 1 & ras < 032] <- 033
-    ras[ras >= 060 & ras <= 366] <- 060
+    month_range <- strsplit(input_raster, "\\_") %>%
+      lapply(`[`, 2) %>%
+      substr(6, 8)
     
-  } else if(month_range == '060') {
-    ras[ras < 1] <- NA
-    ras[ras < 060] <- 061
-    ras[ras >= 091 & ras <= 366] <- 091
-    ras[ras > 366] <- NA
+    mtrx <- matrix(c(-Inf, 1, 0, 367, Inf, 0), byrow=TRUE, ncol=3)
     
-  } else if(month_range == '091') {
-    ras[ras < 1] <- NA
-    ras[ras < 091] <- 092
-    ras[ras >= 121 & ras <= 366] <- 121
-    ras[ras > 366] <- NA
+    ras <- raster(file.path(output, input_raster)) %>%
+      raster::reclassify(mtrx)
     
-  } else if(month_range == '121') {
-    ras[ras < 1] <- NA
-    ras[ras < 121] <- 122
-    ras[ras >= 152 & ras <= 366] <- 152
-    ras[ras > 366] <- NA
-    
-  } else if(month_range == '152') {
-    ras[ras < 1] <- NA
-    ras[ras < 152] <- 153
-    ras[ras >= 182 & ras <= 366] <- 182
-    ras[ras > 366] <- NA
-    
-  } else if(month_range == '182') {
-    ras[ras < 1] <- NA
-    ras[ras < 182] <- 183
-    ras[ras >= 213 & ras <= 366] <- 213
-    ras[ras > 366] <- NA
-    
-  } else if(month_range == '213') {
-    ras[ras < 1] <- NA
-    ras[ras < 213] <- 214
-    ras[ras >= 274 & ras <= 366] <- 274
-    ras[ras > 366] <- NA
-    
-  } else if(month_range == '274') {
-    ras[ras < 1] <- NA
-    ras[ras < 274] <- 275
-    ras[ras >= 305 & ras <= 366] <- 305
-    ras[ras > 366] <- NA
-    
-  } else if(month_range == '305') {
-    ras[ras < 1] <- NA
-    ras[ras < 305] <- 306
-    ras[ras >= 335 & ras <= 366] <- 335
-    ras[ras > 366] <- NA
-    
-  } else if(month_range == '335') {
-    ras[ras < 1] <- NA
-    ras[ras < 335] <- 336
-    ras[ras <= 366 ] <- 366
-    ras[ras > 366] <- NA
+    writeRaster(ras, file.path(output, input_raster), format = "GTiff", overwrite=TRUE)
     
   }
   
-  writeRaster(ras, file.path(output, outname), format = "GTiff", overwrite=TRUE)
+  clean_dates <- function(input_raster, output = tif_months) {
+    
+    outname <- gsub('_raw.tif', '_cleaned.tif', input_raster)
+    month_range <- strsplit(input_raster, "\\_") %>%
+      lapply(`[`, 2) %>%
+      substr(6, 8)
+    
+    ras <- raster(file.path(output, input_raster))
+    
+    reclass_jan <-
+      matrix(c(-Inf, 1, NA, 032, 366, NA, 367, Inf, NA),
+             byrow = TRUE,
+             ncol = 3)
+    reclass_feb <-
+      matrix(c(-Inf, 1, NA, 1, 032, NA, 060, 366, NA, 367, Inf, NA),
+             byrow = TRUE,
+             ncol = 3)
+    reclass_march <-
+      matrix(c(-Inf, 1, NA, 1, 060, NA, 091, 366, NA, 367, Inf, NA),
+             byrow = TRUE,
+             ncol = 3)
+    reclass_april <-
+      matrix(c(-Inf, 1, NA, 1, 091, NA, 121, 366, NA, 367, Inf, NA),
+             byrow = TRUE,
+             ncol = 3)
+    reclass_may <-
+      matrix(c(-Inf, 1, NA,  1, 121, NA, 152, 366, NA, 367, Inf, NA),
+             byrow = TRUE,
+             ncol = 3)
+    reclass_june <-
+      matrix(c(-Inf, 1, NA, 1, 152, NA, 182, 366, NA, 367, Inf, NA),
+             byrow = TRUE,
+             ncol = 3)
+    reclass_july <-
+      matrix(c(-Inf, 1, NA, 1, 182, NA, 213, 366, NA, 367, Inf, NA),
+             byrow = TRUE,
+             ncol = 3)
+    reclass_august <-
+      matrix(c(-Inf, 1, NA, 1, 213, NA, 244, 366, NA, 367, Inf, NA),
+             byrow = TRUE,
+             ncol = 3)
+    reclass_september <-
+      matrix(c(-Inf, 1, NA, 1, 244, NA, 274, 366, NA, 367, Inf, NA),
+             byrow = TRUE,
+             ncol = 3)
+    reclass_october <-
+      matrix(c(-Inf, 1, NA, 1, 274, NA, 305, 366, NA, 367, Inf, NA),
+             byrow = TRUE,
+             ncol = 3)
+    reclass_november <-
+      matrix(c(-Inf, 1, NA, 1, 305, NA, 335, 366, NA, 367, Inf, NA),
+             byrow = TRUE,
+             ncol = 3)
+    reclass_december <-
+      matrix(c(-Inf, 1, NA, 1, 335, NA, 367, Inf, NA),
+             byrow = TRUE,
+             ncol = 3)
+    
+    
+    if(month_range == '001') {
+      ras <- ras %>%
+        raster::reclassify(reclass_jan)
+      
+    } else if(month_range == '032') {
+      ras <- ras %>%
+        raster::reclassify(reclass_feb)
+      
+    } else if(month_range == '060') {
+      ras <- ras %>%
+        raster::reclassify(reclass_march)
+      
+    } else if(month_range == '091') {
+      ras <- ras %>%
+        raster::reclassify(reclass_april)
+      
+    } else if(month_range == '121') {
+      ras <- ras %>%
+        raster::reclassify(reclass_may)
+      
+    } else if(month_range == '152') {
+      ras <- ras %>%
+        raster::reclassify(reclass_june)
+      
+    } else if(month_range == '182') {
+      ras <- ras %>%
+        raster::reclassify(reclass_july)
+      
+    } else if(month_range == '213') {
+      ras <- ras %>%
+        raster::reclassify(reclass_august)
+      
+    } else if(month_range == '244') {
+      ras <- ras %>%
+        raster::reclassify(reclass_september)
+      
+    }  else if(month_range == '274') {
+      ras <- ras %>%
+        raster::reclassify(reclass_october)
+      
+    } else if(month_range == '305') {
+      ras <- ras %>%
+        raster::reclassify(reclass_november)
+      
+    } else if(month_range == '335') {
+      ras <- ras %>%
+        raster::reclassify(reclass_december)
+    }
+    
+    
+    writeRaster(ras, file.path(output, outname), format = "GTiff", overwrite=TRUE)
+    
+  }
   
-}
-
-
-for (j in 1:length(tiles))  {
-  require(magrittr)
-  require(raster)
-  require(gdalUtils)
-  require(dplyr)
+  fill_dates <- function(input_raster, output = tif_months) {
+    
+    outname <- gsub('_raw.tif', '_filled.tif', input_raster)
+    month_range <- strsplit(input_raster, "\\_") %>%
+      lapply(`[`, 2) %>%
+      substr(6, 8)
+    
+    ras <- raster(file.path(output, input_raster))
+    
+    if(month_range == '001') {
+      reclass_jan <-
+        matrix(c(-Inf, 1, NA, 032, 366, 032, 367, Inf, NA),
+               byrow = TRUE,
+               ncol = 3)
+      ras <- ras %>%
+        raster::reclassify(reclass_jan)
+      
+    } else if(month_range == '032') {
+      reclass_feb <-
+        matrix(c(-Inf, 1, NA, 1, 032, 032, 060, 366, 060, 367, Inf, NA),
+               byrow = TRUE,
+               ncol = 3)
+      ras <- ras %>%
+        raster::reclassify(reclass_feb)
+      
+    } else if(month_range == '060') {
+      reclass_march <-
+        matrix(c(-Inf, 1, NA, 1, 060, 060, 091, 366, 091, 367, Inf, NA),
+               byrow = TRUE,
+               ncol = 3)
+      ras <- ras %>%
+        raster::reclassify(reclass_march)
+      
+    } else if(month_range == '091') {
+      reclass_april <-
+        matrix(c(-Inf, 1, NA, 1, 091, 091, 121, 366, 121, 367, Inf, NA),
+               byrow = TRUE,
+               ncol = 3)
+      ras <- ras %>%
+        raster::reclassify(reclass_april)
+      
+    } else if(month_range == '121') {
+      reclass_may <-
+        matrix(c(-Inf, 1, NA,  1, 121, 121, 152, 366, 152, 367, Inf, NA),
+               byrow = TRUE,
+               ncol = 3)
+      ras <- ras %>%
+        raster::reclassify(reclass_may)
+      
+    } else if(month_range == '152') {
+      reclass_june <-
+        matrix(c(-Inf, 1, NA, 1, 152, 152, 182, 366, 182, 367, Inf, NA),
+               byrow = TRUE,
+               ncol = 3)
+      ras <- ras %>%
+        raster::reclassify(reclass_june)
+      
+    } else if(month_range == '182') {
+      reclass_july <-
+        matrix(c(-Inf, 1, NA, 1, 182, 182, 213, 366, 213, 367, Inf, NA),
+               byrow = TRUE,
+               ncol = 3)
+      ras <- ras %>%
+        raster::reclassify(reclass_july)
+      
+    } else if(month_range == '213') {
+      reclass_august <-
+        matrix(c(-Inf, 1, NA, 1, 213, 213, 244, 366, 244, 367, Inf, NA),
+               byrow = TRUE,
+               ncol = 3)
+      ras <- ras %>%
+        raster::reclassify(reclass_august)
+      
+    } else if(month_range == '244') {
+      reclass_september <-
+        matrix(c(-Inf, 1, NA, 1, 244, 244, 274, 366, 274, 367, Inf, NA),
+               byrow = TRUE,
+               ncol = 3)
+      ras <- ras %>%
+        raster::reclassify(reclass_september)
+      
+    } else if(month_range == '274') {
+      reclass_october <-
+        matrix(c(-Inf, 1, NA, 1, 274, 274, 305, 366, 305, 367, Inf, NA),
+               byrow = TRUE,
+               ncol = 3)
+      ras <- ras %>%
+        raster::reclassify(reclass_october)
+      
+    } else if(month_range == '305') {
+      reclass_november <-
+        matrix(c(-Inf, 1, NA, 1, 305, 305, 335, 366, 335, 367, Inf, NA),
+               byrow = TRUE,
+               ncol = 3)
+      ras <- ras %>%
+        raster::reclassify(reclass_november)
+      
+    } else if(month_range == '335') {
+      reclass_december <-
+        matrix(c(-Inf, 1, NA, 1, 335, 335, 367, Inf, NA),
+               byrow = TRUE,
+               ncol = 3)
+      ras <- ras %>%
+        raster::reclassify(reclass_december)
+    }
+    
+    writeRaster(ras, file.path(output, outname), format = "GTiff", overwrite=TRUE)
+    
+  }
   
   # make list of all hdf files for the aoi and time range
   hdfs = list.files(hdf_months, pattern = ".hdf",
@@ -155,7 +265,7 @@ for (j in 1:length(tiles))  {
   hdfs_full = list.files(hdf_months, pattern = ".hdf",
                          recursive = TRUE, full.names = TRUE)
   
-  pb <- txtProgressBar(min = 0, max = length(hdfs_full), style = 3)
+  #pb <- txtProgressBar(min = 0, max = length(hdfs_full), style = 3)
   
   for (M in 1:length(hdfs_full)) {
     if(!file.exists(paste0(tif_months, "/", outname[M]))) {
@@ -167,11 +277,16 @@ for (j in 1:length(tiles))  {
         
         # unpack the subdatasets based on name stored in object d
         gdalUtils::gdal_translate(sds[d], dst_dataset = paste0(tif_months, "/", outname[M]))
+        
+        raw_dates(outname[M])
         clean_dates(outname[M])
         fill_dates(outname[M])
         
       }
     }
-    setTxtProgressBar(pb, M)
+    #setTxtProgressBar(pb, M)
   }
 }
+
+stopCluster(cl)
+
