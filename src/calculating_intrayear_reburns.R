@@ -1,9 +1,11 @@
 # script for calculating reburns within years
+source("src/a_prep_environment.R")
+system("aws s3 sync s3://earthlab-natem/modis-burned-area/MCD64A1/C6/tif_months data/MCD64A1/C6/tif_months")
 
 #reclassifying to binary
-mtrx = matrix(c(-Inf, 0.5, 0, 368, Inf, 0, .5,368,1), byrow=TRUE, ncol=3)
+mtrx <- matrix(c(-Inf, 0.5, 0, 368, Inf, 0, .5,368,1), byrow=TRUE, ncol=3)
 
-years = 2001:2017
+years <- 2001:2017
 # Create yearly composites for all tiles
 
 for (j in 1:length(tiles)){
@@ -49,4 +51,4 @@ for(i in 1:length(rasts)){
 }
 
 write.csv(results,"data/intrayear_reburns.csv")
-system("aws s3 cp data/intrayear_reburns.csv s3://earthlab-modeling-human-ignitions/intrayear_reburns.csv")
+system("aws s3 cp data/intrayear_reburns.csv s3://earthlab-natem/modis-burned-area/intrayear_reburns.csv")
