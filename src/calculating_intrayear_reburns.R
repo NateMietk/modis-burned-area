@@ -9,20 +9,20 @@ years <- 2001:2017
 # Create yearly composites for all tiles
 
 for (j in 1:length(tiles)){
-  for(i in years) {
+  for(i in 1:length(years)) {
     require(magrittr)
     require(raster)
     
-    tile_files = as.vector(Sys.glob(paste0(tif_months, "/", "*", i, "*", tiles[j], ".tif")))
+    tile_files = as.vector(Sys.glob(paste0(tif_months, "/", "*", years[i], "*", tiles[j], ".tif")))
     
-    pb <- txtProgressBar(min = 0, max = length(tile_files), style = 3)
+    pb <- txtProgressBar(min = 0, max = length(tile_files)*length(tiles), style = 3)
     
-    if(!file.exists(paste(tif_year, "/Yearly_n_", tiles[j], "_", i, ".tif", sep=""))){
+    if(!file.exists(paste(tif_year, "/Yearly_n_", tiles[j], "_", years[i], ".tif", sep=""))){
       fire = raster::stack(tile_files) %>%
         raster::reclassify(., mtrx) %>%
         raster::calc(., sum)
       
-      tfilename = paste(tif_year, "/Yearly_n_", tiles[j], "_", i, ".tif", sep="")
+      tfilename = paste(tif_year, "/Yearly_n_", tiles[j], "_", years[i], ".tif", sep="")
       
       raster::writeRaster(fire, tfilename, format = "GTiff", overwrite=TRUE)
     }
