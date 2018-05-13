@@ -1,6 +1,6 @@
 # Create yearly composites for the lower 48 states
 
-cl <- makeCluster(2)
+cl <- makeCluster(1)
 registerDoParallel(cl)
 
 # Create mosaic of burned area for the lower 48 US for each year
