@@ -45,27 +45,16 @@ theme_pub <- function(base_size=11, base_family="") {
 
 # C5 ----------------------------------------------------------------------
 
-C5_waldo_dir <- file.path('data', 'testing', 'C5', 'waldo')
+waldo_list <- list.files(file.path(yearly_events),
+                       full.names = TRUE)
 
-C5_hdf_list <- list.files(C5_waldo_dir,
-                          full.names = TRUE,
-                          pattern = 'hdf')
-
-for (i in 1:length(C5_hdf_list)) {
-  sds <- get_subdatasets(C5_hdf_list[i])
-  gdal_translate(sds[1], dst_dataset = file.path(C5_waldo_dir, paste0("waldo_C5_", i, ".tif")))
-}
-
-raw_list5 <- list.files(file.path(C5_waldo_dir),
-                        full.names = TRUE,
-                        pattern = 'waldo_C5_')
-
-waldo_raw5 <- stack(raw_list5) %>%
-  crop(as(waldo_ms, 'Spatial')) %>%
-  mask(as(waldo_ms, 'Spatial')) %>%
-  projectRaster(crs = p4string_ea, res = 500)
-waldo_raw5[waldo_raw5 < 1] <- NA
-waldo_raw5[waldo_raw5 > 366] <- NA
+waldo_rst <- stack(waldo_list) %>%
+  crop(as(waldo, 'Spatial')) %>%
+  mask(as(waldo, 'Spatial')) 
+waldo_rst[waldo_rst < 1] <- NA
+waldo_rst[waldo_rst > max(waldo_rst)+1] <- NA
+plot(waldo_rst[[12]])
+plot(st_geometry(waldo), add = T)
 
 waldo_long5 <- as.tibble(as.data.frame(waldo_raw5, xy = TRUE)) %>%
   rename(

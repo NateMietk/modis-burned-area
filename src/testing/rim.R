@@ -46,51 +46,16 @@ theme_pub <- function(base_size=11, base_family="") {
 
 # C6 ----------------------------------------------------------------------
 
-C6_rim_dir <- file.path('data', 'testing', 'C6', 'rim')
-
-C6_hdf_list <- list.files(C6_rim_dir,
-                          full.names = TRUE,
-                          pattern = 'hdf')
-
-for (i in 1:length(C6_hdf_list)) {
-  sds <- get_subdatasets(C6_hdf_list[i])
-  gdal_translate(sds[1], dst_dataset = file.path(C6_rim_dir, paste0("rim_C6_", i, ".tif")))
-}
-
-raw_list6 <- list.files(file.path(C6_rim_dir),
+rim_list <- list.files(file.path(yearly_events),
                         full.names = TRUE,
-                        pattern = 'rim_C6_')
+                       pattern = '_ms')
 
-rim_raw6 <- stack(raw_list6) %>%
+rim_rst <- stack(rim_list) %>%
   crop(as(rim_ms, 'Spatial')) %>%
-  mask(as(rim_ms, 'Spatial')) %>%
-  projectRaster(crs = p4string_ea, res = 500)
-rim_raw6[rim_raw6 < 1] <- NA
-rim_raw6[rim_raw6 > 366] <- NA
-
-rim_long6 <- as.tibble(as.data.frame(rim_raw6, xy = TRUE)) %>%
-  rename(
-    jan = rim_C6_1,
-    feb = rim_C6_2,
-    march = rim_C6_3,
-    april = rim_C6_4,
-    may = rim_C6_5,
-    june = rim_C6_6,
-    july = rim_C6_7,
-    august = rim_C6_8,
-    september = rim_C6_9,
-    october = rim_C6_10,
-    november = rim_C6_11,
-    december = rim_C6_12
-  ) %>%
-  gather(month, burn_date, -x, -y) 
-
-rim_long6 %>%
-  transform(month = factor(month, levels=c('jan', 'feb', 'march', 'april', "may", "june", 'july', 'august', 'september', 'october', 'november', "december"))) %>%
-  ggplot() +
-  geom_histogram(aes(x = burn_date, fill = month),position="identity", colour="grey40", bins = 50) +
-  facet_wrap(~ month, scales = 'free') +
-  theme_pub()
+  mask(as(rim_ms, 'Spatial')) 
+rim_rst[rim_rst < 1] <- NA
+rim_rst[rim_rst > max(rim_rst)+1] <- NA
+plot(rim_rst[[13]])
 
 rim_df6 <- as(rim_raw6, "SpatialPixelsDataFrame")  %>%
   as.data.frame(.) %>%
