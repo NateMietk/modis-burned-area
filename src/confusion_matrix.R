@@ -37,7 +37,7 @@ results <- data.frame(Fire_ID = NA,
                       modis_ba_ha = NA,
                       modis_ba_acre = NA,
                       modis_ba_ha_b = NA,
-                      modis_ba_acre_b) #make a field with modis acres
+                      modis_ba_acre_b = NA) #make a field with modis acres
 counter <- 1
 for(y in 1:length(years)){
   modis_y <- raster(paste0("data/yearly_events/USA_burnevents_",years[y],".tif"))
@@ -85,6 +85,17 @@ for(y in 1:length(years)){
   }
 }
 
+write.csv(results, "data/mtbs_modis_ids_ba.csv")
+system("aws s3 cp data/mtbs_modis_ids_ba.csv s3://earthlab-natem/modis-burned-area/mtbs_modis_ids_ba.csv")
+
+p <- ggplot(results, aes(x= modis_ba_acre_b, y = Acres)) + geom_point() + geom_smooth(method = "lm")
+ggsave(p, "data/mtbs_v_modis_ba_buff.png")
+p <- ggplot(results, aes(x= modis_ba_acre, y = Acres)) + geom_point() + geom_smooth(method = "lm")
+ggsave(p, "data/mtbs_v_modis_ba_nobuff.png")
+
+system("aws s3 cp data/mtbs_v_modis_ba_nobuff.png s3://earthlab-natem/modis-burned-area/mtbs_v_modis_ba_nobuff.png")
+system("aws s3 cp data/mtbs_v_modis_ba_buff.png s3://earthlab-natem/modis-burned-area/mtbs_v_modis_ba_buff.png")
+
 # breaking it down to just mtbsIDs and modis IDs ------------------
 long_mt_mo <- data.frame(Fire_ID=NA, modis_id_b=NA)
 counter <- 1
@@ -115,8 +126,13 @@ for(i in 1:length(years)){
   m_ids[i,2] <- length(unique(vals[[i]]))
   tabs[[i]] <- as.data.frame(table(vals[[i]])) %>% rename(modisID = Var1)
 }
-over200ha <- do.call("rbind", tabs) %>%
-  filter(Freq >20)
+
+all_modis_fires <- do.call("rbind", tabs) %>%
+  mutate(ba_ha = Freq * 21.4369,
+         ba_ac = Freq * 52.9717335)
+
+over200ha <- all_modis_fires %>%
+  filter(ba_ha > 200)
 # todo - remove fires less than 20 pixels (200 ha)
 # then join to mtbs IDs
 
