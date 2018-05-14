@@ -103,11 +103,11 @@ over200ha <- do.call("rbind", tabs) %>%
 # todo - remove fires less than 20 pixels (200 ha)
 # then join to mtbs IDs
 
-
-ids_matching <- results$modis_IDs_buff %>%
-  strsplit(" ") %>%
-  unlist() %>%
-  unique()
+# 
+# ids_matching <- results$modis_IDs_buff %>%
+#   strsplit(" ") %>%
+#   unlist() %>%
+#   unique()
 
 # confusion matrix without removing small fires----------------------------------
 
@@ -122,6 +122,7 @@ confusion_matrix2[1,2] <- length(unique(long_mt_mo[!is.na(long_mt_mo$modis_id_b)
 confusion_matrix2[2,2] <- length(unique(long_mt_mo[is.na(long_mt_mo$modis_id_b),]$Fire_ID))
 confusion_matrix2[1,3] <- nrow(over200ha) - confusion_matrix[1,2]
 
+# number of mtbs fire with multiple modis IDs ------------------------------------
 t <- table(results$n_buff)
-mtbs_w_multiple_modis <- sum(t[2:length(t)])
+mtbs_w_multiple_modis <- sum(t[3:length(t)])
 
