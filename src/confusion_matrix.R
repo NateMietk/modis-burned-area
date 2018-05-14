@@ -25,7 +25,7 @@ mtbs <- st_read(mtbs_shp) %>%
 # x = list.files("data/yearly_events/")
 # years <- as.numeric(unlist(regmatches(x, gregexpr("\\d{4}", x))))
 #note - used capital letters to exactly match mtbs data if we want to join in the future
-years = 2001:2017
+years = 2001:2015
 
 results <- data.frame(Fire_ID = NA, 
                       modis_id_nobuff=NA, 
@@ -33,7 +33,11 @@ results <- data.frame(Fire_ID = NA,
                       n_nobuff = NA, 
                       n_buff = NA, 
                       Acres = NA,
-                      Year = NA) #make a field with modis acres
+                      Year = NA,
+                      modis_ba_ha = NA,
+                      modis_ba_acre = NA,
+                      modis_ba_ha_b = NA,
+                      modis_ba_acre_b) #make a field with modis acres
 counter <- 1
 for(y in 1:length(years)){
   modis_y <- raster(paste0("data/yearly_events/USA_burnevents_",years[y],".tif"))
@@ -57,6 +61,13 @@ for(y in 1:length(years)){
     if(length(vc) == 0){vc<-NA}
     if(length(vb) == 0){vb<-NA}
     
+    bpix_nobuff <- table(getValues(cropped)) 
+    barea_ha_nobuff <- sum(bpix_nobuff[2:length(bpix_nobuff)]) * 21.4369
+    barea_ac_nobuff <- sum(bpix_nobuff[2:length(bpix_nobuff)]) * 52.9717335
+    
+    bpix_buff <- table(getValues(cropped_b)) 
+    barea_ha_buff <- sum(bpix_buff[2:length(bpix_buff)]) * 21.4369
+    barea_ac_buff <- sum(bpix_buff[2:length(bpix_buff)]) * 52.9717335
     
     results[counter, 1] <- as.character(fire$Fire_ID)
     results[counter, 2] <- paste(as.character(vc[vc>0 & !is.na(vc)]), collapse = " ")
@@ -65,6 +76,11 @@ for(y in 1:length(years)){
     results[counter, 5] <- length(vb[vb>0 & !is.na(vb)])
     results[counter, 6] <- fire$Acres
     results[counter, 7] <- fire$Year
+    results[counter, 8] <- barea_ha_nobuff
+    results[counter, 9] <- barea_ac_nobuff
+    results[counter, 10] <- barea_ha_buff
+    results[counter, 11] <- barea_ac_buff
+    
     counter <- counter + 1
   }
 }
@@ -80,7 +96,7 @@ for(i in 1:nrow(results)){
     counter <- counter + 1
   }}else{
     long_mt_mo[counter, 1] <- results$Fire_ID[i]
-    long_mt_mo[counter, 2] <- ss[j]
+    long_mt_mo[counter, 2] <- NA
     counter <- counter + 1}
 }
 
@@ -127,5 +143,9 @@ confusion_matrix2[1,3] <- nrow(over200ha) - confusion_matrix[1,2]
 t <- table(results$n_buff)
 mtbs_w_multiple_modis <- sum(t[3:length(t)])
 
-write.csv(confusion_matrix2, "data/confusion_matrix2.csv")
-system("aws s3 cp data/confusion_matrix2.csv s3://earthlab-natem/modis-burned-area/confusion_matrix2.csv")
+write.csv(mtbs_w_multiple_modis, "data/mtbs_w_multiple_modis.csv")
+write.csv(confusion_matrix, "data/confusion_matrix_all_fires.csv")
+write.csv(confusion_matrix2, "data/confusion_matrix_over_200ha.csv")
+system("aws s3 cp data/confusion_matrix_all_fires.csv s3://earthlab-natem/modis-burned-area/confusion_matrix_all_fires.csv")
+system("aws s3 cp data/confusion_matrix_over_200ha.csv s3://earthlab-natem/modis-burned-area/confusion_matrix_over_200ha.csv")
+system("aws s3 cp data/mtbs_w_multiple_modis.csv s3://earthlab-natem/modis-burned-area/mtbs_w_multiple_modis.csv")
