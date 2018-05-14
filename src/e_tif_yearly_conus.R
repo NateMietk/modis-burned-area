@@ -20,7 +20,10 @@ for (i in 2001:2017) {
       raster::mask(as(usa, 'Spatial'))
 
     endCluster()
-
+    
+    final[final < 1] <- NA
+    final[final > 366] <- NA
+    
     final_name <- paste0(yearly_composites,"/USA_", names, "_", i, ".tif")
 
     raster::writeRaster(final, final_name, format = "GTiff", overwrite=TRUE)
