@@ -126,3 +126,5 @@ confusion_matrix2[1,3] <- nrow(over200ha) - confusion_matrix[1,2]
 t <- table(results$n_buff)
 mtbs_w_multiple_modis <- sum(t[3:length(t)])
 
+write.csv(confusion_matrix2, "data/confusion_matrix2.csv")
+system("aws s3 cp data/confusion_matrix2.csv s3://earthlab-natem/modis-burned-area/confusion_matrix2.csv")
