@@ -22,9 +22,10 @@ mtbs <- st_read(mtbs_shp) %>%
 
 
 # running the numbers -----------------------------------  
-x = list.files("data/yearly_events/")
-years <- as.numeric(unlist(regmatches(x, gregexpr("\\d{4}", x))))
+# x = list.files("data/yearly_events/")
+# years <- as.numeric(unlist(regmatches(x, gregexpr("\\d{4}", x))))
 #note - used capital letters to exactly match mtbs data if we want to join in the future
+years = 2001:2017
 
 results <- data.frame(Fire_ID = NA, 
                       modis_id_nobuff=NA, 
@@ -54,7 +55,7 @@ for(y in 1:length(years)){
     vb <- ifelse(vb == as.numeric(paste0(years[y],"00000")), NA, vb)
     
     if(length(vc) == 0){vc<-NA}
-    if(length(vm) == 0){vm<-NA}
+    if(length(vb) == 0){vb<-NA}
     
     
     results[counter, 1] <- as.character(fire$Fire_ID)
