@@ -88,12 +88,19 @@ for(y in 1:length(years)){
 write.csv(results, "data/mtbs_modis_ids_ba.csv")
 system("aws s3 cp data/mtbs_modis_ids_ba.csv s3://earthlab-natem/modis-burned-area/mtbs_modis_ids_ba.csv")
 
-p <- ggplot(results, aes(x= modis_ba_acre_b, y = Acres)) + geom_point() + geom_smooth(method = "lm")
-ggsave(p, "data/mtbs_v_modis_ba_buff.png")
-p <- ggplot(results, aes(x= modis_ba_acre, y = Acres)) + geom_point() + geom_smooth(method = "lm")
-ggsave(p, "data/mtbs_v_modis_ba_nobuff.png")
+p <- ggplot(results, aes(x= modis_ba_acre_b, y = Acres)) + geom_point() + geom_smooth(method = "lm") +
+  ggtitle("R2 = 0.90")
 
-system("aws s3 cp data/mtbs_v_modis_ba_nobuff.png s3://earthlab-natem/modis-burned-area/mtbs_v_modis_ba_nobuff.png")
+ggsave(plot=p, "data/mtbs_v_modis_ba_buff.png")
+mod1 <- lm(modis_ba_acre_b ~ -1+Acres, data = results)
+
+p <- ggplot(results[results$Acres <1000,], aes(x= modis_ba_acre, y = Acres)) + geom_point(alpha=0.5) + geom_smooth(method = "lm") +
+  ggtitle("R2 = 0.66, <1000 Acres")
+ggsave(plot=p, "data/mtbs_v_modis_ba_nobuff_under1000.png")
+mod2 <- lm(modis_ba_acre ~ -1+Acres, data = results[results$Acres <1000,])
+
+
+system("aws s3 cp data/mtbs_v_modis_ba_nobuff_under1000.png s3://earthlab-natem/modis-burned-area/mtbs_v_modis_ba_nobuff_under1000.png")
 system("aws s3 cp data/mtbs_v_modis_ba_buff.png s3://earthlab-natem/modis-burned-area/mtbs_v_modis_ba_buff.png")
 
 # breaking it down to just mtbsIDs and modis IDs ------------------
