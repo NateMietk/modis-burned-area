@@ -1,10 +1,14 @@
 source("src/a_prep_environment.R")
+install.packages("tabularaster")
+library(tabularaster)
 
 # import files ------------------------------------------------------------------------------
 
 system("aws s3 sync s3://earthlab-natem/modis-burned-area/MCD64A1/C6/yearly_events data/yearly_events")
 
+
 mtbs_shp <- file.path(mtbs_prefix, 'mtbs_perimeter_data_v2','dissolve_mtbs_perims_1984-2015_DD_20170501.shp')
+
 if (!file.exists(mtbs_shp)) {
   loc <- "https://edcintl.cr.usgs.gov/downloads/sciweb1/shared/MTBS_Fire/data/composite_data/burned_area_extent_shapefile/mtbs_perimeter_data.zip"
   dest <- paste0(mtbs_prefix, ".zip")
@@ -15,71 +19,73 @@ if (!file.exists(mtbs_shp)) {
 }
 
 # next thing
-modis_proj <- p4string_ea
-mtbs <- st_read(mtbs_shp) %>%
-  st_intersection(., st_union(st_transform(usa, st_crs(.)))) %>%
-  st_transform(crs = modis_proj)
 
 
-# running the numbers -----------------------------------  
-# x = list.files("data/yearly_events/")
-# years <- as.numeric(unlist(regmatches(x, gregexpr("\\d{4}", x))))
-#note - used capital letters to exactly match mtbs data if we want to join in the future
-years = 2001:2015
+#first big table -----------------------
+kounter <- 1
+
+years <- 2001:2015
 
 results <- data.frame(Fire_ID = NA, 
-                      modis_id_nobuff=NA, 
-                      modis_id_buff =NA, 
-                      n_nobuff = NA, 
-                      n_buff = NA, 
-                      Acres = NA,
-                      Year = NA,
-                      modis_ba_ha = NA,
-                      modis_ba_acre = NA,
-                      modis_ba_ha_b = NA,
-                      modis_ba_acre_b = NA) #make a field with modis acres
+                      modis_id = NA, 
+                      n = NA,
+                      mtbs_acres = NA,
+                      mtbs_year = NA,
+                      modis_ha = NA,
+                      modis_acres = NA,
+                      west_or_east = NA) #make a field with modis acres
 counter <- 1
 for(y in 1:length(years)){
-  modis_y <- raster(paste0("data/yearly_events/USA_burnevents_",years[y],".tif"))
+  modis_y <- raster(paste0("data/yearly_events/USA_burnevents_",years[y],"_ms.tif"))
   modis_y <- modis_y + as.numeric(paste0(years[y],"00000"))
+  
+  if(!exists("modis_proj")){modis_proj <- crs(modis_y, asText=TRUE)} #set this
+  
+  if(!exists("mtbs")){
+  mtbs <- st_read(mtbs_shp) %>%
+    st_intersection(., st_union(st_transform(usa, st_crs(.)))) %>%
+    st_transform(crs = modis_proj)}
+  
+  if(!exists("m97")){m97 <- st_sf(a=1,geom = st_sfc(st_point(c(-97,45))))%>%
+    st_set_crs(4326) %>%
+    st_transform(crs = modis_proj) %>%
+    st_bbox() %>%
+    as.numeric()
+  m97 <- m97[1]}
+  
   mtbs_y <- mtbs[mtbs$Year == years[y],] 
+  
+  
+  
   for(f in 1:nrow(mtbs_y)){
     fire <- mtbs_y[f,]
-    fire_b <- st_buffer(fire, dist = 917) #native resolution is 463
-    cropped <- raster::crop(modis_y, as(fire, "Spatial"))
-    masked <- raster::mask(cropped, as(fire, "Spatial"))
-    cropped_b <- raster::crop(modis_y, as(fire_b, "Spatial"))
-    masked_b <- raster::mask(cropped_b, as(fire_b, "Spatial"))
+    cropped <- raster::crop(modis_y, as(fire, "Spatial"), snap = 'out')
+    # thanks https://gis.stackexchange.com/questions/255025/r-raster-masking-a-raster-by-polygon-also-remove-cells-partially-covered
+    SpP_ras <- rasterize(fire, cropped, getCover=TRUE)
+    SpP_ras[SpP_ras==0] <- NA
+    SpP_ras[SpP_ras > 1] <- 1
+    masked <- cropped * SpP_ras
+
     vc <- unique(getValues(masked))
     vc <- vc[vc>0]
-    vb <- unique(getValues(masked_b))
-    vb <- vb[vb>0]
-    
     vc <- ifelse(vc == as.numeric(paste0(years[y],"00000")), NA, vc)
-    vb <- ifelse(vb == as.numeric(paste0(years[y],"00000")), NA, vb)
-    
     if(length(vc) == 0){vc<-NA}
-    if(length(vb) == 0){vb<-NA}
-    
+
     bpix_nobuff <- table(getValues(cropped)) 
     barea_ha_nobuff <- sum(bpix_nobuff[2:length(bpix_nobuff)]) * 21.4369
     barea_ac_nobuff <- sum(bpix_nobuff[2:length(bpix_nobuff)]) * 52.9717335
     
-    bpix_buff <- table(getValues(cropped_b)) 
-    barea_ha_buff <- sum(bpix_buff[2:length(bpix_buff)]) * 21.4369
-    barea_ac_buff <- sum(bpix_buff[2:length(bpix_buff)]) * 52.9717335
+    w_e <-ifelse(st_bbox(fire)[1] < m97, "w", "e")
     
     results[counter, 1] <- as.character(fire$Fire_ID)
     results[counter, 2] <- paste(as.character(vc[vc>0 & !is.na(vc)]), collapse = " ")
-    results[counter, 3] <- paste(as.character(vb[vb>0 & !is.na(vb)]), collapse = " ")
-    results[counter, 4] <- length(vc[vc>0 & !is.na(vc)])
-    results[counter, 5] <- length(vb[vb>0 & !is.na(vb)])
-    results[counter, 6] <- fire$Acres
-    results[counter, 7] <- fire$Year
-    results[counter, 8] <- barea_ha_nobuff
-    results[counter, 9] <- barea_ac_nobuff
-    results[counter, 10] <- barea_ha_buff
-    results[counter, 11] <- barea_ac_buff
+    results[counter, 3] <- length(vc[vc>0 & !is.na(vc)])
+    results[counter, 4] <- fire$Acres
+    results[counter, 5] <- fire$Year
+    results[counter, 6] <- barea_ha_nobuff
+    results[counter, 7] <- barea_ac_nobuff
+    results[counter, 8] <- w_e
+
     
     counter <- counter + 1
   }
@@ -88,26 +94,16 @@ for(y in 1:length(years)){
 write.csv(results, "data/mtbs_modis_ids_ba.csv")
 system("aws s3 cp data/mtbs_modis_ids_ba.csv s3://earthlab-natem/modis-burned-area/mtbs_modis_ids_ba.csv")
 
-p <- ggplot(results, aes(x= modis_ba_acre_b, y = Acres)) + geom_point() + geom_smooth(method = "lm") +
-  ggtitle("R2 = 0.90")
-
-ggsave(plot=p, "data/mtbs_v_modis_ba_buff.png")
-mod1 <- lm(modis_ba_acre_b ~ -1+Acres, data = results)
-
-p <- ggplot(results[results$Acres <1000,], aes(x= modis_ba_acre, y = Acres)) + geom_point(alpha=0.5) + geom_smooth(method = "lm") +
-  ggtitle("R2 = 0.66, <1000 Acres")
-ggsave(plot=p, "data/mtbs_v_modis_ba_nobuff_under1000.png")
-mod2 <- lm(modis_ba_acre ~ -1+Acres, data = results[results$Acres <1000,])
+# ggplot(results[results$mtbs_acres <5000, ], aes(x= modis_acres, y = mtbs_acres)) + geom_point(alpha=0.5) + geom_smooth(method = "lm")
 
 
-system("aws s3 cp data/mtbs_v_modis_ba_nobuff_under1000.png s3://earthlab-natem/modis-burned-area/mtbs_v_modis_ba_nobuff_under1000.png")
-system("aws s3 cp data/mtbs_v_modis_ba_buff.png s3://earthlab-natem/modis-burned-area/mtbs_v_modis_ba_buff.png")
+
 
 # breaking it down to just mtbsIDs and modis IDs ------------------
-long_mt_mo <- data.frame(Fire_ID=NA, modis_id_b=NA)
+long_mt_mo <- data.frame(Fire_ID=NA, modis_id=NA)
 counter <- 1
 for(i in 1:nrow(results)){
-  ss <- strsplit(results$modis_id_buff[i], " ") %>% unlist()
+  ss <- strsplit(results$modis_id[i], " ") %>% unlist()
   if(length(ss)>0){for(j in 1:length(ss)){
     long_mt_mo[counter, 1] <- results$Fire_ID[i]
     long_mt_mo[counter, 2] <- ss[j]
@@ -123,52 +119,73 @@ tabs <-  list()
 vals <- list()
 m_ids <- data.frame(year = NA, n_ids = NA)
 for(i in 1:length(years)){
-  modis_y <- raster(paste0("data/yearly_events/USA_burnevents_",years[i],".tif"))
+  modis_y <- raster(paste0("data/yearly_events/USA_burnevents_",years[i],"_ms.tif"))
   modis_y <- modis_y + as.numeric(paste0(years[i],"00000"))
-  vals[[i]] <- getValues(modis_y) %>%
+  vals[[i]] <- as_tibble(modis_y,xy=T) %>%
     na.omit()
-  vals[[i]] <- vals[[i]][vals[[i]]>0]
-  vals[[i]] <- ifelse(vals[[i]] == as.numeric(paste0(years[y],"00000")), NA, vals[[i]]) %>% na.omit()
+  vals[[i]] <- vals[[i]][vals[[i]]$cellvalue>0,]
+  vals[[i]]$cellvalue <- as.character(ifelse(vals[[i]]$cellvalue == as.numeric(paste0(years[y],"00000")), 
+                                NA, vals[[i]]$cellvalue))
+  vals[[i]] <- na.omit(vals[[i]])
+  vals[[i]]$w <-ifelse(vals[[i]]$x < m97, 'w', 'e')
   m_ids[i,1] <- years[i]
-  m_ids[i,2] <- length(unique(vals[[i]]))
-  tabs[[i]] <- as.data.frame(table(vals[[i]])) %>% rename(modisID = Var1)
+  m_ids[i,2] <- length(unique(vals[[i]]$cellvalue))
+  we <- vals[[i]] %>% 
+    dplyr::select(w_e, cellvalue) %>% 
+    group_by(cellvalue) %>%
+    summarise(w_e = first(w))
+  tabs[[i]] <- as_tibble(table(vals[[i]]$cellvalue))%>% 
+    rename(cellvalue = Var1) %>%
+    left_join(y=we)  %>% 
+    rename(modis_id = cellvalue)
 }
 
 all_modis_fires <- do.call("rbind", tabs) %>%
-  mutate(ba_ha = Freq * 21.4369,
-         ba_ac = Freq * 52.9717335)
+  mutate(ba_ha = n * 21.4369,
+         ba_ac = n * 52.9717335)
 
-over200ha <- all_modis_fires %>%
-  filter(ba_ha > 200)
-# todo - remove fires less than 20 pixels (200 ha)
-# then join to mtbs IDs
+over_th_w <- all_modis_fires %>%
+  filter(w_e == "w") %>%
+  filter(ba_ha > 404)
 
-# 
-# ids_matching <- results$modis_IDs_buff %>%
-#   strsplit(" ") %>%
-#   unlist() %>%
-#   unique()
+over_th_e <- all_modis_fires %>%
+  filter(w_e == "2") %>%
+  filter(ba_ha > 202)
 
-# confusion matrix without removing small fires----------------------------------
+all_over_th <- rbind(over_th_e,over_th_w) 
 
-confusion_matrix <- data.frame(modis = c("modis_ID_T", "modis_ID_F"), mtbs_ID_T = NA, mtbs_ID_F = NA)
-confusion_matrix[1,2] <- length(unique(long_mt_mo[!is.na(long_mt_mo$modis_id_b),]$Fire_ID))
-confusion_matrix[2,2] <- length(unique(long_mt_mo[is.na(long_mt_mo$modis_id_b),]$Fire_ID))
-confusion_matrix[1,3] <- sum(m_ids$n_ids) - confusion_matrix[1,2]
+# big table time baby ----------------------------------
 
-# confusion matris after removing small fires
-confusion_matrix2 <- data.frame(modis = c("modis_ID_T", "modis_ID_F"), mtbs_ID_T = NA, mtbs_ID_F = NA)
-confusion_matrix2[1,2] <- length(unique(long_mt_mo[!is.na(long_mt_mo$modis_id_b),]$Fire_ID))
-confusion_matrix2[2,2] <- length(unique(long_mt_mo[is.na(long_mt_mo$modis_id_b),]$Fire_ID))
-confusion_matrix2[1,3] <- nrow(over200ha) - confusion_matrix[1,2]
+big_table <- data.frame(mo_t-mt_t = NA,
+                        mo_f-mt_t = NA,
+                        mo_t-mt_f_all_modis = NA,
+                        mo_t-mt_f_modis_over_th = NA,
+                        mtbs_w_multiple_modis = NA,
+                        r2_u10000 = NA,
+                        r2_o10000 = NA,
+                        r2_all = NA,
+                        coef_u10000 = NA,
+                        coef_o10000 = NA,
+                        coef_all = NA)
 
-# number of mtbs fire with multiple modis IDs ------------------------------------
+big_table[kounter, 1] <- length(unique(long_mt_mo[!is.na(long_mt_mo$modis_id),]$Fire_ID))
+big_table[kounter, 2] <- length(unique(long_mt_mo[is.na(long_mt_mo$modis_id),]$Fire_ID))
+big_table[kounter, 3] <- sum(m_ids$n_ids) - confusion_matrix[1,2]
+big_table[kounter, 4] <- nrow(all_over_th) - length(unique(long_mt_mo[!is.na(long_mt_mo$modis_id),]$Fire_ID))
+
 t <- table(results$n_buff)
-mtbs_w_multiple_modis <- sum(t[3:length(t)])
+big_table[kounter, 5] <- sum(t[3:length(t)])
 
-write.csv(mtbs_w_multiple_modis, "data/mtbs_w_multiple_modis.csv")
-write.csv(confusion_matrix, "data/confusion_matrix_all_fires.csv")
-write.csv(confusion_matrix2, "data/confusion_matrix_over_200ha.csv")
-system("aws s3 cp data/confusion_matrix_all_fires.csv s3://earthlab-natem/modis-burned-area/confusion_matrix_all_fires.csv")
-system("aws s3 cp data/confusion_matrix_over_200ha.csv s3://earthlab-natem/modis-burned-area/confusion_matrix_over_200ha.csv")
-system("aws s3 cp data/mtbs_w_multiple_modis.csv s3://earthlab-natem/modis-burned-area/mtbs_w_multiple_modis.csv")
+mod1 <- lm(modis_acres ~ -1+mtbs_acres, data = results[results$mtbs_acres <10000,])
+mod2 <- lm(modis_acres ~ -1+mtbs_acres, data = results[results$mtbs_acres >10000,])
+mod3 <- lm(modis_acres ~ -1+mtbs_acres, data = results)
+
+big_table[kounter, 6] <- summary(mod1)$r.squared
+big_table[kounter, 7] <- summary(mod2)$r.squared
+big_table[kounter, 8] <- summary(mod3)$r.squared
+big_table[kounter, 9] <- as.numeric(mod1$coefficients)
+big_table[kounter, 10] <- as.numeric(mod2$coefficients)
+big_table[kounter, 11] <- as.numeric(mod3$coefficients)
+
+write.csv(big_table, "data/big_table.csv")
+system("aws s3 cp data/big_table.csv s3://earthlab-natem/modis-burned-area/adams_big_table.csv")
