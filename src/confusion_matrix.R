@@ -156,10 +156,10 @@ all_over_th <- rbind(over_th_e,over_th_w)
 
 # big table time baby ----------------------------------
 
-big_table <- data.frame(mo_t-mt_t = NA,
-                        mo_f-mt_t = NA,
-                        mo_t-mt_f_all_modis = NA,
-                        mo_t-mt_f_modis_over_th = NA,
+big_table <- data.frame(modisT_mtbsT = NA,
+                        modisF_mtbsT = NA,
+                        modisT_mtbsF_all_modis = NA,
+                        modisT_mtbsF_modis_over_th = NA,
                         mtbs_w_multiple_modis = NA,
                         r2_u10000 = NA,
                         r2_o10000 = NA,
@@ -170,7 +170,7 @@ big_table <- data.frame(mo_t-mt_t = NA,
 
 big_table[kounter, 1] <- length(unique(long_mt_mo[!is.na(long_mt_mo$modis_id),]$Fire_ID))
 big_table[kounter, 2] <- length(unique(long_mt_mo[is.na(long_mt_mo$modis_id),]$Fire_ID))
-big_table[kounter, 3] <- sum(m_ids$n_ids) - confusion_matrix[1,2]
+big_table[kounter, 3] <- sum(m_ids$n_ids) - length(unique(long_mt_mo[is.na(long_mt_mo$modis_id),]$Fire_ID))
 big_table[kounter, 4] <- nrow(all_over_th) - length(unique(long_mt_mo[!is.na(long_mt_mo$modis_id),]$Fire_ID))
 
 t <- table(results$n_buff)
