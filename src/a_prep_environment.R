@@ -18,6 +18,7 @@ hdf_months <- file.path(version_dir, "hdf_months")
 tif_months <- file.path(version_dir, "tif_months")
 tif_year <- file.path(version_dir, "tif_years")
 yearly_composites <- file.path(version_dir, "yearly_composites")
+yearly_events <- file.path(version_dir, "yearly_events")
 
 # Check if directory exists for all variable aggregate outputs, if not then create
 var_dir <- list(prefix, raw_prefix, us_prefix, MCD64A1_dir, version_dir, mtbs_prefix,
@@ -54,15 +55,13 @@ usa_ms <- st_transform(usa, crs = p4string_ms) %>%
 # Import and prep the USA shapefile and extract for only the Western US
 wus <- st_read(file.path(us_prefix, "cb_2016_us_state_20m.shp"),
                    quiet= TRUE) %>%
-  filter(STUSPS %in% c("CO", "WA", "OR", "NV", "CA", "ID", "UT",
-                       "WY", "NM", "AZ", "MT")) %>%
+  filter(STUSPS %in% c("CO")) %>%
   dplyr::select(STUSPS) %>%
   st_transform(p4string_ea)
 names(wus) %<>% tolower
 
 # Reproject WUS shapefile to MODIS sinusoidal
-wus_ms <- st_transform(wus, crs = p4string_ms) %>%
-  as(., "Spatial")
+wus_ms <- st_transform(wus, crs = p4string_ms) 
 
 # This function extracts the MODIS tiles that intersect with the shapefile area of interest
 get_tiles <- function(aoi_mask){
