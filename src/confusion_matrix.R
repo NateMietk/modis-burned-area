@@ -173,7 +173,7 @@ big_table[kounter, 2] <- length(unique(long_mt_mo[is.na(long_mt_mo$modis_id),]$F
 big_table[kounter, 3] <- sum(m_ids$n_ids) - length(unique(long_mt_mo[is.na(long_mt_mo$modis_id),]$Fire_ID))
 big_table[kounter, 4] <- nrow(all_over_th) - length(unique(long_mt_mo[!is.na(long_mt_mo$modis_id),]$Fire_ID))
 
-t <- table(results$n_buff)
+t <- table(results$n)
 big_table[kounter, 5] <- sum(t[3:length(t)])
 
 mod1 <- lm(modis_acres ~ -1+mtbs_acres, data = results[results$mtbs_acres <10000,])
