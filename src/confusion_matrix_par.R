@@ -109,108 +109,108 @@ foreach(SS = space) %dopar% {
     }
     
     res_file <-paste0("mtbs_modis_ids_ba_s",SS,"t",TT,".csv")
-    write.csv(results, res_file )
+    write.csv(results, paste0("data/",res_file ))
     system(paste0("aws s3 cp data/",res_file," s3://earthlab-natem/modis-burned-area/MCD64A1/C6/result_tables/",res_file))
-           
-           # ggplot(results[results$mtbs_acres <5000, ], aes(x= modis_acres, y = mtbs_acres)) + geom_point(alpha=0.5) + geom_smooth(method = "lm")
-           
-           
-           
-           
-           # breaking it down to just mtbsIDs and modis IDs ------------------
-           long_mt_mo <- data.frame(Fire_ID=NA, modis_id=NA)
-           counter <- 1
-           for(i in 1:nrow(results)){
-             ss <- strsplit(results$modis_id[i], " ") %>% unlist()
-             if(length(ss)>0){for(j in 1:length(ss)){
-               long_mt_mo[counter, 1] <- results$Fire_ID[i]
-               long_mt_mo[counter, 2] <- ss[j]
-               counter <- counter + 1
-             }}else{
-               long_mt_mo[counter, 1] <- results$Fire_ID[i]
-               long_mt_mo[counter, 2] <- NA
-               counter <- counter + 1}
-           }
-           
-           # calculate modis id numbers -----------------------------------
-           tabs <-  list()
-           vals <- list()
-           m_ids <- data.frame(year = NA, n_ids = NA)
-           for(i in 1:length(years)){
-             modis_y <- raster(paste0("data/yearly_composites_15x15/USA_burnevents_",years[i],"s",SS,"t",TT,".tif"))
-             modis_y <- modis_y + as.numeric(paste0(years[i],"00000"))
-             vals[[i]] <- as_tibble(modis_y,xy=T) %>%
-               na.omit()
-             vals[[i]] <- vals[[i]][vals[[i]]$cellvalue>0,]
-             vals[[i]]$cellvalue <- as.character(ifelse(vals[[i]]$cellvalue == as.numeric(paste0(years[y],"00000")), 
-                                                        NA, vals[[i]]$cellvalue))
-             vals[[i]] <- na.omit(vals[[i]])
-             vals[[i]]$w <-ifelse(vals[[i]]$x < m97, 'w', 'e')
-             m_ids[i,1] <- years[i]
-             m_ids[i,2] <- length(unique(vals[[i]]$cellvalue))
-             we <- vals[[i]] %>% 
-               dplyr::select(w_e, cellvalue) %>% 
-               group_by(cellvalue) %>%
-               summarise(w_e = first(w))
-             tabs[[i]] <- as_tibble(table(vals[[i]]$cellvalue))%>% 
-               rename(cellvalue = Var1) %>%
-               left_join(y=we)  %>% 
-               rename(modis_id = cellvalue)
-           }
-           
-           all_modis_fires <- do.call("rbind", tabs) %>%
-             mutate(ba_ha = n * 21.4369,
-                    ba_ac = n * 52.9717335)
-           
-           over_th_w <- all_modis_fires %>%
-             filter(w_e == "w") %>%
-             filter(ba_ha > 404)
-           
-           over_th_e <- all_modis_fires %>%
-             filter(w_e == "2") %>%
-             filter(ba_ha > 202)
-           
-           all_over_th <- rbind(over_th_e,over_th_w) 
-           
-           # big table time baby ----------------------------------
-           
-           big_table <- data.frame(modisT_mtbsT = NA,
-                                   modisF_mtbsT = NA,
-                                   modisT_mtbsF_all_modis = NA,
-                                   modisT_mtbsF_modis_over_th = NA,
-                                   mtbs_w_multiple_modis = NA,
-                                   r2_u10000 = NA,
-                                   r2_o10000 = NA,
-                                   r2_all = NA,
-                                   coef_u10000 = NA,
-                                   coef_o10000 = NA,
-                                   coef_all = NA)
-           
-           big_table[kounter, 1] <- length(unique(long_mt_mo[!is.na(long_mt_mo$modis_id),]$Fire_ID))
-           big_table[kounter, 2] <- length(unique(long_mt_mo[is.na(long_mt_mo$modis_id),]$Fire_ID))
-           big_table[kounter, 3] <- sum(m_ids$n_ids) - length(unique(long_mt_mo[is.na(long_mt_mo$modis_id),]$Fire_ID))
-           big_table[kounter, 4] <- nrow(all_over_th) - length(unique(long_mt_mo[!is.na(long_mt_mo$modis_id),]$Fire_ID))
-           
-           t <- table(results$n)
-           big_table[kounter, 5] <- sum(t[3:length(t)])
-           
-           mod1 <- lm(modis_acres ~ -1+mtbs_acres, data = results[results$mtbs_acres <10000,])
-           mod2 <- lm(modis_acres ~ -1+mtbs_acres, data = results[results$mtbs_acres >10000,])
-           mod3 <- lm(modis_acres ~ -1+mtbs_acres, data = results)
-           
-           big_table[kounter, 6] <- summary(mod1)$r.squared
-           big_table[kounter, 7] <- summary(mod2)$r.squared
-           big_table[kounter, 8] <- summary(mod3)$r.squared
-           big_table[kounter, 9] <- as.numeric(mod1$coefficients)
-           big_table[kounter, 10] <- as.numeric(mod2$coefficients)
-           big_table[kounter, 11] <- as.numeric(mod3$coefficients)
-           
-           bt_fn <- paste0("big_table_s", SS,"t",TT,".csv")
-           write.csv(big_table, paste0("data/",bt_fn))
-           system(paste0("aws s3 cp data/",bt_fn, 
-                         " s3://earthlab-natem/modis-burned-area/MCD64A1/C6/final_tables/",bt_fn))
-           print(Sys.time()-t0)
-           kounter <- kounter + 1
-           system("rm -r data/yearly_composites_15x15/*")
+     
+     # ggplot(results[results$mtbs_acres <5000, ], aes(x= modis_acres, y = mtbs_acres)) + geom_point(alpha=0.5) + geom_smooth(method = "lm")
+     
+     
+     
+     
+     # breaking it down to just mtbsIDs and modis IDs ------------------
+     long_mt_mo <- data.frame(Fire_ID=NA, modis_id=NA)
+     counter <- 1
+     for(i in 1:nrow(results)){
+       ss <- strsplit(results$modis_id[i], " ") %>% unlist()
+       if(length(ss)>0){for(j in 1:length(ss)){
+         long_mt_mo[counter, 1] <- results$Fire_ID[i]
+         long_mt_mo[counter, 2] <- ss[j]
+         counter <- counter + 1
+       }}else{
+         long_mt_mo[counter, 1] <- results$Fire_ID[i]
+         long_mt_mo[counter, 2] <- NA
+         counter <- counter + 1}
+     }
+     
+     # calculate modis id numbers -----------------------------------
+     tabs <-  list()
+     vals <- list()
+     m_ids <- data.frame(year = NA, n_ids = NA)
+     for(i in 1:length(years)){
+       modis_y <- raster(paste0("data/yearly_composites_15x15/USA_burnevents_",years[i],"s",SS,"t",TT,".tif"))
+       modis_y <- modis_y + as.numeric(paste0(years[i],"00000"))
+       vals[[i]] <- as_tibble(modis_y,xy=T) %>%
+         na.omit()
+       vals[[i]] <- vals[[i]][vals[[i]]$cellvalue>0,]
+       vals[[i]]$cellvalue <- as.character(ifelse(vals[[i]]$cellvalue == as.numeric(paste0(years[y],"00000")), 
+                                                  NA, vals[[i]]$cellvalue))
+       vals[[i]] <- na.omit(vals[[i]])
+       vals[[i]]$w <-ifelse(vals[[i]]$x < m97, 'w', 'e')
+       m_ids[i,1] <- years[i]
+       m_ids[i,2] <- length(unique(vals[[i]]$cellvalue))
+       we <- vals[[i]] %>% 
+         dplyr::select(w_e, cellvalue) %>% 
+         group_by(cellvalue) %>%
+         summarise(w_e = first(w))
+       tabs[[i]] <- as_tibble(table(vals[[i]]$cellvalue))%>% 
+         rename(cellvalue = Var1) %>%
+         left_join(y=we)  %>% 
+         rename(modis_id = cellvalue)
+     }
+     
+     all_modis_fires <- do.call("rbind", tabs) %>%
+       mutate(ba_ha = n * 21.4369,
+              ba_ac = n * 52.9717335)
+     
+     over_th_w <- all_modis_fires %>%
+       filter(w_e == "w") %>%
+       filter(ba_ha > 404)
+     
+     over_th_e <- all_modis_fires %>%
+       filter(w_e == "2") %>%
+       filter(ba_ha > 202)
+     
+     all_over_th <- rbind(over_th_e,over_th_w) 
+     
+     # big table time baby ----------------------------------
+     
+     big_table <- data.frame(modisT_mtbsT = NA,
+                             modisF_mtbsT = NA,
+                             modisT_mtbsF_all_modis = NA,
+                             modisT_mtbsF_modis_over_th = NA,
+                             mtbs_w_multiple_modis = NA,
+                             r2_u10000 = NA,
+                             r2_o10000 = NA,
+                             r2_all = NA,
+                             coef_u10000 = NA,
+                             coef_o10000 = NA,
+                             coef_all = NA)
+     
+     big_table[kounter, 1] <- length(unique(long_mt_mo[!is.na(long_mt_mo$modis_id),]$Fire_ID))
+     big_table[kounter, 2] <- length(unique(long_mt_mo[is.na(long_mt_mo$modis_id),]$Fire_ID))
+     big_table[kounter, 3] <- sum(m_ids$n_ids) - length(unique(long_mt_mo[is.na(long_mt_mo$modis_id),]$Fire_ID))
+     big_table[kounter, 4] <- nrow(all_over_th) - length(unique(long_mt_mo[!is.na(long_mt_mo$modis_id),]$Fire_ID))
+     
+     t <- table(results$n)
+     big_table[kounter, 5] <- sum(t[3:length(t)])
+     
+     mod1 <- lm(modis_acres ~ -1+mtbs_acres, data = results[results$mtbs_acres <10000,])
+     mod2 <- lm(modis_acres ~ -1+mtbs_acres, data = results[results$mtbs_acres >10000,])
+     mod3 <- lm(modis_acres ~ -1+mtbs_acres, data = results)
+     
+     big_table[kounter, 6] <- summary(mod1)$r.squared
+     big_table[kounter, 7] <- summary(mod2)$r.squared
+     big_table[kounter, 8] <- summary(mod3)$r.squared
+     big_table[kounter, 9] <- as.numeric(mod1$coefficients)
+     big_table[kounter, 10] <- as.numeric(mod2$coefficients)
+     big_table[kounter, 11] <- as.numeric(mod3$coefficients)
+     
+     bt_fn <- paste0("big_table_s", SS,"t",TT,".csv")
+     write.csv(big_table, paste0("data/",bt_fn))
+     system(paste0("aws s3 cp data/",bt_fn, 
+                   " s3://earthlab-natem/modis-burned-area/MCD64A1/C6/final_tables/",bt_fn))
+     print(Sys.time()-t0)
+     kounter <- kounter + 1
+     system("rm -r data/yearly_composites_15x15/*")
   }
 }
