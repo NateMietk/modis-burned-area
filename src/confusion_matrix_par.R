@@ -20,9 +20,12 @@ foreach(SS = space) %dopar% {
     
     for(yy in years){
       s3file<- paste0("USA_BurnDate_",yy,"s",SS,"t",TT,".tif")
+      s3dir <- paste0("data/yearly_composites_15x15/s",SS,"t",TT)
+      dir.create(s3dir)
       system(paste0("aws s3 cp s3://earthlab-natem/modis-burned-area/MCD64A1/C6/yearly_composites_15x15/",
                     s3file,
                     " data/yearly_composites_15x15/",
+                    s3dir,"/",
                     s3file
       ))
     }
@@ -205,7 +208,6 @@ foreach(SS = space) %dopar% {
      system(paste0("aws s3 cp data/",bt_fn, 
                    " s3://earthlab-natem/modis-burned-area/MCD64A1/C6/final_tables/",bt_fn))
      print(Sys.time()-t0)
-     kounter <- kounter + 1
-     system("rm -r data/yearly_composites_15x15/*")
+     system(paste0("rm -r ",s3dir))
   }
 }
