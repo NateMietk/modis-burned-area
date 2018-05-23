@@ -111,12 +111,7 @@ foreach(SS = space) %dopar% {
     res_file <-paste0("mtbs_modis_ids_ba_s",SS,"t",TT,".csv")
     write.csv(results, paste0("data/",res_file ))
     system(paste0("aws s3 cp data/",res_file," s3://earthlab-natem/modis-burned-area/MCD64A1/C6/result_tables/",res_file))
-     
-     # ggplot(results[results$mtbs_acres <5000, ], aes(x= modis_acres, y = mtbs_acres)) + geom_point(alpha=0.5) + geom_smooth(method = "lm")
-     
-     
-     
-     
+
      # breaking it down to just mtbsIDs and modis IDs ------------------
      long_mt_mo <- data.frame(Fire_ID=NA, modis_id=NA)
      counter <- 1
