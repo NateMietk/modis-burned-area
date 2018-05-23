@@ -9,8 +9,8 @@ dir.create("data/yearly_composites_15x15")
 corz = detectCores()/4
 registerDoParallel(corz)
 
-foreach(SS = 1:length(space)) %dopar% {
-  for(TT in 1:length(time)){
+foreach(SS = space) %dopar% {
+  for(TT in time){
     
     # import files ------------------------------------------------------------------------------
     
@@ -20,7 +20,7 @@ foreach(SS = 1:length(space)) %dopar% {
     
     for(yy in years){
       s3file<- paste0("USA_BurnDate_",yy,"s",SS,"t",TT,".tif")
-      system(paste0("aws s3 sync s3://earthlab-natem/modis-burned-area/MCD64A1/C6/yearly_composites_15x15/",
+      system(paste0("aws s3 cp s3://earthlab-natem/modis-burned-area/MCD64A1/C6/yearly_composites_15x15/",
                     s3file,
                     " data/yearly_composites_15x15/",
                     s3file
@@ -53,7 +53,7 @@ foreach(SS = 1:length(space)) %dopar% {
                           west_or_east = NA) #make a field with modis acres
     counter <- 1
     for(y in 1:length(years)){
-      modis_y <- raster(paste0("data/yearly_composites_15x15/USA_burnevents_",years[y],".tif"))
+      modis_y <- raster(paste0("data/yearly_composites_15x15/USA_BurnDate_",years[y],"s",SS,"t",TT,".tif"))
       modis_y <- modis_y + as.numeric(paste0(years[y],"00000"))
       
       if(!exists("modis_proj")){modis_proj <- crs(modis_y, asText=TRUE)} #set this
@@ -108,7 +108,7 @@ foreach(SS = 1:length(space)) %dopar% {
       }
     }
     
-    res_file <-paste0("data/mtbs_modis_ids_ba_s",SS,"t",TT,".csv")
+    res_file <-paste0("mtbs_modis_ids_ba_s",SS,"t",TT,".csv")
     write.csv(results, res_file )
     system(paste0("aws s3 cp data/",res_file," s3://earthlab-natem/modis-burned-area/MCD64A1/C6/result_tables/",res_file))
            
@@ -137,7 +137,7 @@ foreach(SS = 1:length(space)) %dopar% {
            vals <- list()
            m_ids <- data.frame(year = NA, n_ids = NA)
            for(i in 1:length(years)){
-             modis_y <- raster(paste0("data/yearly_composites_15x15/USA_burnevents_",years[i],".tif"))
+             modis_y <- raster(paste0("data/yearly_composites_15x15/USA_burnevents_",years[i],"s",SS,"t",TT,".tif"))
              modis_y <- modis_y + as.numeric(paste0(years[i],"00000"))
              vals[[i]] <- as_tibble(modis_y,xy=T) %>%
                na.omit()
