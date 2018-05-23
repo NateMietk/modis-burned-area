@@ -132,7 +132,7 @@ foreach(SS = space) %dopar% {
      vals <- list()
      m_ids <- data.frame(year = NA, n_ids = NA)
      for(i in 1:length(years)){
-       modis_y <- raster(paste0("data/yearly_composites_15x15/USA_burnevents_",years[i],"s",SS,"t",TT,".tif"))
+       modis_y <- raster(paste0("data/yearly_composites_15x15/USA_BurnDate_",years[i],"s",SS,"t",TT,".tif"))
        modis_y <- modis_y + as.numeric(paste0(years[i],"00000"))
        vals[[i]] <- as_tibble(modis_y,xy=T) %>%
          na.omit()
