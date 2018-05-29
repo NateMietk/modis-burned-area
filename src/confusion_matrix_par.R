@@ -4,30 +4,34 @@ library(tabularaster)
 
 space <- 1:15
 time <- 1:15
+years <- 2001:2015
+
 
 dir.create("data/yearly_composites_15x15")
-corz = detectCores()/4
+corz = detectCores()-1
 registerDoParallel(corz)
 
-foreach(SS = space) %dopar% {
+# usa <- st_transform(usa, 4326)
+
+# foreach(SS = space) %dopar% {
+for(SS in space){
   for(TT in time){
     
     # import files ------------------------------------------------------------------------------
     
     t0 <- Sys.time()
-    kounter <- 1
-    years <- 2001:2015
     
+    s3dir <- paste0("data/yearly_composites_15x15/s",SS,"t",TT)
+    dir.create(s3dir)
     for(yy in years){
       s3file<- paste0("USA_BurnDate_",yy,"s",SS,"t",TT,".tif")
-      s3dir <- paste0("data/yearly_composites_15x15/s",SS,"t",TT)
-      dir.create(s3dir)
+      if(!file.exists(paste0(s3dir, "/",s3file))){
       system(paste0("aws s3 cp s3://earthlab-natem/modis-burned-area/MCD64A1/C6/yearly_composites_15x15/",
                     s3file,
-                    " data/yearly_composites_15x15/",
+                    " ",
                     s3dir,"/",
                     s3file
-      ))
+      ))}
     }
     
     mtbs_shp <- file.path(mtbs_prefix, 'mtbs_perimeter_data_v2','dissolve_mtbs_perims_1984-2015_DD_20170501.shp')
@@ -56,7 +60,8 @@ foreach(SS = space) %dopar% {
                           west_or_east = NA) #make a field with modis acres
     counter <- 1
     for(y in 1:length(years)){
-      modis_y <- raster(paste0("data/yearly_composites_15x15/USA_BurnDate_",years[y],"s",SS,"t",TT,".tif"))
+      modis_y <- raster(paste0("data/yearly_composites_15x15/s",SS,"t",TT,"/",
+                               "USA_BurnDate_",years[y],"s",SS,"t",TT,".tif"))
       modis_y <- modis_y + as.numeric(paste0(years[y],"00000"))
       
       if(!exists("modis_proj")){modis_proj <- crs(modis_y, asText=TRUE)} #set this
@@ -65,17 +70,8 @@ foreach(SS = space) %dopar% {
         mtbs <- st_read(mtbs_shp) %>%
           st_intersection(., st_union(st_transform(usa, st_crs(.)))) %>%
           st_transform(crs = modis_proj)}
-      
-      if(!exists("m97")){m97 <- st_sf(a=1,geom = st_sfc(st_point(c(-97,45))))%>%
-        st_set_crs(4326) %>%
-        st_transform(crs = modis_proj) %>%
-        st_bbox() %>%
-        as.numeric()
-      m97 <- m97[1]}
-      
+
       mtbs_y <- mtbs[mtbs$Year == years[y],] 
-      
-      
       
       for(f in 1:nrow(mtbs_y)){
         fire <- mtbs_y[f,]
@@ -95,7 +91,8 @@ foreach(SS = space) %dopar% {
         barea_ha_nobuff <- sum(bpix_nobuff[2:length(bpix_nobuff)]) * 21.4369
         barea_ac_nobuff <- sum(bpix_nobuff[2:length(bpix_nobuff)]) * 52.9717335
         
-        w_e <-ifelse(st_bbox(fire)[1] < m97, "w", "e")
+        
+        w_e <-as.character(ifelse(st_bbox(st_transform(fire,4326))[1] < -97, "w", "e"))
         
         results[counter, 1] <- as.character(fire$Fire_ID)
         results[counter, 2] <- paste(as.character(vc[vc>0 & !is.na(vc)]), collapse = " ")
@@ -105,8 +102,7 @@ foreach(SS = space) %dopar% {
         results[counter, 6] <- barea_ha_nobuff
         results[counter, 7] <- barea_ac_nobuff
         results[counter, 8] <- w_e
-        
-        
+        print(c(counter, years[y]))
         counter <- counter + 1
       }
     }
@@ -114,7 +110,7 @@ foreach(SS = space) %dopar% {
     res_file <-paste0("mtbs_modis_ids_ba_s",SS,"t",TT,".csv")
     write.csv(results, paste0("data/",res_file ))
     system(paste0("aws s3 cp data/",res_file," s3://earthlab-natem/modis-burned-area/MCD64A1/C6/result_tables/",res_file))
-
+   
      # breaking it down to just mtbsIDs and modis IDs ------------------
      long_mt_mo <- data.frame(Fire_ID=NA, modis_id=NA)
      counter <- 1
@@ -129,46 +125,34 @@ foreach(SS = space) %dopar% {
          long_mt_mo[counter, 2] <- NA
          counter <- counter + 1}
      }
+     gc()
      
      # calculate modis id numbers -----------------------------------
-     tabs <-  list()
-     vals <- list()
-     m_ids <- data.frame(year = NA, n_ids = NA)
+     e_th <- 202/21.4369 #thresholds in pixels
+     w_th <- 404/21.4369
+     
+     m_ids <- data.frame(year = NA, n_ids = NA, n_over_th = NA)
      for(i in 1:length(years)){
-       modis_y <- raster(paste0("data/yearly_composites_15x15/USA_BurnDate_",years[i],"s",SS,"t",TT,".tif"))
-       modis_y <- modis_y + as.numeric(paste0(years[i],"00000"))
-       vals[[i]] <- as_tibble(modis_y,xy=T) %>%
-         na.omit()
-       vals[[i]] <- vals[[i]][vals[[i]]$cellvalue>0,]
-       vals[[i]]$cellvalue <- as.character(ifelse(vals[[i]]$cellvalue == as.numeric(paste0(years[y],"00000")), 
-                                                  NA, vals[[i]]$cellvalue))
-       vals[[i]] <- na.omit(vals[[i]])
-       vals[[i]]$w <-ifelse(vals[[i]]$x < m97, 'w', 'e')
-       m_ids[i,1] <- years[i]
-       m_ids[i,2] <- length(unique(vals[[i]]$cellvalue))
-       we <- vals[[i]] %>% 
-         dplyr::select(w_e, cellvalue) %>% 
-         group_by(cellvalue) %>%
-         summarise(w_e = first(w))
-       tabs[[i]] <- as_tibble(table(vals[[i]]$cellvalue))%>% 
-         rename(cellvalue = Var1) %>%
-         left_join(y=we)  %>% 
-         rename(modis_id = cellvalue)
+       r <- raster(paste0("data/yearly_composites_15x15/s",SS,"t",TT,"/",
+                                "USA_BurnDate_",years[i],"s",SS,"t",TT,".tif"))
+       m_ids$year[i] <- years[i]
+       m_ids$n_ids[i] <- length(unique(freq(r)))
+       
+       
+       r[r<1] <- NA
+       d <- rasterToPoints(r, spatial=TRUE)
+       geo.prj <- "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0"
+       d <- spTransform(d, CRS(geo.prj))
+       d <- data.frame(d@data, long=coordinates(d)[,1]) %>%
+         as_tibble() %>%
+         group_by(USA_BurnDate_2001s1t1) %>%
+         summarize(pixel_count = n(),
+                   long = mean(long))
+       d$th <- ifelse(d$long < -97, w_th,e_th)
+       
+       m_ids$n_over_th[i] <- nrow(d[d$th < d$pixel_count, ])
+     
      }
-     
-     all_modis_fires <- do.call("rbind", tabs) %>%
-       mutate(ba_ha = n * 21.4369,
-              ba_ac = n * 52.9717335)
-     
-     over_th_w <- all_modis_fires %>%
-       filter(w_e == "w") %>%
-       filter(ba_ha > 404)
-     
-     over_th_e <- all_modis_fires %>%
-       filter(w_e == "2") %>%
-       filter(ba_ha > 202)
-     
-     all_over_th <- rbind(over_th_e,over_th_w) 
      
      # big table time baby ----------------------------------
      
@@ -184,24 +168,24 @@ foreach(SS = space) %dopar% {
                              coef_o10000 = NA,
                              coef_all = NA)
      
-     big_table[kounter, 1] <- length(unique(long_mt_mo[!is.na(long_mt_mo$modis_id),]$Fire_ID))
-     big_table[kounter, 2] <- length(unique(long_mt_mo[is.na(long_mt_mo$modis_id),]$Fire_ID))
-     big_table[kounter, 3] <- sum(m_ids$n_ids) - length(unique(long_mt_mo[is.na(long_mt_mo$modis_id),]$Fire_ID))
-     big_table[kounter, 4] <- nrow(all_over_th) - length(unique(long_mt_mo[!is.na(long_mt_mo$modis_id),]$Fire_ID))
+     big_table[1, 1] <- length(unique(long_mt_mo[!is.na(long_mt_mo$modis_id),]$Fire_ID))
+     big_table[1, 2] <- length(unique(long_mt_mo[is.na(long_mt_mo$modis_id),]$Fire_ID))
+     big_table[1, 3] <- sum(m_ids$n_ids) - length(unique(long_mt_mo[is.na(long_mt_mo$modis_id),]$Fire_ID))
+     big_table[1, 4] <- sum(m_ids$n_over_th) - length(unique(long_mt_mo[!is.na(long_mt_mo$modis_id),]$Fire_ID))
      
      t <- table(results$n)
-     big_table[kounter, 5] <- sum(t[3:length(t)])
+     big_table[1, 5] <- sum(t[3:length(t)])
      
      mod1 <- lm(modis_acres ~ -1+mtbs_acres, data = results[results$mtbs_acres <10000,])
      mod2 <- lm(modis_acres ~ -1+mtbs_acres, data = results[results$mtbs_acres >10000,])
      mod3 <- lm(modis_acres ~ -1+mtbs_acres, data = results)
      
-     big_table[kounter, 6] <- summary(mod1)$r.squared
-     big_table[kounter, 7] <- summary(mod2)$r.squared
-     big_table[kounter, 8] <- summary(mod3)$r.squared
-     big_table[kounter, 9] <- as.numeric(mod1$coefficients)
-     big_table[kounter, 10] <- as.numeric(mod2$coefficients)
-     big_table[kounter, 11] <- as.numeric(mod3$coefficients)
+     big_table[1, 6] <- summary(mod1)$r.squared
+     big_table[1, 7] <- summary(mod2)$r.squared
+     big_table[1, 8] <- summary(mod3)$r.squared
+     big_table[1, 9] <- as.numeric(mod1$coefficients)
+     big_table[1, 10] <- as.numeric(mod2$coefficients)
+     big_table[1, 11] <- as.numeric(mod3$coefficients)
      
      bt_fn <- paste0("big_table_s", SS,"t",TT,".csv")
      write.csv(big_table, paste0("data/",bt_fn))
