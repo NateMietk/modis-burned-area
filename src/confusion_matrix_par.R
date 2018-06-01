@@ -1,6 +1,8 @@
 source("src/a_prep_environment.R")
 # install.packages("tabularaster")
 # library(tabularaster)
+install.packages("velox")
+library(velox)
 
 space <- 1#:15
 time <- 1:15
@@ -18,8 +20,6 @@ foreach(TT = time) %dopar% {
   for(SS in space){
     
     # import files ------------------------------------------------------------------------------
-    
-    t0 <- Sys.time()
     
     bt_fn <- paste0("big_table_s", SS,"t",TT,".csv")
     
@@ -66,8 +66,7 @@ foreach(TT = time) %dopar% {
     for(y in 1:length(years)){
       modis_y <- raster(paste0("data/yearly_composites_15x15/s",SS,"t",TT,"/",
                                "USA_BurnDate_",years[y],"s",SS,"t",TT,".tif"))
-      modis_y <- modis_y + as.numeric(paste0(years[y],"00000"))
-      
+
       if(!exists("modis_proj")){modis_proj <- crs(modis_y, asText=TRUE)} #set this
       
       if(!exists("mtbs")){
@@ -86,12 +85,12 @@ foreach(TT = time) %dopar% {
         SpP_ras[SpP_ras > 1] <- 1
         masked <- cropped * SpP_ras
         
-        vc <- unique(getValues(masked))
-        vc <- vc[vc>0]
-        vc <- ifelse(vc == as.numeric(paste0(years[y],"00000")), NA, vc)
+        vc <- unique((masked[masked>0]))
+        vc <- vc + as.numeric(paste0(years[y],"00000"))
         if(length(vc) == 0){vc<-NA}
         
-        bpix_nobuff <- table(getValues(cropped)) 
+        
+        bpix_nobuff <- table(getValues(masked)) 
         barea_ha_nobuff <- sum(bpix_nobuff[2:length(bpix_nobuff)]) * 21.4369
         barea_ac_nobuff <- sum(bpix_nobuff[2:length(bpix_nobuff)]) * 52.9717335
         
@@ -99,8 +98,8 @@ foreach(TT = time) %dopar% {
         w_e <-as.character(ifelse(st_bbox(st_transform(fire,4326))[1] < -97, "w", "e"))
         
         results[counter, 1] <- as.character(fire$Fire_ID)
-        results[counter, 2] <- paste(as.character(vc[vc>0 & !is.na(vc)]), collapse = " ")
-        results[counter, 3] <- length(vc[vc>0 & !is.na(vc)])
+        results[counter, 2] <- paste(as.character(vc), collapse = " ")
+        results[counter, 3] <- length(vc[!is.na(vc)])
         results[counter, 4] <- fire$Acres
         results[counter, 5] <- fire$Year
         results[counter, 6] <- barea_ha_nobuff
