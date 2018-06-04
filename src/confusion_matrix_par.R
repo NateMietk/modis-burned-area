@@ -206,13 +206,17 @@ foreach(TT = time) %dopar% {
 }
 
 # stiching together the final table ----------------------------------
-dir.create("data/tables")
-system("aws s3 sync s3://earthlab-natem/modis-burned-area/MCD64A1/C6/final_tables data/tables")
+dir.create("data/final_tables")
+system("aws s3 sync s3://earthlab-natem/modis-burned-area/MCD64A1/C6/final_tables data/final_tables")
 
-tables <- list.files("data/tables")
+tables <- list.files("data/final_tables")
 table_l <- list()
 for(i in 1:length(tables)){
-  table_l[[i]] <- read.csv(paste0("data/tables/",tables[i]))
+  table_l[[i]] <- read.csv(paste0("data/final_tables/",tables[i]))
 }
 
 final_table <- do.call("rbind", table_l) %>% as_tibble()
+final_table$modisF_mtbsT<-4223 #whatever... obtained from fixing_confusing_matrix.R
+final_table <- final_table[,-c(1,7:12)]
+write.csv(final_table, "data/confusion_matrices.csv")
+system("aws s3 cp data/confusion_matrices.csv s3://earthlab-natem/modis-burned-area/MCD64A1/C6/confusion_matrix/confusion_matrices.csv")
