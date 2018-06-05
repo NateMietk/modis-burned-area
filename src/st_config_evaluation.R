@@ -11,7 +11,8 @@
 # total_modis_over_th: modisT_mtbsT + modisT_mtbsF_modis_over_th
 # diff: absolute value of total mtbs -  total_modis
 
-# description of the accuracy assessment http://www.dataschool.io/simple-guide-to-confusion-matrix-terminology/
+# description of the accuracy assessment varaibles can be found here: http://www.dataschool.io/simple-guide-to-confusion-matrix-terminology/
+
 library(plot3D)
 library(scales)
 
