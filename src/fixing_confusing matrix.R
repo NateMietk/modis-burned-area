@@ -5,17 +5,26 @@ space <- 1:15
 time <- 1:15
 kounter = 1
 
+corz = detectCores()-1
+registerDoParallel(corz)
+
 dir.create("data/tables")
+dir.create("data/long_tables")
 system("aws s3 sync s3://earthlab-natem/modis-burned-area/MCD64A1/C6/result_tables data/tables")
 
-big_table <- data.frame(st_combo = NA, modisF_mtbsT = NA,r2_u10000 = NA,
-                        r2_o10000 = NA,
-                        r2_all = NA,
-                        coef_u10000 = NA,
-                        coef_o10000 = NA,
-                        coef_all = NA)
+big_table <- data.frame(st_combo = NA,
+                        mtbs_w_multiple_modis = NA,
+                        modis_w_multiple_mtbs = NA,
+                        mean_n_modis_per_mtbs = NA,
+                        median_n_modis_per_mtbs = NA,
+                        max_n_modis_per_mtbs = NA,
+                        which_max_modis_per_mtbs = NA,
+                        mean_n_mtbs_per_modis = NA,
+                        median_n_mtbs_per_modis = NA,
+                        max_n_mtbs_per_modis = NA,
+                        which_max_mtbs_per_modis = NA)
 
-for(SS in space){
+foreach(SS = space)%dopar%{
   for(TT in time){
     t0 <- Sys.time()
     results <- read.csv(paste0("data/tables/mtbs_modis_ids_ba_s",SS,"t",TT,".csv"),
@@ -35,23 +44,39 @@ for(SS in space){
         counter <- counter + 1}
     }
     
+    longfile = paste0("long_s",SS,"t",TT,".csv")
+    write.csv(long_mt_mo, paste0("data/long_tables/",longfile))
+    system(paste0("aws s3 cp data/long_tables",
+                  longfile,
+                  " s3://earthlab-natem/modis-burned-area/MCD64A1/C6/long_tables/",
+                  longfile))
+    
+    n_modis_per_mtbs <- table(long_mt_mo$Fire_ID) %>% 
+      as_tibble() %>%
+      filter(Var1 != "NA")
+    
+    n_mtbs_per_modis <- table(long_mt_mo$modis_id) %>% 
+      as_tibble() %>%
+      filter(Var1 != "NA")
+    
     big_table[kounter,1] <- paste0("s",SS,"t",TT)
-    big_table[kounter,2] <- length(unique(long_mt_mo[is.na(long_mt_mo$modis_id),]$Fire_ID))
+    big_table[kounter,2] <- nrow(n_modis_per_mtbs[n_modis_per_mtbs$n > 1,])
+    big_table[kounter,3] <- nrow(n_mtbs_per_modis[n_mtbs_per_modis$n > 1,])
+    big_table[kounter,4] <- mean(n_modis_per_mtbs$n)
+    big_table[kounter,5] <- median(n_modis_per_mtbs$n)
+    big_table[kounter,6] <- max(n_modis_per_mtbs$n)
+    big_table[kounter,7] <- n_modis_per_mtbs[max(n_modis_per_mtbs$n),]$Var1
+    big_table[kounter,8] <- mean(n_mtbs_per_modis$n)
+    big_table[kounter,9] <- median(n_mtbs_per_modis$n)
+    big_table[kounter,10] <- max(n_mtbs_per_modis$n)
+    big_table[kounter,11] <- n_mtbs_per_modis[max(n_modis_per_mtbs$n),]$Var1
     
-    mod1 <- lm(modis_acres ~ -1+mtbs_acres, data = results[results$mtbs_acres <10000,])
-    mod2 <- lm(modis_acres ~ -1+mtbs_acres, data = results[results$mtbs_acres >10000,])
-    mod3 <- lm(modis_acres ~ -1+mtbs_acres, data = results)
-    
-    big_table[kounter, 3] <- summary(mod1)$r.squared
-    big_table[kounter, 4] <- summary(mod2)$r.squared
-    big_table[kounter, 5] <- summary(mod3)$r.squared
-    big_table[kounter, 6] <- as.numeric(mod1$coefficients)
-    big_table[kounter, 7] <- as.numeric(mod2$coefficients)
-    big_table[kounter, 8] <- as.numeric(mod3$coefficients)
+
     kounter = kounter +1
     print(c(SS,TT))
     print(Sys.time())
     print(Sys.time() - t0)
+    
   }
 }
 
