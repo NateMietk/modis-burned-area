@@ -46,7 +46,7 @@ foreach(SS = space)%dopar%{
     
     longfile = paste0("long_s",SS,"t",TT,".csv")
     write.csv(long_mt_mo, paste0("data/long_tables/",longfile))
-    system(paste0("aws s3 cp data/long_tables",
+    system(paste0("aws s3 cp data/long_tables/",
                   longfile,
                   " s3://earthlab-natem/modis-burned-area/MCD64A1/C6/long_tables/",
                   longfile))
@@ -80,11 +80,5 @@ foreach(SS = space)%dopar%{
   }
 }
 
-for(SS in space){
-  for(TT in time){
-    results <- read.csv(paste0("data/tables/mtbs_modis_ids_ba_s",SS,"t",TT,".csv"),
-                        stringsAsFactors = F) %>% as_tibble()
-    print(c(SS,TT))
-    print(summary(results$n))
-}}
-
+write.csv(big_table, "data/repeats.csv")
+system("aws s3 cp data/repeats.csv s3://earthlab-natem/modis-burned-area/MCD64A1/C6/confusion_matrix/repeats.csv")
