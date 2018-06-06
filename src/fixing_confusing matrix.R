@@ -12,7 +12,7 @@ dir.create("data/tables")
 dir.create("data/long_tables")
 system("aws s3 sync s3://earthlab-natem/modis-burned-area/MCD64A1/C6/result_tables data/tables")
 
-big_table <- data.frame(st_combo = NA,
+big_table <- tibble(st_combo = NA,
                         mtbs_w_multiple_modis = NA,
                         modis_w_multiple_mtbs = NA,
                         mean_n_modis_per_mtbs = NA,
