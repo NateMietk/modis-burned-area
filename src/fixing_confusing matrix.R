@@ -53,7 +53,10 @@ big_table <- tibble(st_combo = NA,
                     which_max_mtbs_per_modis = NA,
                     row_check = NA,
                     mtbsT_modisT_unique_modis_events = NA,
-                    mtbsT_modisT_total_n_modis_events_with_repeats = NA)
+                    mtbsT_modisT_total_n_modis_events_with_repeats = NA,
+                    space = NA,
+                    time = NA,
+                    mtbs_IDs_of_max_modis = NA)
 
 
 system("aws s3 sync s3://earthlab-natem/modis-burned-area/MCD64A1/C6/long_tables data/long_tables")
@@ -92,14 +95,25 @@ for(SS in space){
     max1 <- max(n_modis_per_mtbs$n)
     
     big_table[kounter,6] <- max1
-    big_table[kounter,7] <- results[results$n == max1,]$Fire_ID
+    
+    big_table[kounter,7] <- paste(results[results$n == max1,]$Fire_ID, collapse = " ")
     big_table[kounter,8] <- mean(n_mtbs_per_modis$n)
     big_table[kounter,9] <- median(n_mtbs_per_modis$n)
-    big_table[kounter,10] <- max(n_mtbs_per_modis$n)
-    big_table[kounter,11] <- n_mtbs_per_modis[max(n_mtbs_per_modis$n),]$Var1
+    
+    max2 <- max(n_mtbs_per_modis$n)
+    
+    big_table[kounter,10] <- max2
+    
+    which2 <- as.numeric(n_mtbs_per_modis[n_mtbs_per_modis$n == max2,]$Var1)
+    
+    big_table[kounter,11] <- paste(as.character(which2), collapse = " ")
     big_table[kounter,12] <- NN==nrow(long_mt_mo)
     big_table[kounter,13] <- length(unique(long_mt_mo$modis_id))
     big_table[kounter,14] <- sum(results$n)
+    big_table[kounter,15] <- SS
+    big_table[kounter,16] <- TT
+    big_table[kounter,17] <- paste(as.character(dplyr::filter(long_mt_mo, modis_id == first(which2))$Fire_ID),collapse = " ")
+    
     
 
     kounter = kounter +1
@@ -111,3 +125,10 @@ for(SS in space){
 
 write.csv(big_table, "data/repeats.csv")
 system("aws s3 cp data/repeats.csv s3://earthlab-natem/modis-burned-area/MCD64A1/C6/confusion_matrix/repeats.csv")
+
+# checking out repeat mtbs/modis stuff
+l = list()
+for(i in 1:nrow(big_table)){
+  l[[i]] <- unique(strsplit(big_table$mtbs_IDs_of_max_modis[i]," "))
+}
+unique(unlist(l))
