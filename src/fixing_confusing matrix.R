@@ -51,7 +51,9 @@ big_table <- tibble(st_combo = NA,
                     median_n_mtbs_per_modis = NA,
                     max_n_mtbs_per_modis = NA,
                     which_max_mtbs_per_modis = NA,
-                    row_check = NA)
+                    row_check = NA,
+                    mtbsT_modisT_unique_modis_events = NA,
+                    mtbsT_modisT_total_n_modis_events_with_repeats = NA)
 
 
 system("aws s3 sync s3://earthlab-natem/modis-burned-area/MCD64A1/C6/long_tables data/long_tables")
@@ -86,13 +88,19 @@ for(SS in space){
     big_table[kounter,3] <- nrow(n_mtbs_per_modis[n_mtbs_per_modis$n > 1,])
     big_table[kounter,4] <- mean(n_modis_per_mtbs$n)
     big_table[kounter,5] <- median(n_modis_per_mtbs$n)
-    big_table[kounter,6] <- max(n_modis_per_mtbs$n)
-    big_table[kounter,7] <- n_modis_per_mtbs[max(n_modis_per_mtbs$n),]$Var1
+    
+    max1 <- max(n_modis_per_mtbs$n)
+    
+    big_table[kounter,6] <- max1
+    big_table[kounter,7] <- results[results$n == max1,]$Fire_ID
     big_table[kounter,8] <- mean(n_mtbs_per_modis$n)
     big_table[kounter,9] <- median(n_mtbs_per_modis$n)
     big_table[kounter,10] <- max(n_mtbs_per_modis$n)
-    big_table[kounter,11] <- n_mtbs_per_modis[max(n_modis_per_mtbs$n),]$Var1
+    big_table[kounter,11] <- n_mtbs_per_modis[max(n_mtbs_per_modis$n),]$Var1
     big_table[kounter,12] <- NN==nrow(long_mt_mo)
+    big_table[kounter,13] <- length(unique(long_mt_mo$modis_id))
+    big_table[kounter,14] <- sum(results$n)
+    
 
     kounter = kounter +1
     print(c(SS,TT))
