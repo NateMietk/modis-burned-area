@@ -9,3 +9,4 @@ mtbs_cast$new_id <- ifelse(mtbs_cast$duped == TRUE,
                            as.character(mtbs_cast$Fire_ID))
 
 mtbs_cast$cast_area_ha <- st_area(mtbs_cast[0])%>% set_units(value = hectare)
+mtbs_cast$cast_area_ac <- st_area(mtbs_cast[0])%>% set_units(value = acre)

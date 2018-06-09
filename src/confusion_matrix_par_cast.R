@@ -50,10 +50,12 @@ foreach(TT = time) %:%
     
     #first big table -----------------------
     
-    results <- data.frame(Fire_ID = NA, 
+    results <- data.frame(Fire_ID = NA,
+                          mtbs_cast_id = NA,
                           modis_id = NA, 
                           n = NA,
                           mtbs_acres = NA,
+                          mtbs_hectares = NA,
                           mtbs_year = NA,
                           modis_ha = NA,
                           modis_acres = NA,
@@ -68,22 +70,23 @@ foreach(TT = time) %:%
       if(!exists("mtbs")){
         mtbs <- st_read(mtbs_shp) %>%
           st_intersection(., st_union(st_transform(usa, st_crs(.)))) %>%
-          st_transform(crs = modis_proj)} %>%
+          st_transform(crs = modis_proj)}%>%
           st_cast(to = "POLYGON")
-      mtbs$duped <- duplicated(mtbs_cast$Fire_ID)
-      
-      mtbs$new_id <- ifelse(mtbs_cast$duped == TRUE,
-                            paste(as.character(mtbs_cast$Fire_ID),as.character(row_number(mtbs_cast$Fire_ID)), sep="_"),
-                            as.character(mtbs_cast$Fire_ID))
-      
-      mtbs$cast_area_ha <- st_area(mtbs_cast[0])%>% set_units(value = hectare)
-
+        mtbs$duped <- duplicated(mtbs_cast$Fire_ID)
+        
+        mtbs$new_id <- ifelse(mtbs_cast$duped == TRUE,
+                              paste(as.character(mtbs_cast$Fire_ID),as.character(row_number(mtbs_cast$Fire_ID)), sep="_"),
+                              as.character(mtbs_cast$Fire_ID))
+        
+        mtbs$cast_area_ha <- st_area(mtbs_cast[0])%>% set_units(value = hectare)
+        mtbs$cast_area_ac <- st_area(mtbs_cast[0])%>% set_units(value = acre)
+      }
+    
       mtbs_y <- mtbs[mtbs$Year == years[y],] 
       
       for(f in 1:nrow(mtbs_y)){
         fire <- mtbs_y[f,]
         cropped <- raster::crop(modis_y, as(fire, "Spatial"), snap = 'out')
-        # thanks https://gis.stackexchange.com/questions/255025/r-raster-masking-a-raster-by-polygon-also-remove-cells-partially-covered
         SpP_ras <- rasterize(fire, cropped, getCover=TRUE)
         SpP_ras[SpP_ras==0] <- NA
         SpP_ras[SpP_ras > 1] <- 1
@@ -102,37 +105,49 @@ foreach(TT = time) %:%
         w_e <-as.character(ifelse(st_bbox(st_transform(fire,4326))[1] < -97, "w", "e"))
         
         results[counter, 1] <- as.character(fire$Fire_ID)
-        results[counter, 2] <- paste(as.character(vc), collapse = " ")
-        results[counter, 3] <- length(vc[!is.na(vc)])
-        results[counter, 4] <- fire$Acres
-        results[counter, 5] <- fire$Year
-        results[counter, 6] <- barea_ha_nobuff
-        results[counter, 7] <- barea_ac_nobuff
-        results[counter, 8] <- w_e
+        results[counter, 2] <- as.character(fire$new_id)
+        results[counter, 3] <- paste(as.character(vc), collapse = " ")
+        results[counter, 4] <- length(vc[!is.na(vc)])
+        results[counter, 5] <- fire$cast_area_ac
+        results[counter, 6] <- fire$cast_area_ha
+        results[counter, 7] <- fire$Year
+        results[counter, 8] <- barea_ha_nobuff
+        results[counter, 9] <- barea_ac_nobuff
+        results[counter, 10] <- w_e
         print(c(counter, years[y]))
         counter <- counter + 1
       }
     }
     
-    res_file <-paste0("mtbs_modis_ids_ba_s",SS,"t",TT,".csv")
+    res_file <-paste0("mtbs_modis_ids_ba_cast_s",SS,"t",TT,".csv")
     write.csv(results, paste0("data/",res_file ))
-    system(paste0("aws s3 cp data/",res_file," s3://earthlab-natem/modis-burned-area/MCD64A1/C6/result_tables/",res_file))
+    system(paste0("aws s3 cp data/",res_file," s3://earthlab-natem/modis-burned-area/MCD64A1/C6/result_tables_casted/",res_file))
    
      # breaking it down to just mtbsIDs and modis IDs ------------------
-     long_mt_mo <- data.frame(Fire_ID=NA, modis_id=NA)
+     long_mt_mo <- data.frame(Fire_ID=NA, mtbs_cast_id=NA, modis_id=NA)
      counter <- 1
      for(i in 1:nrow(results)){
        ss <- strsplit(results$modis_id[i], " ") %>% unlist()
        if(length(ss)>0){for(j in 1:length(ss)){
          long_mt_mo[counter, 1] <- results$Fire_ID[i]
-         long_mt_mo[counter, 2] <- ss[j]
+         long_mt_mo[counter, 2] <- results$mtbs_cast_id[i]
+         long_mt_mo[counter, 3] <- ss[j]
          counter <- counter + 1
        }}else{
          long_mt_mo[counter, 1] <- results$Fire_ID[i]
-         long_mt_mo[counter, 2] <- NA
+         long_mt_mo[counter, 2] <- results$mtbs_cast_id[i]
+         long_mt_mo[counter, 3] <- NA
          counter <- counter + 1}
      }
      gc()
+     
+     
+     longfile = paste0("long_cast_s",SS,"t",TT,".csv")
+     write.csv(long_mt_mo, paste0("data/long_tables/",longfile))
+     system(paste0("aws s3 cp data/long_tables/",
+                   longfile,
+                   " s3://earthlab-natem/modis-burned-area/MCD64A1/C6/long_tables_casted/",
+                   longfile))
      
      # calculate modis id numbers -----------------------------------
      e_th <- 202/21.4369 #thresholds in pixels
@@ -171,42 +186,81 @@ foreach(TT = time) %:%
                              modisF_mtbsT = NA,
                              modisT_mtbsF_all_modis = NA,
                              modisT_mtbsF_modis_over_th = NA,
+                             st_combo = NA,
                              mtbs_w_multiple_modis = NA,
-                             r2_u10000 = NA,
-                             r2_o10000 = NA,
-                             r2_all = NA,
-                             coef_u10000 = NA,
-                             coef_o10000 = NA,
-                             coef_all = NA,
-                             st_combo = NA)
+                             modis_w_multiple_mtbs = NA,
+                             mean_n_modis_per_mtbs = NA,
+                             median_n_modis_per_mtbs = NA,
+                             max_n_modis_per_mtbs = NA,
+                             which_max_modis_per_mtbs = NA,
+                             mean_n_mtbs_per_modis = NA,
+                             median_n_mtbs_per_modis = NA,
+                             max_n_mtbs_per_modis = NA,
+                             which_max_mtbs_per_modis = NA,
+                             row_check = NA,
+                             mtbsT_modisT_unique_modis_events = NA,
+                             mtbsT_modisT_total_n_modis_events_with_repeats = NA,
+                             space = NA,
+                             time = NA,
+                             mtbs_IDs_of_max_modis = NA)
      
-     big_table[1, 1] <- length(unique(long_mt_mo[!is.na(long_mt_mo$modis_id),]$Fire_ID))
-     big_table[1, 2] <- length(unique(long_mt_mo[is.na(long_mt_mo$modis_id),]$Fire_ID))
-     big_table[1, 3] <- sum(m_ids$n_ids, na.rm=T) - length(unique(long_mt_mo[is.na(long_mt_mo$modis_id),]$Fire_ID))
-     big_table[1, 4] <- sum(m_ids$n_over_th, na.rm=T) - length(unique(long_mt_mo[!is.na(long_mt_mo$modis_id),]$Fire_ID))
+     rc = table(results$n) %>% as_tibble()
+     NN <- sum(rc$n[1:2])
+     rc <- rc[3:nrow(rc),]
+     for(ROW in 1:nrow(rc)){
+       XX <- as.numeric(rc$Var1[ROW])
+       NN <- NN + (XX * rc$n[ROW])
+     }
      
-     t <- table(results$n)
-     big_table[1, 5] <- sum(t[3:length(t)])
+     n_modis_per_mtbs <- table(long_mt_mo$Fire_ID) %>% 
+       as_tibble() %>%
+       filter(Var1 != "NA")
      
-     mod1 <- lm(modis_acres ~ -1+mtbs_acres, data = results[results$mtbs_acres <10000,])
-     mod2 <- lm(modis_acres ~ -1+mtbs_acres, data = results[results$mtbs_acres >10000,])
-     mod3 <- lm(modis_acres ~ -1+mtbs_acres, data = results)
+     n_mtbs_per_modis <- table(long_mt_mo$modis_id) %>% 
+       as_tibble() %>%
+       filter(Var1 != "NA")
      
-     big_table[1, 6] <- summary(mod1)$r.squared
-     big_table[1, 7] <- summary(mod2)$r.squared
-     big_table[1, 8] <- summary(mod3)$r.squared
-     big_table[1, 9] <- as.numeric(mod1$coefficients)
-     big_table[1, 10] <- as.numeric(mod2$coefficients)
-     big_table[1, 11] <- as.numeric(mod3$coefficients)
-     big_table[1,12] <- paste0("s",SS,"t",TT)
+     big_table[1, 1] <- length(unique(long_mt_mo[!is.na(long_mt_mo$modis_id),]$mtbs_cast_id))
+     big_table[1, 2] <- length(unique(long_mt_mo[is.na(long_mt_mo$modis_id),]$mtbs_cast_id))
+     big_table[1, 3] <- sum(m_ids$n_ids, na.rm=T) - length(unique(long_mt_mo[is.na(long_mt_mo$modis_id),]$mtbs_cast_id))
+     big_table[1, 4] <- sum(m_ids$n_over_th, na.rm=T) - length(unique(long_mt_mo[!is.na(long_mt_mo$modis_id),]$mtbs_cast_id))
+     
+     big_table[1,5] <- paste0("s",SS,"t",TT)
+     big_table[1,6] <- nrow(n_modis_per_mtbs[n_modis_per_mtbs$n > 1,])
+     big_table[1,7] <- nrow(n_mtbs_per_modis[n_mtbs_per_modis$n > 1,])
+     big_table[1,8] <- mean(n_modis_per_mtbs$n)
+     big_table[1,9] <- median(n_modis_per_mtbs$n)
+     
+     max1 <- max(n_modis_per_mtbs$n)
+     
+     big_table[1,10] <- max1
+     
+     big_table[1,11] <- paste(results[results$n == max1,]$mtbs_cast_id, collapse = " ")
+     big_table[1,12] <- mean(n_mtbs_per_modis$n)
+     big_table[1,13] <- median(n_mtbs_per_modis$n)
+     
+     max2 <- max(n_mtbs_per_modis$n)
+     
+     big_table[1,14] <- max2
+     
+     which2 <- as.numeric(n_mtbs_per_modis[n_mtbs_per_modis$n == max2,]$Var1)
+     
+     big_table[1,15] <- paste(as.character(which2), collapse = " ")
+     big_table[1,16] <- NN==nrow(long_mt_mo)
+     big_table[1,17] <- length(unique(long_mt_mo$modis_id))
+     big_table[1,18] <- sum(results$n)
+     big_table[1,19] <- SS
+     big_table[1,20] <- TT
+     big_table[1,21] <- paste(as.character(dplyr::filter(long_mt_mo, modis_id == first(which2))$mtbs_cast_id),collapse = " ")
+     
      
      write.csv(big_table, paste0("data/",bt_fn))
      system(paste0("aws s3 cp data/",bt_fn, 
-                   " s3://earthlab-natem/modis-burned-area/MCD64A1/C6/final_tables/",bt_fn))
+                   " s3://earthlab-natem/modis-burned-area/MCD64A1/C6/final_tables_casted/",bt_fn))
      print(Sys.time()-t0)
      system(paste0("rm -r ",s3dir))
     }
-  }
+  #}
 #}
 
 # stiching together the final table ----------------------------------
@@ -224,3 +278,7 @@ final_table$modisF_mtbsT<-4223 #whatever... obtained from fixing_confusing_matri
 final_table <- final_table[,-c(1,7:12)]
 write.csv(final_table, "data/confusion_matrices.csv")
 system("aws s3 cp data/confusion_matrices.csv s3://earthlab-natem/modis-burned-area/MCD64A1/C6/confusion_matrix/confusion_matrices.csv")
+
+
+
+# thanks https://gis.stackexchange.com/questions/255025/r-raster-masking-a-raster-by-polygon-also-remove-cells-partially-covered
