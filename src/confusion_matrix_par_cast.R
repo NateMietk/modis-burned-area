@@ -72,14 +72,14 @@ foreach(TT = time) %:%
           st_intersection(., st_union(st_transform(usa, st_crs(.)))) %>%
           st_transform(crs = modis_proj)}%>%
           st_cast(to = "POLYGON")
-        mtbs$duped <- duplicated(mtbs_cast$Fire_ID)
+        mtbs$duped <- duplicated(mtbs$Fire_ID)
         
-        mtbs$new_id <- ifelse(mtbs_cast$duped == TRUE,
-                              paste(as.character(mtbs_cast$Fire_ID),as.character(row_number(mtbs_cast$Fire_ID)), sep="_"),
-                              as.character(mtbs_cast$Fire_ID))
+        mtbs$new_id <- ifelse(mtbs$duped == TRUE,
+                              paste(as.character(mtbs$Fire_ID),as.character(row_number(mtbs$Fire_ID)), sep="_"),
+                              as.character(mtbs$Fire_ID))
         
-        mtbs$cast_area_ha <- st_area(mtbs_cast[0])%>% set_units(value = hectare)
-        mtbs$cast_area_ac <- st_area(mtbs_cast[0])%>% set_units(value = acre)
+        mtbs$cast_area_ha <- st_area(mtbs[0])%>% set_units(value = hectare)
+        mtbs$cast_area_ac <- st_area(mtbs[0])%>% set_units(value = acre)
       }
     
       mtbs_y <- mtbs[mtbs$Year == years[y],] 
@@ -260,8 +260,8 @@ foreach(TT = time) %:%
      print(Sys.time()-t0)
      system(paste0("rm -r ",s3dir))
     }
-  #}
-#}
+  }
+}
 
 # stiching together the final table ----------------------------------
 dir.create("data/final_tables")
