@@ -1,4 +1,5 @@
 source("src/a_prep_environment.R")
+library(units)
 
 space <- 1:15
 time <- 1:15
