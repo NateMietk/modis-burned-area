@@ -17,7 +17,9 @@ foreach(SS = space)%dopar%{
     results <- read.csv(paste0("data/tables/mtbs_modis_ids_ba_s",SS,"t",TT,".csv"),
                         stringsAsFactors = F) %>% as_tibble()
     
-    long_mt_mo <- data.frame(Fire_ID=NA, modis_id=NA)
+    long_mt_mo <- data.frame(Fire_ID=NA, 
+                             mtbs_cast_id = NA, 
+                             modis_id=NA)
     counter <- 1
     for(i in 1:nrow(results)){
       ss <- strsplit(results$modis_id[i], " ") %>% unlist()
