@@ -68,7 +68,15 @@ foreach(TT = time) %:%
       if(!exists("mtbs")){
         mtbs <- st_read(mtbs_shp) %>%
           st_intersection(., st_union(st_transform(usa, st_crs(.)))) %>%
-          st_transform(crs = modis_proj)}
+          st_transform(crs = modis_proj)} %>%
+          st_cast(to = "POLYGON")
+      mtbs$duped <- duplicated(mtbs_cast$Fire_ID)
+      
+      mtbs$new_id <- ifelse(mtbs_cast$duped == TRUE,
+                            paste(as.character(mtbs_cast$Fire_ID),as.character(row_number(mtbs_cast$Fire_ID)), sep="_"),
+                            as.character(mtbs_cast$Fire_ID))
+      
+      mtbs$cast_area_ha <- st_area(mtbs_cast[0])%>% set_units(value = hectare)
 
       mtbs_y <- mtbs[mtbs$Year == years[y],] 
       
