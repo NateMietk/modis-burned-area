@@ -122,7 +122,7 @@ foreach(TT = time) %:%
         print(c(counter, years[y]))
         counter <- counter + 1
       }
-    }
+    
     
     write.csv(results, paste0("data/",res_file))
     system(paste0("aws s3 cp data/",res_file," s3://earthlab-natem/modis-burned-area/MCD64A1/C6/result_tables_casted/",res_file))
@@ -265,7 +265,7 @@ foreach(TT = time) %:%
      print(Sys.time()-t0)
      system(paste0("rm -r ",s3dir))
     }
-#   }
+   }
 # }
 
 # stiching together the final table ----------------------------------
