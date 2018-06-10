@@ -124,9 +124,9 @@ foreach(TT = time) %:%
       }
     }
     
-    write.csv(results, paste0("data/",res_file ))
+    write.csv(results, paste0("data/",res_file))
     system(paste0("aws s3 cp data/",res_file," s3://earthlab-natem/modis-burned-area/MCD64A1/C6/result_tables_casted/",res_file))
-    }
+    }else{results <- read.csv(paste0("data/",res_file))}
      # breaking it down to just mtbsIDs and modis IDs ------------------
      long_mt_mo <- data.frame(Fire_ID=NA, mtbs_cast_id=NA, modis_id=NA)
      counter <- 1
