@@ -7,6 +7,7 @@ years <- 2001:2015
 
 
 dir.create("data/yearly_composites_15x15")
+dir.create("data/long_tables/")
 corz = detectCores()-1
 registerDoParallel(corz)
 
@@ -50,6 +51,9 @@ foreach(TT = time) %:%
     
     
     #first big table -----------------------
+    
+    res_file <-paste0("mtbs_modis_ids_ba_cast_s",SS,"t",TT,".csv")
+    if(!file.exists(paste0("data/",res_file))){
     
     results <- data.frame(Fire_ID = NA,
                           mtbs_cast_id = NA,
@@ -120,10 +124,9 @@ foreach(TT = time) %:%
       }
     }
     
-    res_file <-paste0("mtbs_modis_ids_ba_cast_s",SS,"t",TT,".csv")
     write.csv(results, paste0("data/",res_file ))
     system(paste0("aws s3 cp data/",res_file," s3://earthlab-natem/modis-burned-area/MCD64A1/C6/result_tables_casted/",res_file))
-   
+    }
      # breaking it down to just mtbsIDs and modis IDs ------------------
      long_mt_mo <- data.frame(Fire_ID=NA, mtbs_cast_id=NA, modis_id=NA)
      counter <- 1
@@ -180,7 +183,8 @@ foreach(TT = time) %:%
        m_ids[i,3] <- nrow(d[d$th < d$pixel_count, ])
        print("over_th")
      }
-     
+     dir.create("data/m_ids/")
+     write.csv(m_ids, paste0("data/m_ids/m_ids_s",SS,"t",TT,".csv"))
      # big table time baby ----------------------------------
      
      big_table <- data.frame(modisT_mtbsT = NA,
@@ -261,8 +265,8 @@ foreach(TT = time) %:%
      print(Sys.time()-t0)
      system(paste0("rm -r ",s3dir))
     }
-  }
-}
+#   }
+# }
 
 # stiching together the final table ----------------------------------
 dir.create("data/final_tables")
