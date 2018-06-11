@@ -278,10 +278,10 @@ for(i in 1:length(tables)){
 }
 
 final_table <- do.call("rbind", table_l) %>% as_tibble()
-final_table$modisF_mtbsT<-4223 #whatever... obtained from fixing_confusing_matrix.R
-final_table <- final_table[,-c(1,7:12)]
+#final_table$modisF_mtbsT<-4223 #whatever... obtained from fixing_confusing_matrix.R
+#final_table <- final_table[,-c(1,7:12)]
 write.csv(final_table, "data/confusion_matrices.csv")
-system("aws s3 cp data/confusion_matrices.csv s3://earthlab-natem/modis-burned-area/MCD64A1/C6/confusion_matrix/confusion_matrices.csv")
+system("aws s3 cp data/confusion_matrices.csv s3://earthlab-natem/modis-burned-area/MCD64A1/C6/confusion_matrix/confusion_matrices_casted.csv")
 
 
 
