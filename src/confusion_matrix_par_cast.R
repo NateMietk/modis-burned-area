@@ -46,10 +46,7 @@ foreach(TT = time) %:%
       unlink(dest)
       assert_that(file.exists(mtbs_shp))
     }
-    
-    # next thing
-    
-    
+  
     #first big table -----------------------
     
     res_file <-paste0("mtbs_modis_ids_ba_cast_s",SS,"t",TT,".csv")
