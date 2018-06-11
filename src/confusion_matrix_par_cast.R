@@ -1,8 +1,8 @@
 source("src/a_prep_environment.R")
 library(units)
 
-space <- 1:15
-time <- 1:15
+space <- 1
+time <- 1
 years <- 2001:2015
 
 
@@ -270,12 +270,12 @@ foreach(TT = time) %:%
 
 # stiching together the final table ----------------------------------
 dir.create("data/final_tables")
-system("aws s3 sync s3://earthlab-natem/modis-burned-area/MCD64A1/C6/final_tables data/final_tables")
+system("aws s3 sync s3://earthlab-natem/modis-burned-area/MCD64A1/C6/final_tables_casted data/final_tables")
 
 tables <- list.files("data/final_tables")
 table_l <- list()
 for(i in 1:length(tables)){
-  table_l[[i]] <- read.csv(paste0("data/final_tables/",tables[i]))
+  table_l[[i]] <- read.csv(paste0("data/final_tables/",tables[i]), stringsAsFactors = FALSE)
 }
 
 final_table <- do.call("rbind", table_l) %>% as_tibble()
