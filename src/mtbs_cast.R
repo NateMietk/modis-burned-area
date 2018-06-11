@@ -1,6 +1,6 @@
 # a working script to figure out how to split up polygons for the confusion matrix par script
 
-mtbs_cast <- st_cast(mtbs, to = "POLYGON")
+mtbs_cast <- st_cast(mtbs[0], to = "POLYGON")
 
 mtbs_cast$duped <- duplicated(mtbs_cast$Fire_ID)
 

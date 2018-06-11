@@ -75,7 +75,8 @@ foreach(TT = time) %:%
       if(!exists("mtbs")){
         mtbs <- st_read(mtbs_shp) %>%
           st_intersection(., st_union(st_transform(usa, st_crs(.)))) %>%
-          st_transform(crs = modis_proj)}%>%
+          st_transform(crs = modis_proj)%>%
+          st_cast(to = "MULTIPOLYGON") %>%
           st_cast(to = "POLYGON")
         mtbs$duped <- duplicated(mtbs$Fire_ID)
         
@@ -122,11 +123,13 @@ foreach(TT = time) %:%
         print(c(counter, years[y]))
         counter <- counter + 1
       }
+    }
     
     
     write.csv(results, paste0("data/",res_file))
     system(paste0("aws s3 cp data/",res_file," s3://earthlab-natem/modis-burned-area/MCD64A1/C6/result_tables_casted/",res_file))
-    }else{results <- read.csv(paste0("data/",res_file), stringsAsFactors = FALSE)}
+    
+   }else{results <- read.csv(paste0("data/",res_file), stringsAsFactors = FALSE)}
      # breaking it down to just mtbsIDs and modis IDs ------------------
      long_mt_mo <- data.frame(Fire_ID=NA, mtbs_cast_id=NA, modis_id=NA)
      counter <- 1
@@ -262,11 +265,10 @@ foreach(TT = time) %:%
      write.csv(big_table, paste0("data/",bt_fn))
      system(paste0("aws s3 cp data/",bt_fn, 
                    " s3://earthlab-natem/modis-burned-area/MCD64A1/C6/final_tables_casted/",bt_fn))
-     print(Sys.time()-t0)
      system(paste0("rm -r ",s3dir))
     }
    }
-# }
+
 
 # stiching together the final table ----------------------------------
 dir.create("data/final_tables")
