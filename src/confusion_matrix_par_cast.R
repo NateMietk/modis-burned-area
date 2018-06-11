@@ -1,8 +1,8 @@
 source("src/a_prep_environment.R")
 library(units)
 
-space <- 1
-time <- 1
+space <- 1:15
+time <- 1:15
 years <- 2001:2015
 
 
@@ -266,8 +266,8 @@ foreach(TT = time) %:%
      system(paste0("aws s3 cp data/",bt_fn, 
                    " s3://earthlab-natem/modis-burned-area/MCD64A1/C6/final_tables_casted/",bt_fn))
      system(paste0("rm -r ",s3dir))
-    }
-   }
+  }
+}
 
 
 # stiching together the final table ----------------------------------
