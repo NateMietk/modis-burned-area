@@ -8,13 +8,17 @@ years <- 2001:2015
 
 dir.create("data/yearly_composites_15x15")
 dir.create("data/long_tables/")
+dir.create("data/result_tables/")
 corz = detectCores()-1
 registerDoParallel(corz)
+
+system("aws s3 sync s3://earthlab-natem/modis-burned-area/MCD64A1/C6/result_tables_casted data/result_tables")
+system("aws s3 sync s3://earthlab-natem/modis-burned-area/MCD64A1/C6/long_tables_casted data/long_tables")
+
 
 # usa <- st_transform(usa, 4326)
 
 foreach(TT = time) %:%
-#for(TT in time){
   foreach(SS = space)%dopar% {
     
     # import files ------------------------------------------------------------------------------
@@ -50,7 +54,7 @@ foreach(TT = time) %:%
     #first big table -----------------------
     
     res_file <-paste0("mtbs_modis_ids_ba_cast_s",SS,"t",TT,".csv")
-    if(!file.exists(paste0("data/",res_file))){
+    if(!file.exists(paste0("data/result_tables/",res_file))){
     
     results <- data.frame(Fire_ID = NA,
                           mtbs_cast_id = NA,
@@ -123,16 +127,19 @@ foreach(TT = time) %:%
     }
     
     
-    write.csv(results, paste0("data/",res_file))
-    system(paste0("aws s3 cp data/",res_file," s3://earthlab-natem/modis-burned-area/MCD64A1/C6/result_tables_casted/",res_file))
+    write.csv(results, paste0("data/result_tables/",res_file))
+    system(paste0("aws s3 cp data/result_tables/",res_file," s3://earthlab-natem/modis-burned-area/MCD64A1/C6/result_tables_casted/",res_file))
     
-   }else{results <- read.csv(paste0("data/",res_file), stringsAsFactors = FALSE)}
+   }else{results <- read.csv(paste0("data/result_tables/",res_file), stringsAsFactors = FALSE)}
      # breaking it down to just mtbsIDs and modis IDs ------------------
-     long_mt_mo <- data.frame(Fire_ID=NA, mtbs_cast_id=NA, modis_id=NA)
-     counter <- 1
-     for(i in 1:nrow(results)){
-       ss <- strsplit(results$modis_id[i], " ") %>% unlist()
-       if(length(ss)>0){for(j in 1:length(ss)){
+    
+    longfile = paste0("long_cast_s",SS,"t",TT,".csv")
+    if(!file.exists(paste0("data/long_tables/",longfile))){
+    long_mt_mo <- data.frame(Fire_ID=NA, mtbs_cast_id=NA, modis_id=NA)
+    counter <- 1
+    for(i in 1:nrow(results)){
+      ss <- strsplit(results$modis_id[i], " ") %>% unlist()
+      if(length(ss)>0){for(j in 1:length(ss)){
          long_mt_mo[counter, 1] <- results$Fire_ID[i]
          long_mt_mo[counter, 2] <- results$mtbs_cast_id[i]
          long_mt_mo[counter, 3] <- ss[j]
@@ -146,13 +153,13 @@ foreach(TT = time) %:%
      gc()
      
      
-     longfile = paste0("long_cast_s",SS,"t",TT,".csv")
+    
      write.csv(long_mt_mo, paste0("data/long_tables/",longfile))
      system(paste0("aws s3 cp data/long_tables/",
                    longfile,
                    " s3://earthlab-natem/modis-burned-area/MCD64A1/C6/long_tables_casted/",
                    longfile))
-     
+    }else{long_mt_mo <- read.csv(paste0("data/long_tables/",longfile), stringsAsFactors = FALSE)}
      # calculate modis id numbers -----------------------------------
      e_th <- 202/21.4369 #thresholds in pixels
      w_th <- 404/21.4369
@@ -230,19 +237,19 @@ foreach(TT = time) %:%
      big_table[1, 3] <- sum(m_ids$n_ids, na.rm=T) - length(unique(long_mt_mo[is.na(long_mt_mo$modis_id),]$mtbs_cast_id))
      big_table[1, 4] <- sum(m_ids$n_over_th, na.rm=T) - length(unique(long_mt_mo[!is.na(long_mt_mo$modis_id),]$mtbs_cast_id))
      
-     big_table[1,5] <- paste0("s",SS,"t",TT)
-     big_table[1,6] <- nrow(n_modis_per_mtbs[n_modis_per_mtbs$n > 1,])
-     big_table[1,7] <- nrow(n_mtbs_per_modis[n_mtbs_per_modis$n > 1,])
-     big_table[1,8] <- mean(n_modis_per_mtbs$n)
-     big_table[1,9] <- median(n_modis_per_mtbs$n)
+     big_table[1, 5] <- paste0("s",SS,"t",TT)
+     big_table[1, 6] <- nrow(n_modis_per_mtbs[n_modis_per_mtbs$n > 1,])
+     big_table[1, 7] <- nrow(n_mtbs_per_modis[n_mtbs_per_modis$n > 1,])
+     big_table[1, 8] <- mean(n_modis_per_mtbs$n)
+     big_table[1, 9] <- median(n_modis_per_mtbs$n)
      
      max1 <- max(n_modis_per_mtbs$n)
      
-     big_table[1,10] <- max1
+     big_table[1, 10] <- max1
      
-     big_table[1,11] <- paste(results[results$n == max1,]$mtbs_cast_id, collapse = " ")
-     big_table[1,12] <- mean(n_mtbs_per_modis$n)
-     big_table[1,13] <- median(n_mtbs_per_modis$n)
+     big_table[1, 11] <- paste(n_modis_per_mtbs[n_modis_per_mtbs$n == max1,]$Var1, collapse = " ")
+     big_table[1, 12] <- mean(n_mtbs_per_modis$n)
+     big_table[1, 13] <- median(n_mtbs_per_modis$n)
      
      max2 <- max(n_mtbs_per_modis$n)
      
