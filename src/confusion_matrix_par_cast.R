@@ -55,110 +55,110 @@ foreach(TT = time) %:%
     
     res_file <-paste0("mtbs_modis_ids_ba_cast_s",SS,"t",TT,".csv")
     if(!file.exists(paste0("data/result_tables/",res_file))){
-    
-    results <- data.frame(Fire_ID = NA,
-                          mtbs_cast_id = NA,
-                          modis_id = NA, 
-                          n = NA,
-                          mtbs_acres = NA,
-                          mtbs_hectares = NA,
-                          mtbs_year = NA,
-                          modis_ha = NA,
-                          modis_acres = NA,
-                          west_or_east = NA) #make a field with modis acres
-    counter <- 1
-    for(y in 1:length(years)){
-      modis_y <- raster(paste0("data/yearly_composites_15x15/s",SS,"t",TT,"/",
-                               "USA_BurnDate_",years[y],"s",SS,"t",TT,".tif"))
-
-      if(!exists("modis_proj")){modis_proj <- crs(modis_y, asText=TRUE)} #set this
       
-      if(!exists("mtbs")){
-        mtbs <- st_read(mtbs_shp) %>%
-          st_intersection(., st_union(st_transform(usa, st_crs(.)))) %>%
-          st_transform(crs = modis_proj)%>%
-          st_cast(to = "MULTIPOLYGON") %>%
-          st_cast(to = "POLYGON")
-        mtbs$duped <- duplicated(mtbs$Fire_ID)
+      results <- data.frame(Fire_ID = NA,
+                            mtbs_cast_id = NA,
+                            modis_id = NA, 
+                            n = NA,
+                            mtbs_acres = NA,
+                            mtbs_hectares = NA,
+                            mtbs_year = NA,
+                            modis_ha = NA,
+                            modis_acres = NA,
+                            west_or_east = NA) #make a field with modis acres
+      counter <- 1
+      for(y in 1:length(years)){
+        modis_y <- raster(paste0("data/yearly_composites_15x15/s",SS,"t",TT,"/",
+                                 "USA_BurnDate_",years[y],"s",SS,"t",TT,".tif"))
+  
+        if(!exists("modis_proj")){modis_proj <- crs(modis_y, asText=TRUE)} #set this
         
-        mtbs$new_id <- ifelse(mtbs$duped == TRUE,
-                              paste(as.character(mtbs$Fire_ID),as.character(row_number(mtbs$Fire_ID)), sep="_"),
-                              as.character(mtbs$Fire_ID))
-        
-        mtbs$cast_area_ha <- st_area(mtbs[0])%>% set_units(value = hectare)
-        mtbs$cast_area_ac <- st_area(mtbs[0])%>% set_units(value = acre)
-      }
-    
-      mtbs_y <- mtbs[mtbs$Year == years[y],] 
+        if(!exists("mtbs")){
+          mtbs <- st_read(mtbs_shp) %>%
+            st_intersection(., st_union(st_transform(usa, st_crs(.)))) %>%
+            st_transform(crs = modis_proj)%>%
+            st_cast(to = "MULTIPOLYGON") %>%
+            st_cast(to = "POLYGON")
+          mtbs$duped <- duplicated(mtbs$Fire_ID)
+          
+          mtbs$new_id <- ifelse(mtbs$duped == TRUE,
+                                paste(as.character(mtbs$Fire_ID),as.character(row_number(mtbs$Fire_ID)), sep="_"),
+                                as.character(mtbs$Fire_ID))
+          
+          mtbs$cast_area_ha <- st_area(mtbs[0])%>% set_units(value = hectare)
+          mtbs$cast_area_ac <- st_area(mtbs[0])%>% set_units(value = acre)
+        }
       
-      for(f in 1:nrow(mtbs_y)){
-        fire <- mtbs_y[f,]
-        cropped <- raster::crop(modis_y, as(fire, "Spatial"), snap = 'out')
-        SpP_ras <- rasterize(fire, cropped, getCover=TRUE)
-        SpP_ras[SpP_ras==0] <- NA
-        SpP_ras[SpP_ras > 1] <- 1
-        masked <- cropped * SpP_ras
+        mtbs_y <- mtbs[mtbs$Year == years[y],] 
         
-        vc <- unique((masked[masked>0]))
-        vc <- vc + as.numeric(paste0(years[y],"00000"))
-        if(length(vc) == 0){vc<-NA}
-        
-        
-        bpix_nobuff <- table(getValues(masked)) 
-        barea_ha_nobuff <- sum(bpix_nobuff[2:length(bpix_nobuff)]) * 21.4369
-        barea_ac_nobuff <- sum(bpix_nobuff[2:length(bpix_nobuff)]) * 52.9717335
-        
-        
-        w_e <-as.character(ifelse(st_bbox(st_transform(fire,4326))[1] < -97, "w", "e"))
-        
-        results[counter, 1] <- as.character(fire$Fire_ID)
-        results[counter, 2] <- as.character(fire$new_id)
-        results[counter, 3] <- paste(as.character(vc), collapse = " ")
-        results[counter, 4] <- length(vc[!is.na(vc)])
-        results[counter, 5] <- fire$cast_area_ac
-        results[counter, 6] <- fire$cast_area_ha
-        results[counter, 7] <- fire$Year
-        results[counter, 8] <- barea_ha_nobuff
-        results[counter, 9] <- barea_ac_nobuff
-        results[counter, 10] <- w_e
-        print(c(counter, years[y]))
-        counter <- counter + 1
+        for(f in 1:nrow(mtbs_y)){
+          fire <- mtbs_y[f,]
+          cropped <- raster::crop(modis_y, as(fire, "Spatial"), snap = 'out')
+          SpP_ras <- rasterize(fire, cropped, getCover=TRUE)
+          SpP_ras[SpP_ras==0] <- NA
+          SpP_ras[SpP_ras > 1] <- 1
+          masked <- cropped * SpP_ras
+          
+          vc <- unique((masked[masked>0]))
+          vc <- vc + as.numeric(paste0(years[y],"00000"))
+          if(length(vc) == 0){vc<-NA}
+          
+          
+          bpix_nobuff <- table(getValues(masked)) 
+          barea_ha_nobuff <- sum(bpix_nobuff[2:length(bpix_nobuff)]) * 21.4369
+          barea_ac_nobuff <- sum(bpix_nobuff[2:length(bpix_nobuff)]) * 52.9717335
+          
+          
+          w_e <-as.character(ifelse(st_bbox(st_transform(fire,4326))[1] < -97, "w", "e"))
+          
+          results[counter, 1] <- as.character(fire$Fire_ID)
+          results[counter, 2] <- as.character(fire$new_id)
+          results[counter, 3] <- paste(as.character(vc), collapse = " ")
+          results[counter, 4] <- length(vc[!is.na(vc)])
+          results[counter, 5] <- fire$cast_area_ac
+          results[counter, 6] <- fire$cast_area_ha
+          results[counter, 7] <- fire$Year
+          results[counter, 8] <- barea_ha_nobuff
+          results[counter, 9] <- barea_ac_nobuff
+          results[counter, 10] <- w_e
+          print(c(counter, years[y]))
+          counter <- counter + 1
+        }
       }
-    }
-    
-    
-    write.csv(results, paste0("data/result_tables/",res_file))
-    system(paste0("aws s3 cp data/result_tables/",res_file," s3://earthlab-natem/modis-burned-area/MCD64A1/C6/result_tables_casted/",res_file))
-    
+      
+      
+      write.csv(results, paste0("data/result_tables/",res_file))
+      system(paste0("aws s3 cp data/result_tables/",res_file," s3://earthlab-natem/modis-burned-area/MCD64A1/C6/result_tables_casted/",res_file))
+      
    }else{results <- read.csv(paste0("data/result_tables/",res_file), stringsAsFactors = FALSE)}
      # breaking it down to just mtbsIDs and modis IDs ------------------
     
     longfile = paste0("long_cast_s",SS,"t",TT,".csv")
     if(!file.exists(paste0("data/long_tables/",longfile))){
-    long_mt_mo <- data.frame(Fire_ID=NA, mtbs_cast_id=NA, modis_id=NA)
-    counter <- 1
-    for(i in 1:nrow(results)){
-      ss <- strsplit(results$modis_id[i], " ") %>% unlist()
-      if(length(ss)>0){for(j in 1:length(ss)){
-         long_mt_mo[counter, 1] <- results$Fire_ID[i]
-         long_mt_mo[counter, 2] <- results$mtbs_cast_id[i]
-         long_mt_mo[counter, 3] <- ss[j]
-         counter <- counter + 1
-       }}else{
-         long_mt_mo[counter, 1] <- results$Fire_ID[i]
-         long_mt_mo[counter, 2] <- results$mtbs_cast_id[i]
-         long_mt_mo[counter, 3] <- NA
-         counter <- counter + 1}
-     }
-     gc()
-     
-     
-    
-     write.csv(long_mt_mo, paste0("data/long_tables/",longfile))
-     system(paste0("aws s3 cp data/long_tables/",
-                   longfile,
-                   " s3://earthlab-natem/modis-burned-area/MCD64A1/C6/long_tables_casted/",
-                   longfile))
+      long_mt_mo <- data.frame(Fire_ID=NA, mtbs_cast_id=NA, modis_id=NA)
+      counter <- 1
+      for(i in 1:nrow(results)){
+        ss <- strsplit(results$modis_id[i], " ") %>% unlist()
+        if(length(ss)>0){for(j in 1:length(ss)){
+           long_mt_mo[counter, 1] <- results$Fire_ID[i]
+           long_mt_mo[counter, 2] <- results$mtbs_cast_id[i]
+           long_mt_mo[counter, 3] <- ss[j]
+           counter <- counter + 1
+         }}else{
+           long_mt_mo[counter, 1] <- results$Fire_ID[i]
+           long_mt_mo[counter, 2] <- results$mtbs_cast_id[i]
+           long_mt_mo[counter, 3] <- NA
+           counter <- counter + 1}
+       }
+       gc()
+       
+       
+      
+       write.csv(long_mt_mo, paste0("data/long_tables/",longfile))
+       system(paste0("aws s3 cp data/long_tables/",
+                     longfile,
+                     " s3://earthlab-natem/modis-burned-area/MCD64A1/C6/long_tables_casted/",
+                     longfile))
     }else{long_mt_mo <- read.csv(paste0("data/long_tables/",longfile), stringsAsFactors = FALSE)}
      # calculate modis id numbers -----------------------------------
      e_th <- 202/21.4369 #thresholds in pixels
