@@ -224,7 +224,7 @@ foreach(TT = time) %:%
        NN <- NN + (XX * rc$n[ROW])
      }
      
-     n_modis_per_mtbs <- table(long_mt_mo$Fire_ID) %>% 
+     n_modis_per_mtbs <- table(long_mt_mo$mtbs_cast_id) %>% 
        as_tibble() %>%
        filter(Var1 != "NA")
      
