@@ -37,8 +37,12 @@ file.download <- function(shp_path_name, shp_dir, url){
 }
 
 # Download the USA States layer -------------------------
+# this was giving me this error: cannot open URL 'https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_state_20m.zip': HTTP status was '403 Forbidden'
+# so i went around and downloaded manually and put it on s3 in this dir s3://earthlab-natem/data/raw/states
 file.download(file.path(us_prefix, "cb_2016_us_state_20m.shp"),
               us_prefix, "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_state_20m.zip")
+
+
 
 # Import and prep the USA shapefile
 usa <- st_read(file.path(us_prefix, "cb_2016_us_state_20m.shp"),
