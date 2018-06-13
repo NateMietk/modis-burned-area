@@ -11,10 +11,19 @@ dir.create("data/long_tables/")
 dir.create("data/result_tables/")
 corz = detectCores()-1
 registerDoParallel(corz)
+# 
+# system("aws s3 sync s3://earthlab-natem/modis-burned-area/MCD64A1/C6/result_tables_casted data/result_tables")
+# system("aws s3 sync s3://earthlab-natem/modis-burned-area/MCD64A1/C6/long_tables_casted data/long_tables")
 
-system("aws s3 sync s3://earthlab-natem/modis-burned-area/MCD64A1/C6/result_tables_casted data/result_tables")
-system("aws s3 sync s3://earthlab-natem/modis-burned-area/MCD64A1/C6/long_tables_casted data/long_tables")
+system("aws s3 cp s3://earthlab-natem/data/raw/states/cb_2016_us_state_20m.zip data/states/states.zip")
+unzip("data/states/states.zip", exdir="data/states/")
 
+usa <- st_read(file.path("data/states/", "cb_2016_us_state_20m.shp"),
+               quiet= TRUE) %>%
+  filter(!(STUSPS %in% c("AK", "HI", "PR"))) %>%
+  dplyr::select(STUSPS) %>%
+  st_transform(p4string_ea)
+names(usa) %<>% tolower
 
 # usa <- st_transform(usa, 4326)
 
