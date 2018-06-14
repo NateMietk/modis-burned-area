@@ -25,3 +25,16 @@ ggplot(x, aes(x = space, y = time)) +
   geom_tile(aes(fill = mean_n_mtbs_per_modis, color=ismin), lwd=1) +
   scale_fill_viridis(direction = -1) +
   theme_bw()
+
+
+confusing <- read_csv(file.path(version_dir, 'confusion_matrix', 'confusion_matrices_casted.csv')) %>%
+  mutate(ratio = modisT_mtbsT/mtbsT_modisT_unique_modis_events)
+
+confusing$ratios <- abs(confusing$ratio-1) == min(abs(confusing$ratio-1))
+breaks <- c(min(confusing$ratio), 1, max(confusing$ratio))
+
+ggplot(confusing, aes(x = space, y = time)) +
+  scale_color_manual(values = c(NA, "black")) +
+  geom_tile(aes(fill = ratio, color = ratios), lwd = 1) +
+  scale_fill_gradient2(low = "red", mid = "white", high = "blue", midpoint = 1, breaks = breaks) +
+  theme_bw()
