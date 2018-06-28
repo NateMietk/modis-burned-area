@@ -1,0 +1,38 @@
+---
+title: "writeup"
+author: "Adam Mahood, Nathan Mefdfsdfs"
+date: "June 28, 2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Abstract
+
+## Introduction
+
+## Methods
+
+### Study Area
+
+The study area was the coterminous United States (CUS). We chose this study area because of the availability of other fire datasets like MTBS [@Eidenshink2007] which we were able to use to gauge accuracy. 
+
+### Data Acquisition and Processing
+
+We used the modis Collection 6 MCD64 burned area product [@Giglio2009, available at ftp://fuoco.geog.umd.edu/MCD64A1/C6/]. These data come with 5 layers: burn date, first day, last day, qaqc, and error, all in julian day. We wrote a script to download each tile that overlaps with a shapefile (in this case, the coterminous U.S.) for the entire time series available. Then, it extracts the burn date layer, and aggregates the tiles for each month, resulting in a layer for the entire CUS for each month. We then aggregated to the year by merging each yearly series together, taking the maximum julian day for each pixel. 
+
+This resulting layer assumes a minimal effect of intrayear reburns, and so we calculated intrayear reburns. We converted each monthly grid to binary (1 for burned, 0 for unburned), summed each monthly pixel and calculated the percentage of intrayear reburns per tile. We found an occurrence of intrayear of 1% or less for the vast majority of the CUS, with the exception of the tile that contains Florida, which averaged close to 5% intrayear reburns.
+
+Then, we wrote a python script that uses a moving window to aggregate burned pixels into distinct events (probably want a figure here, maybe a conceptual flowchart for this whole thing). This script takes as input a spatial variable, representing the number of pixels, and a temporal variable representing the julian day. It then aggregates by assigning each burned pixel an identification number. 
+
+We wanted to find which combination of spatial and temporal variables outputs events that have the closest resemblence to what is commonly thought of as a fire event, so we used MTBS fire perimeters [@Eidenshink2007] as a ground truth, of sorts. MTBS is a dataset of fire occurrence from 1984-2015 derived from Landsat
+
+
+## Results
+
+## Discussion
+
+
+
