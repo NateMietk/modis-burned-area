@@ -42,3 +42,6 @@ vignettes/*.pdf
 .dropbox
 Icon
 .DS_Store
+.*/
+*.pdf
+*.jpeg
