@@ -1,10 +1,7 @@
 system("aws s3 cp s3://earthlab-natem/modis-burned-area/MCD64A1/C6/confusion_matrix/confusion_matrices_casted.csv data/confusion_matrices.csv")
-library(ggplot2)
-library(viridis)
-library(scales)
 
 confusing <- read_csv(file.path(version_dir, 'confusion_matrix', 'confusion_matrices_casted.csv')) %>%
-  mutate(ratio = modisT_mtbsT/mtbsT_modisT_unique_modis_events)
+  mutate(ratios = modisT_mtbsT/mtbsT_modisT_unique_modis_events)
 
 confusing$ratios <- abs(confusing$ratio-1) == min(abs(confusing$ratio-1))
 breaks <- c(min(confusing$ratio), 1, max(confusing$ratio))
