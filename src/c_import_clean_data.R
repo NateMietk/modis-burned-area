@@ -7,12 +7,8 @@ if (!exists('ecoregl1')) {
     # Download the Level 1 Ecoregions
     ecoregion_shp <- file.path(ecoregion_out, "NA_CEC_Eco_Level1.shp")
     if (!file.exists(ecoregion_shp)) {
-      loc <- "ftp://newftp.epa.gov/EPADataCommons/ORD/Ecoregions/cec_na/na_cec_eco_l1.zip"
-      dest <- paste0(ecoregion_out, ".zip")
-      download.file(loc, dest)
-      unzip(dest, exdir = ecoregion_out)
-      unlink(dest)
-      assert_that(file.exists(ecoregion_shp))
+      file.download(file.path(ecoregion_out, "NA_CEC_Eco_Level1.shp"),
+                    ecoregion_out, "ftp://newftp.epa.gov/EPADataCommons/ORD/Ecoregions/cec_na/na_cec_eco_l1.zip")
     }
     
     ecoregl1 <- st_read(dsn = ecoregion_out, layer = "NA_CEC_Eco_Level1") %>%
@@ -43,12 +39,9 @@ if (!exists('mtbs_fire')) {
   
     mtbs_shp <- file.path(mtbs_prefix, 'mtbs_perimeter_data_v2','dissolve_mtbs_perims_1984-2015_DD_20170501.shp')
   if (!file.exists(mtbs_shp)) {
-    loc <- "https://edcintl.cr.usgs.gov/downloads/sciweb1/shared/MTBS_Fire/data/composite_data/burned_area_extent_shapefile/mtbs_perimeter_data.zip"
-    dest <- paste0(mtbs_prefix, ".zip")
-    download.file(loc, dest)
-    unzip(dest, exdir = mtbs_prefix)
-    unlink(dest)
-    assert_that(file.exists(mtbs_shp))
+    file.download(file.path(mtbs_prefix, 'mtbs_perimeter_data_v2','dissolve_mtbs_perims_1984-2015_DD_20170501.shp'),
+                  mtbs_prefix, "https://edcintl.cr.usgs.gov/downloads/sciweb1/shared/MTBS_Fire/data/composite_data/burned_area_extent_shapefile/mtbs_perimeter_data.zip")
+    
   }
     
     mtbs_fire <- st_read(dsn = file.path(mtbs_prefix, 'mtbs_perimeter_data_v2'),
@@ -65,16 +58,24 @@ if (!exists('mtbs_fire')) {
       dplyr::select(fire_id, fire_name, discovery_date, discovery_year, discovery_day, discovery_month, discovery_doy, acres) 
   }
 
-mtbs_ecoreg <- mtbs_fire %>%
-  st_intersection(., ecoregl1)
+if(!file.exists(file.path(fire_dir, 'mtbs_ecoreg.gpkg'))) {
+  mtbs_ecoreg <- mtbs_fire %>%
+    st_intersection(., ecoregl1) %>%
+    dplyr::select(-shape_leng, -shape_area) %>%
+    mutate(mtbs_ba_ha = acres*0.404686,
+           mtbs_ba_ecoreg_ha = as.numeric(st_area(geometry))*0.0001) %>%
+    filter(na_l1name != 'WATER')
+  
+  mtbs_ecoreg %>% 
+    st_write(., file.path(fire_dir, 'mtbs_ecoreg.gpkg'))
+  
+  system(paste0('aws s3 sync data' , ' ', s3_base)) 
+  
+  } else {
+    mtbs_ecoreg <- st_read(file.path(fire_dir, 'mtbs_ecoreg.gpkg'))
+  }
 
-mtbs_ecoreg_t <- mtbs_ecoreg %>%
-  st_make_valid() %>%
-  mutate(ClArea_m2 = as.numeric(st_area(Shape)))
-
-
-
-
-
-
-
+as.data.frame(mtbs_ecoreg) %>%
+  group_by(na_l1name) %>%
+  summarise(fire_freq = n(),
+            burned_area = sum(mtbs_ba_ecoreg_ha))
