@@ -1,22 +1,15 @@
+
+# Download the USA States layer -------------------------
+file.download(file.path(us_prefix, "cb_2016_us_state_20m.shp"),
+              us_prefix, "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_state_20m.zip")
+
 # Import and prep the USA shapefile
 usa <- st_read(file.path(us_prefix, "cb_2016_us_state_20m.shp"),
                quiet= TRUE) %>%
   filter(!(STUSPS %in% c("AK", "HI", "PR"))) %>%
   dplyr::select(STUSPS) %>%
-  st_transform(p4string_ea)
-names(usa) %<>% tolower
-
-# Reproject USA shapefile to MODIS sinusoidal
-usa_ms <- st_transform(usa, crs = p4string_ms) %>%
-  as(., "Spatial")
-
-# Import and prep the USA shapefile and extract for only the Western US
-wus <- st_read(file.path(us_prefix, "cb_2016_us_state_20m.shp"),
-               quiet= TRUE) %>%
-  filter(STUSPS %in% c("CO")) %>%
-  dplyr::select(STUSPS) %>%
-  st_transform(p4string_ea)
-names(wus) %<>% tolower
+  st_transform(p4string_ea) %>%
+  setNames(tolower(names(.)))
 
 # Vector of MODIS tiles to download
 tiles <- get_tiles(usa)
