@@ -45,3 +45,6 @@ Icon
 .*/
 *.pdf
 *.jpeg
+.bash_history
+.gitconfig
+Icon
