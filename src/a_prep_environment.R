@@ -10,6 +10,7 @@ prefix <- "data"
 raw_prefix <- file.path(prefix, "raw")
 us_prefix <- file.path(raw_prefix, "cb_2016_us_state_20m")
 mtbs_prefix <- file.path(raw_prefix, "mtbs_fod_perimeter_data")
+ecoregion_prefix <- file.path(raw_prefix, "ecoregions")
 
 # Output folders
 MCD64A1_dir <- file.path(prefix, "MCD64A1")
@@ -22,7 +23,7 @@ yearly_events <- file.path(version_dir, "yearly_events")
 
 # Check if directory exists for all variable aggregate outputs, if not then create
 var_dir <- list(prefix, raw_prefix, us_prefix, MCD64A1_dir, version_dir, mtbs_prefix,
-                hdf_months, tif_months, tif_year, yearly_composites)
+                hdf_months, tif_months, tif_year, yearly_composites, ecoregion_prefix)
 lapply(var_dir, function(x) if(!dir.exists(x)) dir.create(x, showWarnings = FALSE))
 
 # Function to download files
