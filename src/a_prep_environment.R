@@ -1,6 +1,7 @@
 devtools::install_github("NateMietk/MODISr")
 
-x <- c("tidyverse", "magrittr", "raster", "RCurl", "gdalUtils", "foreach", "doParallel", "sf", "assertthat", 'lubridate', 'viridis', 'MODISr', 'lwgeom', 'scales')
+x <- c("tidyverse", "magrittr", "raster", "RCurl", "gdalUtils", "foreach", "doParallel", "sf", 
+       "assertthat", 'lubridate', 'viridis', 'MODISr', 'lwgeom', 'scales')
 lapply(x, library, character.only = TRUE, verbose = TRUE)
 
 p4string_ea <- "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs"
@@ -25,11 +26,14 @@ yearly_events <- file.path(version_dir, "yearly_events")
 bounds_crt <- file.path(prefix, "bounds")
 ecoreg_crt <- file.path(bounds_crt, "ecoregions")
 ecoregion_out <- file.path(ecoreg_crt, "us_eco_l3")
+fire_dir <- file.path(prefix, 'fire')
+
+s3_base <- 's3://earthlab-natem/modis-burned-area'
 
 # Check if directory exists for all variable aggregate outputs, if not then create
 var_dir <- list(prefix, raw_prefix, us_prefix, MCD64A1_dir, version_dir, mtbs_prefix,
                 hdf_months, tif_months, tif_year, yearly_composites, ecoregion_prefix,
-                bounds_crt, ecoreg_crt, ecoregion_out)
+                bounds_crt, ecoreg_crt, ecoregion_out, fire_dir)
 lapply(var_dir, function(x) if(!dir.exists(x)) dir.create(x, showWarnings = FALSE))
 
 # Function to download files
@@ -42,3 +46,4 @@ file.download <- function(shp_path_name, shp_dir, url){
     assert_that(file.exists(shp_path_name))
   }
 }
+
