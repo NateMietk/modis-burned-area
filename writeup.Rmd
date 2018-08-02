@@ -1,8 +1,10 @@
 ---
-title: "writeup"
-author: "Adam Mahood, Nathan Mefdfsdfs"
+title: "Aggregating the MODIS MCD64 burned area product into events."
+author: "Jennifer K. Balch, Nathan P. Mefdfsdfs, Adam L. Mahood"
 date: "June 28, 2018"
 output: pdf_document
+header-includes:
+  \usepackage{longtable}\setlength{\LTleft}{0em}
 ---
 
 ```{r setup, include=FALSE}
@@ -37,14 +39,35 @@ We wanted to find which combination of spatial and temporal variables outputs ev
 
 First we looked at how many MTBS fires were captured by MODIS, whether it was a 1:1 match (i.e. one MTBS event contains only one MODIS ID number), and how the burned area compared. For each fire polygon in the MTBS database, we extracted the MODIS ID numbers, the area burned calculation by MODIS (i.e. multiplied the number of MODIS burned pixels by a constant to get acres). Then we calculated how many MODIS events there were that did not overlap with an MTBS event, and how many of these events exceeded the MTBS size threshold. We also calculated how many MTBS events contained multiple MODIS events, and vice versa.
 
+### Nate write about how the optimum ST combo was determined, accuracy measures
+
 ### Aggregating statistics by event, and daily per event
 
 ## Results
 
 ### Intrayear reburns
+
 We found an intrayear occurrence of 1% or less for the vast majority of the CUS, with the exception of the tile that contains Florida, which averaged close to 5% intrayear reburns.
 
+### optimal spacetime
 
+
+Table 1.
+||MTBS True | MTBS False| MTBS False |
+|:---|:---|----:|-----:|
+|MCD64 True | 9171 | 9972 (over threshold) |126,337 (under threshold) |
+|MCD64 False | 6621 |||
+
+
+|Accuracy Metric| Value|
+|:----------------------------------------------|---------:|
+|accuracy                                       |      0.36|
+|normalized                                     |      0.50|
+|scaled_accuracy                                |      0.18|
+|misclassification_rate                         |      0.64|
+|true_positive_rate                             |      0.58|
+|precision                                      |      0.48|
+|prevelance                                     |      0.61|
 
 ## Discussion
 
