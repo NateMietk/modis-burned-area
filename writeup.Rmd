@@ -52,24 +52,18 @@ We found an intrayear occurrence of 1% or less for the vast majority of the CUS,
 
 ### optimal spacetime
 
-Table 1.
 
-||MTBS True | MTBS False| MTBS False |
-|:---|:---|----:|-----:|
-|MCD64 True | 9171 | 9972 (over threshold) |126,337 (under threshold) |
-|MCD64 False | 6621 |||
+```{r performance_table, results='asis', message=FALSE, echo=FALSE}
+library(knitr)
+library(dplyr)
 
-Table 2.
+t = read.csv("tables/confusion_matrix.csv")
+kable(t, caption = "Confusion matrix")
 
-|Accuracy Metric| Value|
-|:----------------------------------------------|---------:|
-|accuracy                                       |      0.36|
-|normalized                                     |      0.50|
-|scaled_accuracy                                |      0.18|
-|misclassification_rate                         |      0.64|
-|true_positive_rate                             |      0.58|
-|precision                                      |      0.48|
-|prevelance                                     |      0.61|
+x=read.csv("tables/performance_metrics.csv") %>% dplyr::select(-X)
+kable(x, digits =2, caption = "Performance metrics")
+
+```
 
 ## Discussion
 

@@ -14,9 +14,11 @@
 # description of the accuracy assessment varaibles can be found here: http://www.dataschool.io/simple-guide-to-confusion-matrix-terminology/
 
 library(plot3D)
+library(dplyr)
 library(scales)
-library(stargazer)
+# library(stargazer)
 library(knitr)
+version_dir <- "/home/a/Downloads"
 
 st_config <- read_csv(file.path(version_dir, 'big_table_s5t11.csv')) %>%
   #left_join(., read_csv(file.path(version_dir, 'confusion_matrix', 'additional_variables_confusion_matrix.csv')), by = 'st_combo') %>%
@@ -61,6 +63,25 @@ st_long <- st_config %>%
                 -which_max_modis_per_mtbs,
                 -X1
   ) %>%
-  gather() 
+  gather() %>%
+  filter(key == "accuracy" |
+           key == "normalized" |
+           key == "scaled_accuracy"|
+           key == "misclassification_rate"|
+           key == "true_positive_rate"|
+           key == "precision"|
+           key == "prevelance")
 
-kable(st_long, digits = 2)
+
+dir.create("tables")
+write.csv(st_long, "tables/performance_metrics.csv")
+
+kable(st_long, digits = 2, caption = "Performance metrics")
+
+confusion_matrix <- data.frame(
+  MTBS_True = c(st_config$modisT_mtbsT[1], st_config$modisF_mtbsT[1]),
+  MTBS_False = c(paste(st_config$modisT_mtbsF_modis_over_th, "(over threshold)"),""),
+  MTBS_False = c(paste(st_config$modisT_mtbsF_all_modis - st_config$modisT_mtbsF_modis_over_th, "(under threshold)"),""),
+  row.names = c("MCD64 True", "MCD64 False"))
+
+write.csv(confusion_matrix, "tables/confusion_matrix.csv")
