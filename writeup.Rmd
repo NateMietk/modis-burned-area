@@ -1,8 +1,11 @@
 ---
-title: "writeup"
-author: "Adam Mahood, Nathan Mefdfsdfs"
+title: "Aggregating the MODIS MCD64 burned area product into events."
+author: "Jennifer K. Balch, Nathan P. Mefdfsdfs, Adam L. Mahood"
 date: "June 28, 2018"
-output: pdf_document
+output:
+  pdf_document: default
+  word_document: default
+header-includes: \usepackage{longtable}\setlength{\LTleft}{0em}
 ---
 
 ```{r setup, include=FALSE}
@@ -17,22 +20,50 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ### Study Area
 
-The study area was the coterminous United States (CUS). We chose this study area because of the availability of other fire datasets like MTBS [@Eidenshink2007] which we were able to use to gauge accuracy. 
+The study area was the coterminous United States (CUS). We chose this study area because of the availability of other fire datasets like MTBS [@Eidenshink2007] which we were able to use to gauge the accuracy of the MCD64 dataset. 
 
 ### Data Acquisition and Processing
 
-We used the modis Collection 6 MCD64 burned area product [@Giglio2009, available at ftp://fuoco.geog.umd.edu/MCD64A1/C6/]. These data come with 5 layers: burn date, first day, last day, qaqc, and error, all in julian day. We wrote a script to download each tile that overlaps with a shapefile (in this case, the coterminous U.S.) for the entire time series available. Then, it extracts the burn date layer, and aggregates the tiles for each month, resulting in a layer for the entire CUS for each month. We then aggregated to the year by merging each yearly series together, taking the maximum julian day for each pixel. 
+We used the modis Collection 6 MCD64 burned area product [@Giglio2009, available at ftp://fuoco.geog.umd.edu/MCD64A1/C6/]. These data come with 5 layers: burn date, first day, last day, qaqc, and error, all in julian day. We wrote a script to download each tile that overlaps with a shapefile (in this case, the coterminous U.S.) for the entire time series available. Then, it extracts the burn date layer, and aggregates the tiles for each month, resulting in a layer of burn date for the entire CUS for each month. We then aggregated to the year by merging each yearly series together, taking the maximum julian day for each pixel. 
 
-This resulting layer assumes a minimal effect of intrayear reburns, and so we calculated intrayear reburns. We converted each monthly grid to binary (1 for burned, 0 for unburned), summed each monthly pixel and calculated the percentage of intrayear reburns per tile. We found an occurrence of intrayear of 1% or less for the vast majority of the CUS, with the exception of the tile that contains Florida, which averaged close to 5% intrayear reburns.
+### Calculating intrayear reburns
 
-Then, we wrote a python script that uses a moving window to aggregate burned pixels into distinct events (probably want a figure here, maybe a conceptual flowchart for this whole thing). This script takes as input a spatial variable, representing the number of pixels, and a temporal variable representing the julian day. It then aggregates by assigning each burned pixel an identification number. We created grids of 225 space-time combinations (1-15 for each variable), for each of the 15 years where MODIS and MTBS data overlap (2000-2015).
+Aggregating the data to the yearly time step assumes a minimal effect of intrayear reburns to be valid. Therefore we calculated intrayear reburns to test this assumption. We converted each monthly grid to binary (1 for burned, 0 for unburned), summed each monthly pixel per year and calculated the percentage of intrayear reburns per tile, per year. 
 
-We wanted to find which combination of spatial and temporal variables outputs events that have the closest resemblence to what is commonly thought of as a fire event, so we used MTBS fire perimeters [@Eidenshink2007] as a ground truth. MTBS is a dataset of fire occurrence from 1984-2015 derived from Landsat, which has a minimum size threshold of 1000 acres in the western U.S. and 500 acres in the eastern U.S. (delineated by the 97th parallel). It documents 19,000 or so fire events total, and about 12,000 in the study area, within the time period after the initiation of the MODIS data collection in 2001. There is one feature of the MTBS data as it is provided that may have an effect on this type of analysis, in that fire complexes are not dealt with uniformly. In some cases each fire perimeter is assigned its own ID number and is represented as a single polygon, and in other cases these complexes are lumped into a multipolygon with a single ID number. To elimate this confounding factor we first split any mulipolygons into single polygons, and modified the ID numbers and recalculated the burned area accordingly.
+### Defining events (Lise's python script)
 
-For each fire polygon in the MTBS database, we extracted the MODIS ID numbers, the area burned calculation by MODIS (i.e. multiplied the number of MODIS burned pixels by a constant to get acres).
+To define events, we wrote a python script that uses a moving window to aggregate burned pixels into distinct events by assigning an identification number ***(probably want a figure here, maybe a conceptual flowchart for this whole thing)***. This script takes as input a spatial variable, representing the number of pixels, and a temporal variable representing the julian day. It then aggregates by assigning each burned pixel an identification number. We created grids of 225 space-time combinations (1-15 for each variable), for each of the 15 years where MODIS and MTBS data overlap (2001-2015).
 
+### Optimizing space-time configuration
+
+We wanted to find which combination of spatial and temporal variables outputs events that have the closest resemblence to what is commonly thought of as a fire event, so we used MTBS fire perimeters [@Eidenshink2007] as a ground reference. MTBS is a dataset of fire occurrence from 1984-2015 derived from Landsat, which has a minimum size threshold of 1000 acres in the western U.S. and 500 acres in the eastern U.S. (delineated by the 97th parallel). It documents 20,340 fire events throughout the entire US, and 12,453 in the study area beginning in 2001. There is one feature of the MTBS data as it is provided that may have an effect on this type of analysis, in that fire complexes are not dealt with uniformly. In some cases each fire patch is assigned its own ID number and is represented as a single perimeter, and in other cases these complexes are lumped into a multipolygon with a single ID number. To elimate this confounding factor we first split any mulipolygons into single polygons, and modified the ID numbers and recalculated the burned area for each individual polygon.
+
+First we looked at how many MTBS fires were captured by MODIS, whether it was a 1:1 match (i.e. one MTBS event contains only one MODIS ID number), and how the burned area compared. For each fire polygon in the MTBS database, we extracted the MODIS ID numbers, the area burned calculation by MODIS (i.e. multiplied the number of MODIS burned pixels by a constant to get acres). Then we calculated how many MODIS events there were that did not overlap with an MTBS event, and how many of these events exceeded the MTBS size threshold. We also calculated how many MTBS events contained multiple MODIS events, and vice versa.
+
+### Nate write about how the optimum ST combo was determined, accuracy measures
+
+### Aggregating statistics by event, and daily per event
 
 ## Results
+
+### Intrayear reburns
+
+We found an intrayear occurrence of 1% or less for the vast majority of the CUS, with the exception of the tile that contains Florida, which averaged close to 5% intrayear reburns.
+
+### optimal spacetime
+
+
+```{r performance_table, results='asis', message=FALSE, echo=FALSE}
+library(knitr)
+library(dplyr)
+
+t = read.csv("tables/confusion_matrix.csv")
+kable(t, caption = "Confusion matrix")
+
+x=read.csv("tables/performance_metrics.csv") %>% dplyr::select(-X)
+kable(x, digits =2, caption = "Performance metrics")
+
+```
 
 ## Discussion
 
