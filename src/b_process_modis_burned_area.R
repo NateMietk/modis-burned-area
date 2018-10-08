@@ -4,7 +4,9 @@ usa <- st_read(file.path(us_prefix, "cb_2016_us_state_20m.shp"),
                quiet= TRUE) %>%
   filter(!(STUSPS %in% c("AK", "HI", "PR"))) %>%
   dplyr::select(STUSPS) %>%
-  st_transform(p4string_ea) %>%
+  st_transform(
+    
+  ) %>%
   setNames(tolower(names(.)))
 
 # Vector of MODIS tiles to download
