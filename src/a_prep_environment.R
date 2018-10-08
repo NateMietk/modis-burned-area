@@ -63,8 +63,8 @@ theme_pub <- function(base_size=13, base_family="") {
             axis.line = element_line(colour="black"),
             axis.ticks = element_line(),
             
-            legend.title = element_text(size=16),
-            legend.text = element_text(size=16),
+            legend.title = element_text(size=14),
+            legend.text = element_text(size=13),
             legend.direction = "vertical",
             legend.key = element_rect(colour = "transparent", fill = "transparent"),
             
@@ -72,6 +72,6 @@ theme_pub <- function(base_size=13, base_family="") {
             strip.text.x = element_text(size = 10),
             
             axis.title = element_text(size = 16),
-            axis.text.x = element_text(size = 16, angle = 65, hjust = 1),
+            axis.text.x = element_text(size = 16, angle = 90, hjust = 1),
             axis.text.y = element_text(size = 16)))
 }
