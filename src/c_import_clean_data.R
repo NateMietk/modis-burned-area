@@ -43,6 +43,33 @@ if (!exists('ecoregl1')) {
   }
 }
 
+# Download and import the Level 4 Ecoregions data
+# Download will only happen once as long as the file exists
+if (!exists("ecoregions_l4")){
+  if(!file.exists(file.path(ecoregionl4_prefix, 'us_eco_l4_no_st.shp'))) {
+    # Download ecoregion level 4
+    ecol4_shp <- file.path(ecoregionl4_prefix, 'us_eco_l4_no_st.shp')
+    download_data("ftp://newftp.epa.gov/EPADataCommons/ORD/Ecoregions/us/us_eco_l4.zip",
+                  ecoregionl4_prefix,
+                  ecol4_shp,
+                  'us_eco_l4_no_st',
+                  ecoregionl4_prefix)
+    }
+  
+  ecoregions_l4 <- st_read(file.path(ecoregionl4_prefix, 'us_eco_l4_no_st.shp')) %>%
+    sf::st_transform(st_crs(usa_shp)) %>%
+    st_make_valid() %>%
+    group_by(US_L4NAME) %>%
+    summarise() %>%
+    sf::st_simplify(., preserveTopology = TRUE, dTolerance = 100)
+  
+  ecoregions_l4 %>%
+    st_write(., file.path(ecoregion_out, 'us_eco_l4.gpkg'),
+             driver = 'GPKG', delete_layer = TRUE)
+} else {
+  ecoregions_l4 <- st_read(file.path(ecoregion_out, 'us_eco_l4.gpkg'))
+  }
+
 # Import and clean the MTBS polygons
 if (!exists('mtbs_fire')) {
   
@@ -154,18 +181,18 @@ if (!exists('lvl1_eco_area_km2_df')) {
                delete_layer = TRUE)
       
       mtbs_modis_area_comp <- area_km2_ecoreg_pts %>%
-             filter(!(year %in% c('2016', '2017'))) %>%
-             group_by(na_l1name) %>%
-             summarise(n_fire_events = n(),
-                       sum_area_km2 = sum(area_km2, na.rm = TRUE),
-                       min_area_km2 = min(area_km2, na.rm = TRUE),
-                       max_area_km2 = max(area_km2, na.rm = TRUE),
-                       mean_area_km2 = mean(area_km2, na.rm = TRUE),
-                       meadian_area_km2 = median(area_km2, na.rm = TRUE),
-                       sd_area_km2 = mean(area_km2, na.rm = TRUE))  %>%
-             mutate(se_area_km2 = sd_area_km2 / sqrt(n_fire_events),
-                    lower_95ci_area_km2 = mean_area_km2 - qt(1 - (0.05 / 2), n_fire_events - 1) * se_area_km2,
-                    upper_95ci_area_km2 = mean_area_km2 + qt(1 - (0.05 / 2), n_fire_events - 1) * se_area_km2)
+        filter(!(year %in% c('2016', '2017'))) %>%
+        group_by(na_l1name) %>%
+        summarise(n_fire_events = n(),
+                  sum_area_km2 = sum(area_km2, na.rm = TRUE),
+                  min_area_km2 = min(area_km2, na.rm = TRUE),
+                  max_area_km2 = max(area_km2, na.rm = TRUE),
+                  mean_area_km2 = mean(area_km2, na.rm = TRUE),
+                  meadian_area_km2 = median(area_km2, na.rm = TRUE),
+                  sd_area_km2 = mean(area_km2, na.rm = TRUE))  %>%
+        mutate(se_area_km2 = sd_area_km2 / sqrt(n_fire_events),
+               lower_95ci_area_km2 = mean_area_km2 - qt(1 - (0.05 / 2), n_fire_events - 1) * se_area_km2,
+               upper_95ci_area_km2 = mean_area_km2 + qt(1 - (0.05 / 2), n_fire_events - 1) * se_area_km2)
       st_write(mtbs_modis_area_comp, file.path(stat_out, 'mtbs_modis_area_comp.gpkg'),
                delete_layer = TRUE)
       
@@ -208,7 +235,7 @@ if (!exists('lvl1_eco_area_km2_df')) {
   lvl1_eco_area_km2_ts <- read_rds(file.path(stat_out, 'lvl1_eco_area_km2_ts.rds'))
   lvl1_eco_area_km2_slim <- read_rds(file.path(stat_out, 'lvl1_eco_area_km2_slim.rds'))
   mtbs_modis_area_comp <- st_read(file.path(stat_out, 'mtbs_modis_area_comp.gpkg'))
-  }
+}
 
 # Extract fire spread rate for level 1 ecoregions
 if (!exists('lvl1_eco_fsr_ts')) {
@@ -259,10 +286,14 @@ if (!exists('lvl1_eco_fsr_ts')) {
       
       st_write(fsr_ecoreg_pts, file.path(stat_out, 'fsr_pts_all.gpkg'),
                delete_layer = TRUE)
-
+      
     } else {
       fsr_ecoreg_pts <- st_read(file.path(stat_out, 'fsr_pts_all.gpkg'))
     }
+
+    lvl1_mean_ci <- fsr_ecoreg_pts %>%
+      group_by(na_l1name) %>%
+      do(data.frame(rbind(smean.cl.boot(.$fsr, B = 10000)))) 
     
     lvl1_eco_fsr_ts <- fsr_ecoreg_pts %>%
       group_by(na_l1name, year) %>%
@@ -294,11 +325,52 @@ if (!exists('lvl1_eco_fsr_ts')) {
     
     write_rds(lvl1_eco_fsr_slim, file.path(stat_out, 'lvl1_eco_fsr_slim.rds'))
     system(paste0("aws s3 sync ", prefix, " ", s3_base))
+    
+    lvl4_eco_fsr <- fsr_ecoreg_pts %>%
+      st_intersection(. ,ecoregions_l4)
+    
+    lvl4_mean_ci <- lvl4_eco_fsr %>%
+      group_by(US_L4NAME) %>%
+      do(data.frame(rbind(smean.cl.boot(.$fsr, B = 10000)))) 
+    
+    lvl4_eco_fsr_ts <- lvl4_eco_fsr %>%
+      group_by(US_L4NAME, year) %>%
+      summarise(n_fire_events = n(),
+                sum_fsr = sum(fsr, na.rm = TRUE),
+                min_fsr = min(fsr, na.rm = TRUE),
+                max_fsr = max(fsr, na.rm = TRUE),
+                mean_fsr = mean(fsr, na.rm = TRUE),
+                meadian_fsr = median(fsr, na.rm = TRUE),
+                sd_fsr = mean(fsr, na.rm = TRUE))  %>%
+      mutate(se_fsr = sd_fsr / sqrt(n_fire_events),
+             lower_95ci_fsr = mean_fsr - qt(1 - (0.05 / 2), n_fire_events - 1) * se_fsr,
+             upper_95ci_fsr = mean_fsr + qt(1 - (0.05 / 2), n_fire_events - 1) * se_fsr)
+    
+    write_rds(lvl4_eco_fsr_ts, file.path(stat_out, 'lvl4_eco_fsr_ts.rds'))
+    
+    lvl4_eco_fsr_slim <- lvl4_eco_fsr %>%
+      group_by(US_L4NAME) %>%
+      summarise(n_fire_events = n(),
+                sum_fsr = sum(fsr, na.rm = TRUE),
+                min_fsr = min(fsr, na.rm = TRUE),
+                max_fsr = max(fsr, na.rm = TRUE),
+                mean_fsr = mean(fsr, na.rm = TRUE),
+                meadian_fsr = median(fsr, na.rm = TRUE),
+                sd_fsr = mean(fsr, na.rm = TRUE))  %>%
+      mutate(se_fsr = sd_fsr / sqrt(n_fire_events),
+             lower_95ci_fsr = mean_fsr - qt(1 - (0.05 / 2), n_fire_events - 1) * se_fsr,
+             upper_95ci_fsr = mean_fsr + qt(1 - (0.05 / 2), n_fire_events - 1) * se_fsr)
+    
+    write_rds(lvl4_eco_fsr_slim, file.path(stat_out, 'lvl4_eco_fsr_slim.rds'))
+    system(paste0("aws s3 sync ", prefix, " ", s3_base))
+    
   }
 } else {
   lvl1_eco_fsr_ts <- read_rds(file.path(stat_out, 'lvl1_eco_fsr_ts.rds'))
   lvl1_eco_fsr_slim <- read_rds(file.path(stat_out, 'lvl1_eco_fsr_slim.rds'))
-  }
+  lvl4_eco_fsr_ts <- read_rds(file.path(stat_out, 'lvl4_eco_fsr_ts.rds'))
+  lvl4_eco_fsr_slim <- read_rds(file.path(stat_out, 'lvl4_eco_fsr_slim.rds'))
+}
 
 # Extract fire duration for level 1 ecoregions
 if (!exists('duration_df')) {
@@ -336,10 +408,10 @@ if (!exists('duration_df')) {
       shp_list <- list.files(stat_out, pattern = 'duration_pts_20', recursive = TRUE, full.names = TRUE)
       
       duration_pts <- lapply(shp_list,
-                        FUN = function(x) {
-                          input_name <- x
-                          imported <- st_read(x)
-                        })
+                             FUN = function(x) {
+                               input_name <- x
+                               imported <- st_read(x)
+                             })
       
       #bind all of these together in one dataframe
       duration_pts <- do.call(rbind, duration_pts)
@@ -388,7 +460,11 @@ if (!exists('duration_df')) {
 } else {
   lvl1_eco_duration_ts <- read_rds(file.path(stat_out, 'lvl1_eco_duration_ts.rds'))
   lvl1_eco_duration_slim <- read_rds(file.path(stat_out, 'lvl1_eco_duration_slim.rds'))
-  }
+}
+
+fsr_vs <- fsr_ecoreg_pts %>%
+  left_join(., as.data.frame(area_km2_ecoreg_pts) %>% dplyr::select(-geom), by = c('fire_id', 'na_l1name', 'year')) %>%
+  left_join(., as.data.frame(duration_ecoreg_pts) %>% dplyr::select(-geom), by = c('fire_id', 'na_l1name', 'year'))
 
 # Extract first burn date for level 1 ecoregions
 if (!exists('lvl1_eco_firstbd_ts')) {
@@ -426,10 +502,10 @@ if (!exists('lvl1_eco_firstbd_ts')) {
       shp_list <- list.files(stat_out, pattern = 'firstbd_pts_20', recursive = TRUE, full.names = TRUE)
       
       firstbd_pts <- lapply(shp_list,
-                             FUN = function(x) {
-                               input_name <- x
-                               imported <- st_read(x)
-                             })
+                            FUN = function(x) {
+                              input_name <- x
+                              imported <- st_read(x)
+                            })
       
       #bind all of these together in one dataframe
       firstbd_pts <- do.call(rbind, firstbd_pts)
@@ -478,7 +554,7 @@ if (!exists('lvl1_eco_firstbd_ts')) {
 } else {
   lvl1_eco_firstbd_ts <- read_rds(file.path(stat_out, 'lvl1_eco_firstbd_ts.rds'))
   lvl1_eco_firstbd_slim <- read_rds(file.path(stat_out, 'lvl1_eco_firstbd_slim.rds'))
-  }
+}
 
 # Extract last burn date size for level 1 ecoregions
 if (!exists('lvl1_eco_lastbd_ts')) {
@@ -516,10 +592,10 @@ if (!exists('lvl1_eco_lastbd_ts')) {
       shp_list <- list.files(stat_out, pattern = 'lastbd_pts_20', recursive = TRUE, full.names = TRUE)
       
       lastbd_pts <- lapply(shp_list,
-                            FUN = function(x) {
-                              input_name <- x
-                              imported <- st_read(x)
-                            })
+                           FUN = function(x) {
+                             input_name <- x
+                             imported <- st_read(x)
+                           })
       
       #bind all of these together in one dataframe
       lastbd_pts <- do.call(rbind, lastbd_pts)
@@ -568,7 +644,7 @@ if (!exists('lvl1_eco_lastbd_ts')) {
 } else {
   lvl1_eco_lastbd_ts <- read_rds(file.path(stat_out, 'lvl1_eco_lastbd_ts.rds'))
   lvl1_eco_lastbd_slim <- read_rds(file.path(stat_out, 'lvl1_eco_lastbd_slim.rds'))
-  }
+}
 
 # Extract peak burn date size for level 1 ecoregions
 if (!exists('lvl1_eco_maxbd_ts')) {
@@ -606,10 +682,10 @@ if (!exists('lvl1_eco_maxbd_ts')) {
       shp_list <- list.files(stat_out, pattern = 'maxbd_pts_20', recursive = TRUE, full.names = TRUE)
       
       maxbd_pts <- lapply(shp_list,
-                           FUN = function(x) {
-                             input_name <- x
-                             imported <- st_read(x)
-                           })
+                          FUN = function(x) {
+                            input_name <- x
+                            imported <- st_read(x)
+                          })
       
       #bind all of these together in one dataframe
       maxbd_pts <- do.call(rbind, maxbd_pts)
