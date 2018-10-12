@@ -1,8 +1,14 @@
 devtools::install_github("NateMietk/MODISr")
 
-x <- c("tidyverse", "magrittr", "raster", "RCurl", "gdalUtils", "foreach", "doParallel", "sf", 
-       "assertthat", 'lubridate', 'viridis', 'MODISr', 'lwgeom', 'scales', 'velox')
-lapply(x, library, character.only = TRUE, verbose = TRUE)
+packages <- c("tidyverse", "magrittr", "raster", "RCurl", "gdalUtils", "foreach", "doParallel", "sf", 
+       "assertthat", 'lubridate', 'viridis', 'lwgeom', 'scales', 'velox', 'ggmap', 'Hmisc',
+       'classInt', 'RColorBrewer', 'rasterVis', 'RStoolbox', 'gridExtra')
+if (length(setdiff(packages, rownames(installed.packages()))) > 0) {
+  install.packages(setdiff(packages, rownames(installed.packages())))  
+  lapply(packages, library, character.only = TRUE, verbose = FALSE) 
+} else {
+  lapply(packages, library, character.only = TRUE, verbose = FALSE) 
+}
 
 p4string_ea <- "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs"
 # p4string_ms <- "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
@@ -13,6 +19,7 @@ raw_prefix <- file.path(prefix, "raw")
 us_prefix <- file.path(raw_prefix, "cb_2016_us_state_20m")
 mtbs_prefix <- file.path(raw_prefix, "mtbs_fod_perimeter_data")
 ecoregion_prefix <- file.path(raw_prefix, "ecoregions")
+ecoregionl4_prefix <- file.path(raw_prefix, "us_eco_l4")
 
 # Output folders
 MCD64A1_dir <- file.path(prefix, "MCD64A1")
@@ -34,7 +41,7 @@ s3_base <- 's3://earthlab-natem/modis-burned-area'
 # Check if directory exists for all variable aggregate outputs, if not then create
 var_dir <- list(prefix, raw_prefix, us_prefix, MCD64A1_dir, version_dir, mtbs_prefix,
                 hdf_months, tif_months, tif_year, yearly_composites, ecoregion_prefix,
-                bounds_crt, ecoreg_crt, ecoregion_out, fire_dir, stat_out)
+                ecoregionl4_prefix, bounds_crt, ecoreg_crt, ecoregion_out, fire_dir, stat_out)
 lapply(var_dir, function(x) if(!dir.exists(x)) dir.create(x, showWarnings = FALSE))
 
 # Function to download files
@@ -75,3 +82,28 @@ theme_pub <- function(base_size=13, base_family="") {
             axis.text.x = element_text(size = 16, angle = 90, hjust = 1),
             axis.text.y = element_text(size = 16)))
 }
+
+download_data <-  function(url, dir, layer, fld_name, raw_prefix) {
+  dest <- paste0(raw_prefix, ".zip")
+  
+  if (!file.exists(layer)) {
+    download.file(url, dest)
+    unzip(dest,
+          exdir = raw_prefix)
+    unlink(dest)
+    assert_that(file.exists(layer))
+    
+    system(paste0('aws s3 sync ',
+                  dir, " ",
+                  s3_raw_prefix, fld_name))
+  }
+}
+
+# Import and prep the USA shapefile
+usa <- st_read(file.path(us_prefix, "cb_2016_us_state_20m.shp"),
+               quiet= TRUE) %>%
+  filter(!(STUSPS %in% c("AK", "HI", "PR"))) %>%
+  dplyr::select(STUSPS) %>%
+  st_transform(p4string_ea) %>%
+  setNames(tolower(names(.)))
+
