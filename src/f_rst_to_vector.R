@@ -1,5 +1,6 @@
 
-
+shape_crop <- rim_ms
+  
 # import all fire event tifs into raster stack
 for (i in 2010:2013) {
   
@@ -16,14 +17,10 @@ for (i in 2010:2013) {
     unlist
   year_split <- file_split[3] 
   
-  composite <- raster(composite_list) %>%
-    crop(as(wus_ms, 'Spatial')) %>%
-    mask(as(wus_ms, 'Spatial'))
+  composite <- raster(composite_list) 
   composite[composite < 1] <- NA
   
-  events <- raster(event_list) %>%
-    crop(as(wus_ms, 'Spatial')) %>%
-    mask(as(wus_ms, 'Spatial'))
+  events <- raster(event_list) 
   events[events < 1] <- NA
   
   combined = brick(composite, events)
