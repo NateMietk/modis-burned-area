@@ -76,3 +76,24 @@ p3 <- ggplot() +
 
 g <- arrangeGrob(p1, p2, p3, ncol = 1) #generates g
 ggsave(file = file.path('results', "fsr.pdf"), g, width = 6, height = 9, dpi = 600, scale = 3, units = "cm") #saves g
+
+
+fsr_shp_l3 <- ecoregions_l4 %>%
+  left_join(., lvl3_mean_ci, by = 'US_L3NAME') %>%
+  na.omit()
+breaks_kmeans <- classInt::classIntervals(fsr_shp_l3$Mean, n = 5, style = "kmeans")
+breaks_kmeans <- round(breaks_kmeans$brks, 0)
+
+p3 <- ggplot() +
+  geom_sf(data = fsr_shp_l3, aes(fill = log(Mean)), color = NA, lwd = 0) +
+  scale_fill_distiller('log Mean FSR',palette="RdBu", direction = -1) +
+  geom_sf(data = ecoregl1, color = "black", lwd=0.1, fill=NA) +
+  coord_sf(crs = st_crs(fsr_shp_l3), datum = NA) + 
+  theme(
+    panel.ontop = TRUE,   ## Note: this is to make the panel grid visible in this example
+    panel.grid = element_blank(), 
+    line = element_blank(), 
+    rect = element_blank(), 
+    plot.background = element_blank())
+ggsave(file = file.path('results', "fsr_level3.pdf"), p3, width = 6, height = 4, dpi = 600, scale = 3, units = "cm") #saves g
+
