@@ -43,6 +43,7 @@ if (!exists('ecoregl1')) {
   }
 }
 
+
 # Download and import the Level 4 Ecoregions data
 # Download will only happen once as long as the file exists
 if (!exists("ecoregions_l4")){
@@ -57,9 +58,9 @@ if (!exists("ecoregions_l4")){
     }
   
   ecoregions_l4 <- st_read(file.path(ecoregionl4_prefix, 'us_eco_l4_no_st.shp')) %>%
-    sf::st_transform(st_crs(usa_shp)) %>%
+    sf::st_transform(st_crs(usa)) %>%
     st_make_valid() %>%
-    group_by(US_L4NAME) %>%
+    group_by(US_L4NAME, US_L3NAME, NA_L2NAME, NA_L1NAME) %>%
     summarise() %>%
     sf::st_simplify(., preserveTopology = TRUE, dTolerance = 100)
   
@@ -326,15 +327,21 @@ if (!exists('lvl1_eco_fsr_ts')) {
     write_rds(lvl1_eco_fsr_slim, file.path(stat_out, 'lvl1_eco_fsr_slim.rds'))
     system(paste0("aws s3 sync ", prefix, " ", s3_base))
     
-    lvl4_eco_fsr <- fsr_ecoreg_pts %>%
-      st_intersection(. ,ecoregions_l4)
+    if (!file.exists(file.path(stat_out, 'lvl4321_intersect_pts.gpkg'))) {
+      lvl4321_eco_fsr <- fsr_ecoreg_pts %>%
+        st_intersection(. , ecoregions_l4) 
+      write_rds(lvl4321_eco_fsr, file.path(stat_out, 'lvl4321_intersect_pts.gpkg'))
+      
+    } else {
+      lvl4321_eco_fsr <- st_read(file.path(stat_out, 'lvl4321_intersect_pts.gpkg'))
+    }
     
-    lvl4_mean_ci <- lvl4_eco_fsr %>%
-      group_by(US_L4NAME) %>%
+    lvl3_mean_ci <- lvl4321_eco_fsr %>%
+      group_by(US_L3NAME) %>%
       do(data.frame(rbind(smean.cl.boot(.$fsr, B = 10000)))) 
     
-    lvl4_eco_fsr_ts <- lvl4_eco_fsr %>%
-      group_by(US_L4NAME, year) %>%
+    lvl3_eco_fsr_ts <- lvl4321_eco_fsr %>%
+      group_by(US_L3NAME, year) %>%
       summarise(n_fire_events = n(),
                 sum_fsr = sum(fsr, na.rm = TRUE),
                 min_fsr = min(fsr, na.rm = TRUE),
@@ -348,8 +355,8 @@ if (!exists('lvl1_eco_fsr_ts')) {
     
     write_rds(lvl4_eco_fsr_ts, file.path(stat_out, 'lvl4_eco_fsr_ts.rds'))
     
-    lvl4_eco_fsr_slim <- lvl4_eco_fsr %>%
-      group_by(US_L4NAME) %>%
+    lvl3_eco_fsr_slim <- lvl4321_eco_fsr %>%
+      group_by(US_L3NAME) %>%
       summarise(n_fire_events = n(),
                 sum_fsr = sum(fsr, na.rm = TRUE),
                 min_fsr = min(fsr, na.rm = TRUE),
