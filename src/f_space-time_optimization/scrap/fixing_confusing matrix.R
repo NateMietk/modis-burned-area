@@ -1,0 +1,136 @@
+source("src/a_prep_environment.R")
+
+
+space <- 1:15
+time <- 1:15
+
+corz = detectCores()-1
+registerDoParallel(corz)
+
+dir.create("data/tables")
+dir.create("data/long_tables")
+system("aws s3 sync s3://earthlab-natem/modis-burned-area/MCD64A1/C6/result_tables data/tables")
+
+foreach(SS = space)%dopar%{
+  for(TT in time){
+    t0 <- Sys.time()
+    results <- read.csv(paste0("data/tables/mtbs_modis_ids_ba_s",SS,"t",TT,".csv"),
+                        stringsAsFactors = F) %>% as_tibble()
+    
+    long_mt_mo <- data.frame(Fire_ID=NA, 
+                             mtbs_cast_id = NA, 
+                             modis_id=NA)
+    counter <- 1
+    for(i in 1:nrow(results)){
+      ss <- strsplit(results$modis_id[i], " ") %>% unlist()
+      if(length(ss)>0){for(j in 1:length(ss)){
+        long_mt_mo[counter, 1] <- results$Fire_ID[i]
+        long_mt_mo[counter, 2] <- ss[j]
+        counter <- counter + 1
+      }}else{
+        long_mt_mo[counter, 1] <- results$Fire_ID[i]
+        long_mt_mo[counter, 2] <- NA
+        counter <- counter + 1}
+    }
+    
+    longfile = paste0("long_s",SS,"t",TT,".csv")
+    write.csv(long_mt_mo, paste0("data/long_tables/",longfile))
+    system(paste0("aws s3 cp data/long_tables/",
+                  longfile,
+                  " s3://earthlab-natem/modis-burned-area/MCD64A1/C6/long_tables/",
+                  longfile))
+  }
+}
+
+big_table <- tibble(st_combo = NA,
+                    mtbs_w_multiple_modis = NA,
+                    modis_w_multiple_mtbs = NA,
+                    mean_n_modis_per_mtbs = NA,
+                    median_n_modis_per_mtbs = NA,
+                    max_n_modis_per_mtbs = NA,
+                    which_max_modis_per_mtbs = NA,
+                    mean_n_mtbs_per_modis = NA,
+                    median_n_mtbs_per_modis = NA,
+                    max_n_mtbs_per_modis = NA,
+                    which_max_mtbs_per_modis = NA,
+                    row_check = NA,
+                    mtbsT_modisT_unique_modis_events = NA,
+                    mtbsT_modisT_total_n_modis_events_with_repeats = NA,
+                    space = NA,
+                    time = NA,
+                    mtbs_IDs_of_max_modis = NA)
+
+
+system("aws s3 sync s3://earthlab-natem/modis-burned-area/MCD64A1/C6/long_tables data/long_tables")
+kounter = 1
+for(SS in space){
+  for(TT in time){
+    longfile = paste0("long_s",SS,"t",TT,".csv")
+    
+    long_mt_mo <- read.csv(paste0("data/long_tables/", longfile)) %>% as_tibble()
+    
+    ## rowcheck
+    results <- read.csv(paste0("data/tables/mtbs_modis_ids_ba_s",SS,"t",TT,".csv"),
+                        stringsAsFactors = F) %>% as_tibble()
+    rc = table(results$n) %>% as_tibble()
+    NN <- sum(rc$n[1:2])
+    rc <- rc[3:nrow(rc),]
+    for(ROW in 1:nrow(rc)){
+      XX <- as.numeric(rc$Var1[ROW])
+      NN <- NN + (XX * rc$n[ROW])
+    }
+    
+    n_modis_per_mtbs <- table(long_mt_mo$Fire_ID) %>% 
+      as_tibble() %>%
+      filter(Var1 != "NA")
+      
+    n_mtbs_per_modis <- table(long_mt_mo$modis_id) %>% 
+      as_tibble() %>%
+      filter(Var1 != "NA")
+    
+    big_table[kounter,1] <- paste0("s",SS,"t",TT)
+    big_table[kounter,2] <- nrow(n_modis_per_mtbs[n_modis_per_mtbs$n > 1,])
+    big_table[kounter,3] <- nrow(n_mtbs_per_modis[n_mtbs_per_modis$n > 1,])
+    big_table[kounter,4] <- mean(n_modis_per_mtbs$n)
+    big_table[kounter,5] <- median(n_modis_per_mtbs$n)
+    
+    max1 <- max(n_modis_per_mtbs$n)
+    
+    big_table[kounter,6] <- max1
+    
+    big_table[kounter,7] <- paste(results[results$n == max1,]$Fire_ID, collapse = " ")
+    big_table[kounter,8] <- mean(n_mtbs_per_modis$n)
+    big_table[kounter,9] <- median(n_mtbs_per_modis$n)
+    
+    max2 <- max(n_mtbs_per_modis$n)
+    
+    big_table[kounter,10] <- max2
+    
+    which2 <- as.numeric(n_mtbs_per_modis[n_mtbs_per_modis$n == max2,]$Var1)
+    
+    big_table[kounter,11] <- paste(as.character(which2), collapse = " ")
+    big_table[kounter,12] <- NN==nrow(long_mt_mo)
+    big_table[kounter,13] <- length(unique(long_mt_mo$modis_id))
+    big_table[kounter,14] <- sum(results$n)
+    big_table[kounter,15] <- SS
+    big_table[kounter,16] <- TT
+    big_table[kounter,17] <- paste(as.character(dplyr::filter(long_mt_mo, modis_id == first(which2))$Fire_ID),collapse = " ")
+    
+    
+
+    kounter = kounter +1
+    print(c(SS,TT))
+    print(nrow(long_mt_mo)==NN)
+
+    
+}}
+
+write.csv(big_table, "data/repeats.csv")
+system("aws s3 cp data/repeats.csv s3://earthlab-natem/modis-burned-area/MCD64A1/C6/confusion_matrix/repeats.csv")
+
+# checking out repeat mtbs/modis stuff
+l = list()
+for(i in 1:nrow(big_table)){
+  l[[i]] <- unique(strsplit(big_table$mtbs_IDs_of_max_modis[i]," "))
+}
+unique(unlist(l))
