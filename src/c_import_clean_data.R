@@ -1,52 +1,7 @@
 
-# Import and clean the Level 1 Ecoregions
-if (!exists('ecoregl1')) {
-  if (!file.exists(file.path(ecoregion_out, 'us_eco_l1.gpkg'))) {
-    
-    # Download the Level 1 Ecoregions
-    ecoregion_shp <- file.path(ecoregion_out, "NA_CEC_Eco_Level1.shp")
-    if (!file.exists(ecoregion_shp)) {
-      file.download(file.path(ecoregion_out, "NA_CEC_Eco_Level1.shp"),
-                    ecoregion_out, "ftp://newftp.epa.gov/EPADataCommons/ORD/Ecoregions/cec_na/na_cec_eco_l1.zip")
-    }
-    
-    ecoregl1 <- st_read(dsn = ecoregion_out, layer = "NA_CEC_Eco_Level1") %>%
-      sf::st_simplify(., preserveTopology = TRUE, dTolerance = 1000) %>%
-      st_transform(st_crs(usa)) %>%  # e.g. US National Atlas Equal Area
-      st_make_valid() %>%
-      st_intersection(., st_union(usa)) %>%
-      mutate(region = as.factor(if_else(NA_L1NAME %in% c("EASTERN TEMPERATE FORESTS",
-                                                         "TROPICAL WET FORESTS",
-                                                         "NORTHERN FORESTS"), "East",
-                                        if_else(NA_L1NAME %in% c("NORTH AMERICAN DESERTS",
-                                                                 "SOUTHERN SEMI-ARID HIGHLANDS",
-                                                                 "TEMPERATE SIERRAS",
-                                                                 "MEDITERRANEAN CALIFORNIA",
-                                                                 "NORTHWESTERN FORESTED MOUNTAINS",
-                                                                 "MARINE WEST COAST FOREST"), "West", "Central")))) %>%
-      setNames(tolower(names(.)))
-    
-    st_write(ecoregl1, file.path(ecoregion_out, 'us_eco_l1.gpkg'),
-             driver = 'GPKG', delete_layer = TRUE)
-    
-    ecoreg_slim <- ecoregl1 %>%
-      group_by(na_l1name) %>%
-      summarise() %>%
-      st_cast('MULTIPOLYGON')
-    
-    st_write(ecoreg_slim, file.path(ecoregion_out, 'ecoreg1_slim.gpkg'),
-             driver = 'GPKG', delete_layer = TRUE)
-    
-  } else {
-    ecoregl1 <- sf::st_read(file.path(ecoregion_out, 'us_eco_l1.gpkg'))
-    ecoreg_slim <- sf::st_read(file.path(ecoregion_out, 'ecoreg1_slim.gpkg'))
-  }
-}
-
-
-# Download and import the Level 4 Ecoregions data
+# Download and import the Level 4 Ecoregions data, which has Levels 4, 3, 2, 1
 # Download will only happen once as long as the file exists
-if (!exists("ecoregions_l4")){
+if (!exists("ecoregions_l4321")){
   if(!file.exists(file.path(ecoregionl4_prefix, 'us_eco_l4_no_st.shp'))) {
     # Download ecoregion level 4
     ecol4_shp <- file.path(ecoregionl4_prefix, 'us_eco_l4_no_st.shp')
@@ -57,18 +12,28 @@ if (!exists("ecoregions_l4")){
                   ecoregionl4_prefix)
     }
   
-  ecoregions_l4 <- st_read(file.path(ecoregionl4_prefix, 'us_eco_l4_no_st.shp')) %>%
+  ecoregions_l4321 <- st_read(file.path(ecoregionl4_prefix, 'us_eco_l4_no_st.shp')) %>%
     sf::st_transform(st_crs(usa)) %>%
     st_make_valid() %>%
     group_by(US_L4NAME, US_L3NAME, NA_L2NAME, NA_L1NAME) %>%
     summarise() %>%
-    sf::st_simplify(., preserveTopology = TRUE, dTolerance = 100)
+    sf::st_simplify(., preserveTopology = TRUE, dTolerance = 100) %>%
+    mutate(region = if_else(NA_L1NAME %in% c("EASTERN TEMPERATE FORESTS",
+                                                       "TROPICAL WET FORESTS",
+                                                       "NORTHERN FORESTS"), "East",
+                                      if_else(NA_L1NAME %in% c("NORTH AMERICAN DESERTS",
+                                                               "SOUTHERN SEMI-ARID HIGHLANDS",
+                                                               "TEMPERATE SIERRAS",
+                                                               "MEDITERRANEAN CALIFORNIA",
+                                                               "NORTHWESTERN FORESTED MOUNTAINS",
+                                                               "MARINE WEST COAST FOREST"), "West", "Central"))) %>%
+    setNames(tolower(names(.)))
   
-  ecoregions_l4 %>%
-    st_write(., file.path(ecoregion_out, 'us_eco_l4.gpkg'),
+  ecoregions_l4321 %>%
+    st_write(., file.path(ecoregion_out, 'us_eco_l4321.gpkg'),
              driver = 'GPKG', delete_layer = TRUE)
 } else {
-  ecoregions_l4 <- st_read(file.path(ecoregion_out, 'us_eco_l4.gpkg'))
+  ecoregions_l4321 <- st_read(file.path(ecoregion_out, 'us_eco_l4321.gpkg'))
   }
 
 # Import and clean the MTBS polygons
@@ -92,19 +57,23 @@ if (!exists('mtbs_fire')) {
            discovery_doy = yday(discovery_date)) %>%
     st_intersection(., st_union(usa)) %>%
     rename_all(tolower) %>%
-    dplyr::select(fire_id, fire_name, discovery_date, discovery_year, discovery_day, discovery_month, discovery_doy, acres)
+    dplyr::select(fire_id, fire_name, discovery_date, discovery_year, discovery_day, discovery_month, discovery_doy, acres) %>%
+    # Below we are categorizing the fires as in the East or West based on the -97th parallel - which is what MTBS uses
+    st_transform("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0") %>%
+    sfc_as_cols(., st_centroid(geometry)) %>%
+    mutate(mtbs_region = ifelse(x < -97, 'West', 'East')) %>%
+    dplyr::select(-x, -y) %>%
+    st_transform(p4string_ea)
 }
 
 if(!file.exists(file.path(fire_dir, 'mtbs_ecoreg.gpkg'))) {
   mtbs_ecoreg <- mtbs_fire %>%
-    st_intersection(., ecoregl1) %>%
-    dplyr::select(-shape_leng, -shape_area) %>%
+    st_intersection(., ecoregions_l4321) %>%
     mutate(mtbs_ba_ha = acres*0.404686,
-           mtbs_ba_ecoreg_ha = as.numeric(st_area(geometry))*0.0001) %>%
-    filter(na_l1name != 'WATER')
+           mtbs_ba_ecoreg_ha = as.numeric(st_area(geometry))*0.0001) 
   
   mtbs_ecoreg %>%
-    st_write(., file.path(fire_dir, 'mtbs_ecoreg.gpkg'))
+    st_write(., file.path(fire_dir, 'mtbs_ecoreg.gpkg'), delete_layer = TRUE)
   
   system(paste0('aws s3 sync data' , ' ', s3_base))
   
@@ -112,24 +81,10 @@ if(!file.exists(file.path(fire_dir, 'mtbs_ecoreg.gpkg'))) {
   mtbs_ecoreg <- st_read(file.path(fire_dir, 'mtbs_ecoreg.gpkg'))
 }
 
-clean_velox_extract <- function(df, shapefile) {
-  res <- df %>%
-    mutate(na_l1name = as.data.frame(shapefile)$na_l1name) %>%
-    dplyr::select(-ID_sp) %>%
-    gather(key = 'key', value = value, -na_l1name) %>%
-    separate(key,
-             into = c("v1", 'v2', 'year', 'v3'),
-             sep = "_") %>%
-    mutate(na_l1name = as.factor(na_l1name),
-           year = as.integer(year)) %>%
-    dplyr::select(-v1, -v2, -v3)
-  return(res)
-}
-
-# Extract fire size for level 1 ecoregions
+# Extract fire size for level 4 ecoregions - this will allow us to join in level 3,2,1 ecoregions
 if (!exists('lvl1_eco_area_km2_df')) {
   if (!file.exists(file.path(stat_out, 'lvl1_eco_area_km2_all.rds'))) {
-    if (!file.exists(file.path(stat_out, 'area_km2_pts.gpkg'))) {
+    if (!file.exists(file.path(stat_out, 'area_km2_pts_all.rds'))) {
       event_list <- list.files(yearly_events, pattern = 'events.tif', recursive = TRUE, full.names = TRUE)
       
       events_raw <- raster::stack(event_list) 
@@ -138,6 +93,7 @@ if (!exists('lvl1_eco_area_km2_df')) {
       names(events_rst) <- names(events_raw)
       
       for (i in 1:nlayers(events_rst)) {
+        # Split out the year value from the file name
         name <- names(events_rst[[i]]) %>%
           strsplit(split = "_") %>%
           unlist
@@ -145,26 +101,26 @@ if (!exists('lvl1_eco_area_km2_df')) {
         print(name)
         
         res <- events_rst[[i]] %>%
-          rasterToPoints(., spatial = TRUE) %>%
+          rasterToPoints(., spatial = TRUE) %>%  # convert the raster to points.  
           st_as_sf() %>%
           gather(var, fire_id, -geometry) %>%
           separate(var, into = c("v1", 'v2', 'year', 'v3'),
-                   sep = "_") %>%
+                   sep = "_") %>% # convert wide to long and break out the year from the name
           dplyr::select(year, fire_id, geometry) %>%
-          mutate(fire_id = paste0(fire_id, '_', year)) %>%
-          mutate(fire_id = group_indices(., fire_id)) 
+          dplyr::mutate(fire_id = paste0(fire_id, '_', year)) %>%
+          dplyr::mutate(fire_id = group_indices(., fire_id)) 
         
         st_write(res, file.path(stat_out, paste0('full_events_pts_all_', name, '.gpkg')),
                  delete_layer = TRUE)  
         
         res <- res %>%
-          group_by(fire_id) %>%
-          summarize(pixel_count = n(),
-                    year = max(year)) %>%
-          mutate(area_km2 = (pixel_count*500*500)/1000000) %>%
-          st_cast('POINT') 
+          dplyr::group_by(fire_id) %>%
+          dplyr::summarise(pixel_count = n(),
+                    year = first(year)) %>%
+          dplyr::mutate(area_km2 = (pixel_count*xres(events_rst[[i]])*yres(events_rst[[i]]))/1000000) %>%
+          sf::st_cast('POINT') 
         
-        st_write(res, file.path(stat_out, paste0('area_km2_pts_all_', name, '.gpkg')),
+        sf::st_write(res, file.path(stat_out, paste0('area_km2_pts_all_', name, '.gpkg')),
                  delete_layer = TRUE)     
       }
       
@@ -176,33 +132,16 @@ if (!exists('lvl1_eco_area_km2_df')) {
       area_km2_pts <- do.call(rbind, area_km2_pts)
       
       area_km2_ecoreg_pts <- area_km2_pts %>%
-        st_join(., ecoreg_slim)
+        st_join(., ecoregions_l4321) %>%
+        mutate(fire_id = row_number())
       
-      st_write(area_km2_ecoreg_pts, file.path(stat_out, 'area_km2_pts_all.gpkg'),
-               delete_layer = TRUE)
-      
-      mtbs_modis_area_comp <- area_km2_ecoreg_pts %>%
-        filter(!(year %in% c('2016', '2017'))) %>%
-        group_by(na_l1name) %>%
-        summarise(n_fire_events = n(),
-                  sum_area_km2 = sum(area_km2, na.rm = TRUE),
-                  min_area_km2 = min(area_km2, na.rm = TRUE),
-                  max_area_km2 = max(area_km2, na.rm = TRUE),
-                  mean_area_km2 = mean(area_km2, na.rm = TRUE),
-                  meadian_area_km2 = median(area_km2, na.rm = TRUE),
-                  sd_area_km2 = mean(area_km2, na.rm = TRUE))  %>%
-        mutate(se_area_km2 = sd_area_km2 / sqrt(n_fire_events),
-               lower_95ci_area_km2 = mean_area_km2 - qt(1 - (0.05 / 2), n_fire_events - 1) * se_area_km2,
-               upper_95ci_area_km2 = mean_area_km2 + qt(1 - (0.05 / 2), n_fire_events - 1) * se_area_km2)
-      st_write(mtbs_modis_area_comp, file.path(stat_out, 'mtbs_modis_area_comp.gpkg'),
-               delete_layer = TRUE)
-      
+      write_rds(area_km2_ecoreg_pts, file.path(stat_out, 'area_km2_pts_all.rds'))
     } else {
-      area_km2_ecoreg_pts <- st_read(file.path(stat_out, 'area_km2_pts_all.gpkg'))
+      area_km2_ecoreg_pts <- st_read(file.path(stat_out, 'area_km2_pts_all.rds'))
     }
     
-    lvl1_eco_area_km2_ts <- area_km2_ecoreg_pts %>%
-      group_by(na_l1name, year) %>%
+    lvl4_eco_area_km2_ts <- area_km2_ecoreg_pts %>%
+      group_by(us_l4name, year) %>%
       summarise(n_fire_events = n(),
                 sum_area_km2 = sum(area_km2, na.rm = TRUE),
                 min_area_km2 = min(area_km2, na.rm = TRUE),
@@ -214,10 +153,10 @@ if (!exists('lvl1_eco_area_km2_df')) {
              lower_95ci_area_km2 = mean_area_km2 - qt(1 - (0.05 / 2), n_fire_events - 1) * se_area_km2,
              upper_95ci_area_km2 = mean_area_km2 + qt(1 - (0.05 / 2), n_fire_events - 1) * se_area_km2)
     
-    write_rds(lvl1_eco_area_km2_ts, file.path(stat_out, 'lvl1_eco_area_km2_ts.rds'))
+    write_rds(lvl4_eco_area_km2_ts, file.path(stat_out, 'lvl4_eco_area_km2_ts.rds'))
     
-    lvl1_eco_area_km2_slim <- area_km2_ecoreg_pts %>%
-      group_by(na_l1name) %>%
+    lvl4_eco_area_km2_slim <- area_km2_ecoreg_pts %>%
+      group_by(us_l4name) %>%
       summarise(n_fire_events = n(),
                 sum_area_km2 = sum(area_km2, na.rm = TRUE),
                 min_area_km2 = min(area_km2, na.rm = TRUE),
@@ -229,7 +168,7 @@ if (!exists('lvl1_eco_area_km2_df')) {
              lower_95ci_area_km2 = mean_area_km2 - qt(1 - (0.05 / 2), n_fire_events - 1) * se_area_km2,
              upper_95ci_area_km2 = mean_area_km2 + qt(1 - (0.05 / 2), n_fire_events - 1) * se_area_km2)
     
-    write_rds(lvl1_eco_area_km2_slim, file.path(stat_out, 'lvl1_eco_area_km2_slim.rds'))
+    write_rds(lvl4_eco_area_km2_slim, file.path(stat_out, 'lvl4_eco_area_km2_slim.rds'))
     system(paste0("aws s3 sync ", prefix, " ", s3_base))
   }
 } else {
@@ -241,7 +180,7 @@ if (!exists('lvl1_eco_area_km2_df')) {
 # Extract fire spread rate for level 1 ecoregions
 if (!exists('lvl1_eco_fsr_ts')) {
   if (!file.exists(file.path(stat_out, 'lvl1_eco_fsr_all.rds'))) {
-    if (!file.exists(file.path(stat_out, 'fsr_pts_all.gpkg'))) {
+    if (!file.exists(file.path(stat_out, 'fsr_pts_all.rds'))) {
       fsr_list <- list.files(yearly_events, pattern = 'fsr.tif', recursive = TRUE, full.names = TRUE)
       
       fsr_raw <- raster::stack(fsr_list) 
@@ -266,7 +205,7 @@ if (!exists('lvl1_eco_fsr_ts')) {
         res <- shp_mask %>%
           st_join(., res) %>%
           distinct(fire_id, .keep_all = TRUE)
-        
+
         st_write(res, file.path(stat_out, paste0('fsr_pts_', name, '.gpkg')),
                  delete_layer = TRUE)     
       }
@@ -283,13 +222,17 @@ if (!exists('lvl1_eco_fsr_ts')) {
       fsr_pts <- do.call(rbind, fsr_pts)
       
       fsr_ecoreg_pts <- fsr_pts %>%
-        st_join(., ecoreg_slim)
+        st_join(., ecoregions_l4321) %>%
+        st_transform("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0") %>%
+        sfc_as_cols(., geom) %>%
+        mutate(mtbs_region = ifelse(x < -97, 'West', 'East')) %>%
+        dplyr::select(-x, -y) %>%
+        st_transform(p4string_ea)
       
-      st_write(fsr_ecoreg_pts, file.path(stat_out, 'fsr_pts_all.gpkg'),
-               delete_layer = TRUE)
+        write_rds(fsr_ecoreg_pts, file.path(stat_out, 'fsr_pts_all.rds'))
       
     } else {
-      fsr_ecoreg_pts <- st_read(file.path(stat_out, 'fsr_pts_all.gpkg'))
+      fsr_ecoreg_pts <- read_rds(file.path(stat_out, 'fsr_pts_all.rds'))
     }
 
     lvl1_mean_ci <- fsr_ecoreg_pts %>%
@@ -329,7 +272,8 @@ if (!exists('lvl1_eco_fsr_ts')) {
     
     if (!file.exists(file.path(stat_out, 'lvl4321_intersect_pts.gpkg'))) {
       lvl4321_eco_fsr <- fsr_ecoreg_pts %>%
-        st_intersection(. , ecoregions_l4) 
+        dplyr::select(-na_l1name) %>%
+        st_intersection(. , ecoregions_l4321) 
       write_rds(lvl4321_eco_fsr, file.path(stat_out, 'lvl4321_intersect_pts.gpkg'))
       
     } else {
@@ -337,11 +281,11 @@ if (!exists('lvl1_eco_fsr_ts')) {
     }
     
     lvl3_mean_ci <- lvl4321_eco_fsr %>%
-      group_by(US_L3NAME) %>%
+      group_by(us_l3name) %>%
       do(data.frame(rbind(smean.cl.boot(.$fsr, B = 10000)))) 
     
     lvl3_eco_fsr_ts <- lvl4321_eco_fsr %>%
-      group_by(US_L3NAME, year) %>%
+      group_by(us_l3name, year) %>%
       summarise(n_fire_events = n(),
                 sum_fsr = sum(fsr, na.rm = TRUE),
                 min_fsr = min(fsr, na.rm = TRUE),
@@ -353,10 +297,10 @@ if (!exists('lvl1_eco_fsr_ts')) {
              lower_95ci_fsr = mean_fsr - qt(1 - (0.05 / 2), n_fire_events - 1) * se_fsr,
              upper_95ci_fsr = mean_fsr + qt(1 - (0.05 / 2), n_fire_events - 1) * se_fsr)
     
-    write_rds(lvl4_eco_fsr_ts, file.path(stat_out, 'lvl4_eco_fsr_ts.rds'))
+    write_rds(lvl3_eco_fsr_ts, file.path(stat_out, 'lvl3_eco_fsr_ts.rds'))
     
     lvl3_eco_fsr_slim <- lvl4321_eco_fsr %>%
-      group_by(US_L3NAME) %>%
+      group_by(us_l3name) %>%
       summarise(n_fire_events = n(),
                 sum_fsr = sum(fsr, na.rm = TRUE),
                 min_fsr = min(fsr, na.rm = TRUE),
@@ -368,11 +312,12 @@ if (!exists('lvl1_eco_fsr_ts')) {
              lower_95ci_fsr = mean_fsr - qt(1 - (0.05 / 2), n_fire_events - 1) * se_fsr,
              upper_95ci_fsr = mean_fsr + qt(1 - (0.05 / 2), n_fire_events - 1) * se_fsr)
     
-    write_rds(lvl4_eco_fsr_slim, file.path(stat_out, 'lvl4_eco_fsr_slim.rds'))
+    write_rds(lvl3_eco_fsr_slim, file.path(stat_out, 'lvl3_eco_fsr_slim.rds'))
     system(paste0("aws s3 sync ", prefix, " ", s3_base))
     
   }
 } else {
+  fsr_ecoreg_pts <- read_rds(file.path(stat_out, 'fsr_pts_all.rds'))
   lvl1_eco_fsr_ts <- read_rds(file.path(stat_out, 'lvl1_eco_fsr_ts.rds'))
   lvl1_eco_fsr_slim <- read_rds(file.path(stat_out, 'lvl1_eco_fsr_slim.rds'))
   lvl4_eco_fsr_ts <- read_rds(file.path(stat_out, 'lvl4_eco_fsr_ts.rds'))
@@ -382,7 +327,7 @@ if (!exists('lvl1_eco_fsr_ts')) {
 # Extract fire duration for level 1 ecoregions
 if (!exists('duration_df')) {
   if (!file.exists(file.path(stat_out, 'lvl1_eco_duration_all.rds'))) {
-    if (!file.exists(file.path(stat_out, 'duration_pts_all.gpkg'))) {
+    if (!file.exists(file.path(stat_out, 'duration_pts_all.rds'))) {
       duration_list <- list.files(yearly_events, pattern = 'duration.tif', recursive = TRUE, full.names = TRUE)
       
       duration_raw <- raster::stack(duration_list) 
@@ -424,13 +369,12 @@ if (!exists('duration_df')) {
       duration_pts <- do.call(rbind, duration_pts)
       
       duration_ecoreg_pts <- duration_pts %>%
-        st_join(., ecoreg_slim)
+        st_join(., ecoregions_l4321)
       
-      st_write(duration_ecoreg_pts, file.path(stat_out, 'duration_pts_all.gpkg'),
-               delete_layer = TRUE)
+      write_rds(duration_ecoreg_pts, file.path(stat_out, 'duration_pts_all.rds'))
       
     } else {
-      duration_ecoreg_pts <- st_read(file.path(stat_out, 'duration_pts_all.gpkg'))
+      duration_ecoreg_pts <- read_rds(file.path(stat_out, 'duration_pts_all.rds'))
     }
     
     lvl1_eco_duration_ts <- duration_ecoreg_pts %>%
@@ -470,8 +414,10 @@ if (!exists('duration_df')) {
 }
 
 fsr_vs <- fsr_ecoreg_pts %>%
-  left_join(., as.data.frame(area_km2_ecoreg_pts) %>% dplyr::select(-geom), by = c('fire_id', 'na_l1name', 'year')) %>%
-  left_join(., as.data.frame(duration_ecoreg_pts) %>% dplyr::select(-geom), by = c('fire_id', 'na_l1name', 'year'))
+  left_join(., as.data.frame(area_km2_ecoreg_pts) %>% dplyr::select(-geom), by = c('fire_id', 'us_l4name', 'us_l3name', 'na_l2name', 'na_l1name', 'region', 'year')) %>%
+  left_join(., as.data.frame(duration_ecoreg_pts) %>% dplyr::select(-geom), by = c('fire_id', 'us_l4name', 'us_l3name', 'na_l2name', 'na_l1name', 'region', 'year')) %>%
+  left_join(., as.data.frame(ungroup(ecoregions_l4321)) %>% dplyr::select(-geometry), by = c('us_l4name', 'us_l3name', 'na_l2name', 'na_l1name', 'region'))
+  
 
 # Extract first burn date for level 1 ecoregions
 if (!exists('lvl1_eco_firstbd_ts')) {
