@@ -1,5 +1,7 @@
 library(tidyverse)
 
+
+# loading reburn stats calculated from other script, summarizing by tile
 irbs<-read_csv("tables/intrayear_reburns.csv") %>%
   mutate(tile = substr(observation,10,15),
          year = substr(observation,16,20)) %>%
@@ -9,7 +11,7 @@ irbs<-read_csv("tables/intrayear_reburns.csv") %>%
 
 write_csv(irbs, "tables/reburn_stats.csv")
 
-
+# everything but florida (h10v06) since that has significantly more reburns
 all_but_florida <- read_csv("tables/intrayear_reburns.csv") %>%
   mutate(tile = substr(observation,10,15)) %>%
   filter(tile != "h10v06") %>%
