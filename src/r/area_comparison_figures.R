@@ -2,6 +2,7 @@
 
 library(tidyverse)
 library(ggpubr)
+library(scales)
 
 read_csv("tables/mtbs_modis_ids_ba_cast_s5t11.csv") -> d
 
@@ -18,15 +19,42 @@ for(i in 1:nn){
   output_table[i,2] <- m$r.squared
 }
 
+output_table$max_area <- output_table$max_area/e
+
+
+
+output_table$pred <- predict(lm(r2~poly(max_area,20), output_table))
+
+ss = 2
+for(i in 1:nrow(output_table)){
+  rise <- output_table$pred[i+1] - output_table$pred[i]
+  run <- output_table$max_area[i+1] - output_table$max_area[i]
+  rr <- rise/run
+  print(rr)
+  if(rr < ss && rr > 0.99999999999999999 && is.na(rr) == FALSE){ss <- rr; 
+  tt <- output_table$max_area[i]}
+}
+
 p1 <- ggplot(d, aes(modis_ha, mtbs_hectares))+
-  geom_point() +
+  geom_point(alpha = 0.1) +
   geom_abline(slope=1, intercept=0) +
   theme_pubr() +
-  geom_smooth(method = "lm", show.legend = T)
+  geom_smooth(method = "lm", alpha=0.3) +
+  coord_fixed() +
+  xlab("MODIS (hectares)") +
+  ylab("MTBS (hectares)") +
+  scale_y_continuous(labels = comma)+
+  scale_x_continuous(labels = comma)
 
 p2 <- ggplot(output_table, aes(max_area, r2)) +
+  geom_vline(aes(xintercept=tt), col="grey20", lty=2)+
   geom_line() +
-  theme_pubr()
+  geom_line(aes(y= pred), col="red")+
+  coord_fixed()+
+  theme_pubr() +
+  xlab("Max Area (standardized)")+
+  ylab(expression(R^2)) +
+  annotate("text",  x=0.28, y=tt+0.2, label = paste("Slope = 1 at", round(tt*e), "hectares"))
 
-ggarrange(p1, p2, nrow = 2) +
-  ggsave("area_analyse.pdf", dpi = 600, height = 8, width = 5)
+ggarrange(p1, p2, nrow = 1, ncol=2) +
+  ggsave("area_analyse.pdf", dpi = 600, height = 6, width = 15)
