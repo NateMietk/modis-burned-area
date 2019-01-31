@@ -34,17 +34,22 @@ for(i in 1:nrow(output_table)){
   if(rr < ss && rr > 0.99999999999999999 && is.na(rr) == FALSE){ss <- rr; 
   tt <- output_table$max_area[i]}
 }
-
+rrr<-paste("R^2 == ",round(m$r.squared,2))
 p1 <- ggplot(d, aes(modis_ha, mtbs_hectares))+
-  geom_point(alpha = 0.1) +
+  geom_smooth(method = "lm") +
+  geom_point(alpha = 0.15) +
   geom_abline(slope=1, intercept=0) +
   theme_pubr() +
-  geom_smooth(method = "lm", alpha=0.3) +
+  
   coord_fixed() +
   xlab("MODIS (hectares)") +
   ylab("MTBS (hectares)") +
   scale_y_continuous(labels = comma)+
-  scale_x_continuous(labels = comma)
+  scale_x_continuous(labels = comma)+
+  annotate("text",  x=150000, y=130000, label = "1:1 line") +
+  annotate("text",  x=100000, y=150000, col="blue", 
+           label = rrr, parse=T)
+
 
 p2 <- ggplot(output_table, aes(max_area, r2)) +
   geom_vline(aes(xintercept=tt), col="grey20", lty=2)+
