@@ -1,28 +1,33 @@
 # script for calculating reburns within years
+# Authors Adam M & Nate M
+
 source("src/a_prep_environment.R")
+
+# downloading monthly burn data from s3 ----------------------------------------
 system("aws s3 sync s3://earthlab-natem/modis-burned-area/MCD64A1/C6/tif_months data/MCD64A1/C6/tif_months")
 
 #reclassifying to binary
 mtrx <- matrix(c(-Inf, 0.5, 0, 368, Inf, 0, .5,368,1), byrow=TRUE, ncol=3)
 
 years <- 2001:2017
-# Create yearly composites for all tiles
+
+# Create yearly composites for all tiles, summing fire frequency by year
 
 for (j in 1:length(tiles)){
   for(i in 1:length(years)) {
     require(magrittr)
     require(raster)
     
-    tile_files = as.vector(Sys.glob(paste0(tif_months, "/", "*", years[i], "*", tiles[j], ".tif")))
+    tile_files <- as.vector(Sys.glob(paste0(tif_months, "/", "*", years[i], "*", tiles[j], ".tif")))
     
     pb <- txtProgressBar(min = 0, max = length(tile_files)*length(tiles), style = 3)
     
     if(!file.exists(paste(tif_year, "/Yearly_n_", tiles[j], "_", years[i], ".tif", sep=""))){
-      fire = raster::stack(tile_files) %>%
+      fire <- raster::stack(tile_files) %>%
         raster::reclassify(., mtrx) %>%
         raster::calc(., sum)
       
-      tfilename = paste(tif_year, "/Yearly_n_", tiles[j], "_", years[i], ".tif", sep="")
+      tfilename <- paste(tif_year, "/Yearly_n_", tiles[j], "_", years[i], ".tif", sep="")
       
       raster::writeRaster(fire, tfilename, format = "GTiff", overwrite=TRUE)
     }
@@ -42,7 +47,7 @@ for(i in 1:length(rasts)){
   z <- as.data.frame(table(y))
   
   if (nrow(z)>2){
-    results[counter,1] <- rasts[i]
+    results[counter,1] <- rasts[i] 
     results[counter,2] <- round(sum(z$Freq[c(3:nrow(z))])/z$Freq[2]*100,2)
     results[counter,3] <- sum(z$Freq[c(3:nrow(z))])
     results[counter,4] <- z$Freq[2]

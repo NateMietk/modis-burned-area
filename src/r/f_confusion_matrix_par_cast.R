@@ -1,6 +1,18 @@
 # this script generates statistics for each space-time combination
+# from creating fire event vector objects from MODIS MCD64 raster data
 # Author: Adam Mahood
 
+# the general process:
+# 1. break up mtbs multipolygons to eliminate the confounding effect of fire
+#    complexes sometimes being classified as multiple fires, and sometimes being
+#    grouped into a multipolygon
+# 2. extract stats on modis pixels that occur within each polygon. the idea is 
+#    seeing if one mtbs event corresponds to one modis event
+
+
+
+
+# prepping the environment and adding some libraries and directories -----------
 source("src/a_prep_environment.R")
 library(units)
 
@@ -16,10 +28,11 @@ corz = detectCores()-1
 registerDoParallel(corz)
 
 # 
+
 # system("aws s3 sync s3://earthlab-natem/modis-burned-area/MCD64A1/C6/result_tables_casted data/result_tables")
 # system("aws s3 sync s3://earthlab-natem/modis-burned-area/MCD64A1/C6/long_tables_casted data/long_tables")
 
-# getting states
+# getting state boundaries from us census stored on S3
 system("aws s3 cp s3://earthlab-natem/data/raw/states/cb_2016_us_state_20m.zip data/states/states.zip")
 unzip("data/states/states.zip", exdir="data/states/")
 
@@ -30,18 +43,24 @@ usa <- st_read(file.path("data/states/", "cb_2016_us_state_20m.shp"),
   st_transform(p4string_ea)
 names(usa) %>% tolower()
 
-# usa <- st_transform(usa, 4326)
+# big parallel loop that does everything ---------------------------------------
 
-foreach(TT = time) %:%
+
+foreach(TT = time) %:% # this makes it do nested loops in parallel
   foreach(SS = space)%dopar% {
     
     # import files ------------------------------------------------------------------------------
     
-    bt_fn <- paste0("big_table_s", SS,"t",TT,".csv")
+    # setting the result filename in the beginning,so we can check to see if it's
+    # already made. that way, if the loop crashes,
+    # we don't have to redo everything
+    # # this is the filename for the final result file, there are two other
+    # result files created that are nested within this larger loop
+    bt_fn <- paste0("big_table_s", SS,"t",TT,".csv") 
     
     if(!file.exists(paste0("data/",bt_fn))){
       
-    s3dir <- paste0("data/yearly_composites_15x15/s",SS,"t",TT)
+    s3dir <- paste0("data/yearly_composites_15x15/s",SS,"t",TT)  #creating a new directory
     dir.create(s3dir)
     for(yy in years){
       s3file<- paste0("USA_BurnDate_",yy,"s",SS,"t",TT,".tif")
@@ -65,29 +84,43 @@ foreach(TT = time) %:%
       assert_that(file.exists(mtbs_shp))
     }
   
+    # this is the end of just loading the files for the space-time combination in this
+    # iteration, now, we loop through the mtbs fire event objects and extract
+    # information about the modis events inside, and save that out
+    
     #first big table -----------------------
     
-    res_file <-paste0("mtbs_modis_ids_ba_cast_s",SS,"t",TT,".csv")
-    if(!file.exists(paste0("data/result_tables/",res_file))){
-      
-      results <- data.frame(Fire_ID = NA,
-                            mtbs_cast_id = NA,
+    # here is the filename for the first spreadsheet to save out in case the 
+    # script breaks, or we want to redo small sections, or just examine the
+    # information within at a later time
+    
+    res_file <-paste0("mtbs_modis_ids_ba_cast_s",SS,"t",TT,".csv") 
+    if(!file.exists(paste0("data/result_tables/",res_file))){ 
+      # again, if the result file already exists, we don't make it again!
+      results <- data.frame(Fire_ID = NA, # this is the original mtbs ID
+                            mtbs_cast_id = NA, # this is the modified ID in the case of multipolygons
                             modis_id = NA, 
-                            n = NA,
+                            n = NA, # number of modis ids within the mtbs polygon
                             mtbs_acres = NA,
                             mtbs_hectares = NA,
                             mtbs_year = NA,
                             modis_ha = NA,
                             modis_acres = NA,
-                            west_or_east = NA) #make a field with modis acres
+                            west_or_east = NA) # we need to define west vs east
+                                               # because mtbs has a different 
+                                               # minimum size west vs east
       counter <- 1
       for(y in 1:length(years)){
+        # so because the modis data is grouped by year, we subset the mtbs
+        # by year as well
         modis_y <- raster(paste0("data/yearly_composites_15x15/s",SS,"t",TT,"/",
                                  "USA_BurnDate_",years[y],"s",SS,"t",TT,".tif"))
   
         if(!exists("modis_proj")){modis_proj <- crs(modis_y, asText=TRUE)} #set this
         
-        if(!exists("mtbs")){
+        if(!exists("mtbs")){ # if we haven't already done it, load in the mtbs
+                             # data and break it into individual polygons
+                             # and assign modified ids if necessary
           mtbs <- st_read(mtbs_shp) %>%
             st_intersection(., st_union(st_transform(usa, st_crs(.)))) %>%
             st_transform(crs = modis_proj)%>%
@@ -105,6 +138,8 @@ foreach(TT = time) %:%
       
         mtbs_y <- mtbs[mtbs$Year == years[y],] 
         
+        
+        # this is the part where we extract information for each mtbs polygon
         for(f in 1:nrow(mtbs_y)){
           fire <- mtbs_y[f,]
           cropped <- raster::crop(modis_y, as(fire, "Spatial"), snap = 'out')
@@ -146,6 +181,9 @@ foreach(TT = time) %:%
       
    }else{results <- read.csv(paste0("data/result_tables/",res_file), stringsAsFactors = FALSE)}
      # breaking it down to just mtbsIDs and modis IDs ------------------
+    # here, we're figuring it out from the other direction, how many modis 
+    # events don't have an mtbs ID, using the results table we just generated
+    # 
     
     longfile = paste0("long_cast_s",SS,"t",TT,".csv")
     if(!file.exists(paste0("data/long_tables/",longfile))){
@@ -164,7 +202,7 @@ foreach(TT = time) %:%
            long_mt_mo[counter, 3] <- NA
            counter <- counter + 1}
        }
-       gc()
+       gc() # doing this as much as possible to conserve resources
        
        
       
@@ -175,9 +213,10 @@ foreach(TT = time) %:%
                      longfile))
     }else{long_mt_mo <- read.csv(paste0("data/long_tables/",longfile), stringsAsFactors = FALSE)}
      # calculate modis id numbers -----------------------------------
-     e_th <- 202/21.4369 #thresholds in pixels
+     e_th <- 202/21.4369 #thresholds in pixels (hectares)
      w_th <- 404/21.4369
      
+     # this is calculating the area of each modis fire event
      m_ids <- data.frame(year = NA, n_ids = NA, n_over_th = NA)
      for(i in 1:length(years)){
        print(years[i])
