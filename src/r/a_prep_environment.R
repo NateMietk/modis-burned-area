@@ -1,7 +1,7 @@
 
 packages <- c("tidyverse", "magrittr", "raster", "RCurl", "gdalUtils", "foreach", "doParallel", "sf", 
        "assertthat", 'lubridate', 'viridis', 'lwgeom', 'scales', 'velox', 'ggmap', 'Hmisc', 'devtools',
-       'classInt', 'RColorBrewer', 'rasterVis', 'RStoolbox', 'gridExtra', 'ggthemes')
+       'classInt', 'RColorBrewer', 'rasterVis', 'RStoolbox', 'gridExtra', 'ggthemes', 'tidyr', 'broom')
 if (length(setdiff(packages, rownames(installed.packages()))) > 0) {
   install.packages(setdiff(packages, rownames(installed.packages())))  
   lapply(packages, library, character.only = TRUE, verbose = FALSE) 
