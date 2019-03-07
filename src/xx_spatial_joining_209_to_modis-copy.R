@@ -113,6 +113,8 @@ ggplot(ddd, aes(x=area_km2, y=FINAL_ACRES)) + geom_point()
 
 ggplot(ddd, aes(x=fsr, y=WF_MAX_FSR)) + geom_point()
 ggplot(ddd, aes(x=fsr, y=INJURIES_TOTAL)) + geom_point()
+ggplot(ddd, aes(x=fsr, y=FATALITIES)) + geom_point()
+
 ggplot(ddd, aes(x=fsr, y=PROJECTED_FINAL_IM_COST)) + geom_point()
 ggplot(ddd, aes(y=fsr, x=EVACUATION_REPORTED)) + geom_boxplot(outlier.shape = NA) + ylim(c(0,35))
 ggplot(ddd, aes(y=fsr, x=SUPPRESSION_METHOD)) + geom_boxplot(outlier.shape = NA) + ylim(c(0,35))
