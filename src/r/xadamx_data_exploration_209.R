@@ -3,7 +3,7 @@ library(googledrive)
 
 #fetch data from adam's google drive if necessary
 
-drive_find("_current_projects/sr209/*")
+drive_find("/_current_projects/sr209/",n_max = 5) ->x
 
 sr_file <- "data/ics209_allWFsitreps1999to2014.csv"
 inc_file <- "data/ics209_allWFincidents1999to2014.csv"
