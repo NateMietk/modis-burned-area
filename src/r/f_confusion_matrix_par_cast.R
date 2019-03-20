@@ -225,7 +225,7 @@ foreach(TT = time) %:% # this makes it do nested loops in parallel
        r <- raster(paste0("data/yearly_composites_15x15/s",SS,"t",TT,"/",
                                 stem,".tif"))
        m_ids[i,1] <- years[i]
-       m_ids[i,2] <- length(unique(freq(r)))
+       m_ids[i,2] <- length(unique(getValues(r)))
        print("freq")
        
        r[r<1] <- NA
