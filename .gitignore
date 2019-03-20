@@ -1,5 +1,7 @@
 # tmp file
 tmp.txt
+# scrap directory
+scrap/*
 # DS_Stores
 .DS_Store
 DS_Store
