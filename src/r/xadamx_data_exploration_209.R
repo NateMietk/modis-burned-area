@@ -2,7 +2,7 @@ library(tidyverse)
 library(googledrive)
 
 #fetch data from adam's google drive if necessary
-
+dir.create("data", showWarnings = FALSE)
 drive_find(pattern="ics209_allWFsitreps1999to2014.csv",n_max = 5) %>% 
   drive_download(path = "data/ics209_allWFsitreps1999to2014.csv", overwrite = TRUE)
 drive_find(pattern="ics209_allWFincidents1999to2014.csv",n_max = 5) %>%
@@ -102,7 +102,72 @@ ggplot(way_big_fires, aes(x=report_date,y=Value, color = Variable)) +
   ggtitle("Largest Fires") +
   ggsave("images/big_fires_fsr.pdf")
 
+
+# 3 example fires -----------------
+
+
+
 # exploring total personnel issues in complexes
+
+three_examples <- c("2004_AK-TAS-413889_TAYLOR COMPLEX",
+                    "2002_AZ-FTA-251_RODEO/CHEDISKI COMPLEX" ,
+                    "2000_MT-BRF-11445_VALLEY COMPLEX")
+
+three <- fast_fires_1 %>%
+  filter(INCIDENT_ID == three_examples[1]|
+         INCIDENT_ID == three_examples[2]|
+         INCIDENT_ID == three_examples[3]) %>% 
+  left_join(fixed_inc_stats, by="INCIDENT_ID") %>%
+  left_join(dplyr::select(inc, INCIDENT_ID, WF_MAX_FSR,# STR_THREATENED_MAX, WF_PEAK_PERSONNEL, 
+                          FINAL_ACRES), 
+            by = "INCIDENT_ID") %>%
+  mutate(adj_fsr = WF_FSR/WF_MAX_FSR,
+         adj_personnel = TOTAL_PERSONNEL/WF_PEAK_PERSONNEL,
+         adj_str = STR_THREATENED/STR_THREATENED_MAX,
+         adj_cost = cost/max_cost) %>%
+  dplyr::select(report_date,INCIDENT_ID,
+                Total_Personnel = adj_personnel, 
+                Fire_Spread_Rate = adj_fsr,
+                Structures_Threatened =adj_str, 
+                Cumulative_Area_Burned = PCT_FINAL_SIZE,
+                Estimated_Cost = adj_cost)  %>%
+  gather(Variable, Value, -INCIDENT_ID, -report_date)
+
+
+line1 <- ggplot(three %>% filter(Variable == "Fire_Spread_Rate"|
+                                   Variable == "Cumulative_Area_Burned"|
+                                   Variable == "Estimated_Cost"), 
+                aes(x=report_date, y=Value, color = Variable))+
+  geom_line(aes(lty=Variable)) +
+  scale_color_manual(values = c("#984EA3", "#4DAF4A","#E41A1C"))+
+  scale_linetype_manual(values = c(1,2,3))+
+  facet_wrap(~INCIDENT_ID, nrow = 1, scales="free") +
+  theme_bw()+
+  ylab("Cumulative Burned Area")
+
+line2 <- ggplot(three %>% filter(Variable == "Fire_Spread_Rate"|
+                                   Variable == "Structures_Threatened"|
+                                   Variable == "Estimated_Cost"), 
+                aes(x=report_date, y=Value, color = Variable))+
+  geom_line(aes(lty=Variable)) +
+  scale_color_manual(values = c("#4DAF4A","#E41A1C", "#377EB8"))+
+  scale_linetype_manual(values = c(2,3,1))+
+  facet_wrap(~INCIDENT_ID, nrow = 1, scales="free") +
+  theme_bw()+
+  ylab("Structures Threatened")
+
+line3 <- ggplot(three %>% filter(Variable == "Fire_Spread_Rate"|
+                                   Variable == "Total_Personnel"|
+                                   Variable == "Estimated_Cost"), 
+       aes(x=report_date, y=Value, color = Variable))+
+  geom_line(aes(lty=Variable)) +
+  scale_linetype_manual(values = c(2,3,1))+
+  scale_color_manual(values = c("#4DAF4A","#E41A1C","#FF7F00"))+
+  facet_wrap(~INCIDENT_ID, nrow = 1, scales="free") +
+  theme_bw()+
+  ylab("Total Personnel")
+
+ggarrange(line1, line2,line3, nrow = 3, common.legend = TRUE)
 
 valley <- sr %>%
   group_by(REPORT_DOY,INCIDENT_ID) %>%

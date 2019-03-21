@@ -98,25 +98,40 @@ daily <- df %>%
 template <- raster("data/USA_BurnDate_2001.tif")
 
 # this takes a few minutes
-ecoregions <- st_read("/home/a/data/background/ecoregions/us_eco_l1.gpkg") %>%
-  mutate(NA_L1CODE = as.numeric(NA_L1CODE),
-         l1_ecoregion = str_to_title(NA_L1NAME)) %>%
-  st_transform(crs=crs(template, asText=TRUE)) %>%
-  dplyr::select(NA_L1CODE, l1_ecoregion) %>%
-  group_by(l1_ecoregion)%>%
-  st_simplify() %>%
-  group_by(l1_ecoregion) %>%
-  summarise(NA_L1CODE = getmode(NA_L1CODE))
+ecoregions <- st_read("/home/a/data/background/ecoregions/us_eco_l1.gpkg") 
+
 
 
 er <- list()
+da <- list()
+cp <- list()
 for(i in unique(ecoregions$NA_L1CODE)){
   er[[i]] <- ggplot(ecoregions) + 
-    geom_sf(fill = "transparent", color = "grey") +
-    geom_sf(data = filter(ecoregions, NA_L1CODE == i), color = "black")+
+    geom_sf(data=ecoregions,fill = "transparent", color = "grey", size=0.1) +
+    geom_sf(data = filter(ecoregions, NA_L1CODE == i), color = "black", size=0.3)+
     theme_void()+
     theme(panel.grid.major = element_line(color = "transparent"))
+  
+  da[[i]]<- ggplot(filter(daily, NA_L1CODE == i), aes(x=event_day, cum_area_km2, group = modis_id)) +
+    geom_line(alpha=0.5, aes(color = as.numeric(substr(as.character(date),1,4)))) +
+    scale_color_gradient(high = "darkblue", low="orange", name = "Year")+
+    theme_pubr() +
+    xlab("") +
+    ylab("") +
+    theme(legend.position = "none") +
+    ylim(c(0,2070)) +
+    xlim(c(0,108)) +
+    ggtitle(ecoregions$l1_ecoregion[i])
+  
+  cp[[i]] <- ggdraw() +
+    draw_plot(er[[i]], x = 0.6, y=0.6, width = 0.4, height=0.4)+
+    draw_plot(da[[i]]) 
 }
+
+x=ggarrange(plotlist=cp, nrow=4, ncol=3,
+          labels = ecoregions$l1_ecoregion) + 
+  ggsave("images/ecoregions_cum_area.pdf", 
+         dpi=600, width = 7.5, height =10)
 
 
 # e_rast <- fasterize(ecoregions, template, field="NA_L1CODE")
@@ -126,7 +141,6 @@ p1<- ggplot(daily, aes(x=event_day, cum_area_km2, group = modis_id)) +
   scale_color_gradient(high = "darkblue", low="orange", name = "Year")+
   facet_wrap(~l1_ecoregion) +
   theme_bw() +
-  annotation_map()+
   ggsave("images/cumulative_area.pdf", dpi = 600)
 
 
