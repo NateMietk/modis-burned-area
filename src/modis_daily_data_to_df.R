@@ -2,13 +2,19 @@ library(tidyverse)
 library(raster)
 library(sf)
 library(fasterize)
+library(cowplot)
+# library(gridExtra)
 # library(foreach)
 # library(doParallel)
 
+#functions ---------------------------
 getmode <- function(v) {
   uniqv <- unique(v)
   uniqv[which.max(tabulate(match(v, uniqv)))]
 }
+
+
+# do the business -----------
 
 #corz <- detectCores()-1
 scrapdir <- "scrap"
@@ -19,12 +25,13 @@ crssss <- "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 
 # aws s3 cp s3://earthlab-natem/modis-burned-area/MCD64A1/C6/yearly_events/ /home/a/projects/modis-burned-area/scrap/ --recursive --exclude "*" --include "*events.tif"
 # aws s3 cp s3://earthlab-natem/modis-burned-area/MCD64A1/C6/yearly_composites/ /home/a/projects/modis-burned-area/scrap/ --recursive --exclude "*" --include "*ms.tif"
 
-template <- Sys.glob(paste0("scrap/USA_BurnDate*",years[1],"*.tif"))[1] %>% raster
+template <- Sys.glob(paste0("scrap/USA_BurnDate_",years[1],"*.tif"))[1] %>% raster
+# template[is.na(template)==T] <- 0
 
 ecoregions <- st_read("/home/a/data/background/ecoregions/us_eco_l3.shp") %>%
   mutate(NA_L1CODE = as.numeric(NA_L1CODE),
          l1_ecoregion = str_to_title(NA_L1NAME)) %>%
-  st_transform(crssss) %>%
+  st_transform(crs=crs(template, asText=TRUE)) %>%
   dplyr::select(NA_L1CODE, l1_ecoregion)
 
 e_rast <- fasterize(ecoregions, template, field="NA_L1CODE")
@@ -87,11 +94,39 @@ daily <- df %>%
   left_join(labels) %>%
   filter(is.na(l1_ecoregion) == F)
 
-ggplot(daily, aes(x=event_day, cum_area_km2, group = modis_id)) +
+# map for insets -------------------
+template <- raster("data/USA_BurnDate_2001.tif")
+
+# this takes a few minutes
+ecoregions <- st_read("/home/a/data/background/ecoregions/us_eco_l1.gpkg") %>%
+  mutate(NA_L1CODE = as.numeric(NA_L1CODE),
+         l1_ecoregion = str_to_title(NA_L1NAME)) %>%
+  st_transform(crs=crs(template, asText=TRUE)) %>%
+  dplyr::select(NA_L1CODE, l1_ecoregion) %>%
+  group_by(l1_ecoregion)%>%
+  st_simplify() %>%
+  group_by(l1_ecoregion) %>%
+  summarise(NA_L1CODE = getmode(NA_L1CODE))
+
+
+er <- list()
+for(i in unique(ecoregions$NA_L1CODE)){
+  er[[i]] <- ggplot(ecoregions) + 
+    geom_sf(fill = "transparent", color = "grey") +
+    geom_sf(data = filter(ecoregions, NA_L1CODE == i), color = "black")+
+    theme_void()+
+    theme(panel.grid.major = element_line(color = "transparent"))
+}
+
+
+# e_rast <- fasterize(ecoregions, template, field="NA_L1CODE")
+
+p1<- ggplot(daily, aes(x=event_day, cum_area_km2, group = modis_id)) +
   geom_line(alpha=0.5, aes(color = as.numeric(substr(as.character(date),1,4)))) +
   scale_color_gradient(high = "darkblue", low="orange", name = "Year")+
   facet_wrap(~l1_ecoregion) +
   theme_bw() +
+  annotation_map()+
   ggsave("images/cumulative_area.pdf", dpi = 600)
 
 
