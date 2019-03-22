@@ -1,6 +1,6 @@
 
 packages <- c("tidyverse", "magrittr", "raster", "RCurl", "gdalUtils", "foreach", "doParallel", "sf", 
-       "assertthat", 'lubridate', 'viridis', 'lwgeom', 'scales', 'velox', 'ggmap', 'Hmisc', 'devtools',
+       "assertthat", 'lubridate', 'viridis', 'scales', 'velox', 'ggmap', 'Hmisc', 'devtools',
        'classInt', 'RColorBrewer', 'rasterVis', 'RStoolbox', 'gridExtra', 'ggthemes', 'tidyr', 'broom')
 if (length(setdiff(packages, rownames(installed.packages()))) > 0) {
   install.packages(setdiff(packages, rownames(installed.packages())))  
@@ -9,7 +9,7 @@ if (length(setdiff(packages, rownames(installed.packages()))) > 0) {
   lapply(packages, library, character.only = TRUE, verbose = FALSE) 
 }
 
-devtools::install_github("NateMietk/MODISr")
+devtools::install_github("NateMietk/MODISr", force = TRUE)
 
 p4string_ea <- "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs"
 
