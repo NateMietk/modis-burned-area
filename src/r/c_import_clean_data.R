@@ -1,13 +1,3 @@
-# Import and prep the USA shapefile
-if (!exists("states")){
-  states <- download_data(url = "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_state_20m.zip",
-                          dir = us_prefix,
-                          layer = "cb_2016_us_state_20m") %>%
-    sf::st_transform(p4string_ea) %>%
-    dplyr::filter(!STUSPS %in% c("HI", "AK", "PR"))
-  states$STUSPS <- droplevels(states$STUSPS)
-}
-
 # Download and import the Level 4 Ecoregions data, which has Levels 4, 3, 2, 1
 # Download will only happen once as long as the file exists
 if (!exists("ecoregions_l4321")){
