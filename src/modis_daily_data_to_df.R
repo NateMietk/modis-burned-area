@@ -18,14 +18,14 @@ getmode <- function(v) {
 
 #corz <- detectCores()-1
 scrapdir <- "scrap"
-dir.create(scrapdir)
+dir.create(scrapdir, showWarnings = FALSE)
 years = 2001:2017
 crssss <- "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs"
 # forgot how to escape quotes... just copy and paste these into the console for now
-# aws s3 cp s3://earthlab-natem/modis-burned-area/MCD64A1/C6/yearly_events/ /home/a/projects/modis-burned-area/scrap/ --recursive --exclude "*" --include "*events.tif"
+# aws s3 cp s3://earthlab-natem/modis-burned-area/MCD64A1/C6/yearly_events/ /home/a/projects/modis-burned-area/scrap/ --recursive --exclude "*" --include "*events_ms.tif"
 # aws s3 cp s3://earthlab-natem/modis-burned-area/MCD64A1/C6/yearly_composites/ /home/a/projects/modis-burned-area/scrap/ --recursive --exclude "*" --include "*ms.tif"
 
-template <- Sys.glob(paste0("scrap/USA_BurnDate_",years[1],"*.tif"))[1] %>% raster
+template <- Sys.glob(paste0("scrap/USA_BurnDate_",years[1],"*.tif"))[2] %>% raster
 # template[is.na(template)==T] <- 0
 
 ecoregions <- st_read("/home/a/data/background/ecoregions/us_eco_l3.shp") %>%
@@ -35,17 +35,23 @@ ecoregions <- st_read("/home/a/data/background/ecoregions/us_eco_l3.shp") %>%
   dplyr::select(NA_L1CODE, l1_ecoregion)
 
 e_rast <- fasterize(ecoregions, template, field="NA_L1CODE")
-rm(template)
+
+lc <- raster("data/usa_landcover_t1_2017.tif") %>%
+  resample(template)
 
 ll <- list()
 for(y in 1:length(years)){
   filestobrick <- Sys.glob(paste0("scrap/USA_BurnDate*",years[y],"*.tif"))
-  
-  ll[[y]] <- raster::stack(filestobrick, e_rast) %>% 
+  r2 <- raster(filestobrick[2]) 
+  r1 <- raster(filestobrick[1])%>%
+    resample(r2)
+
+  ll[[y]] <- raster::stack(r1,r2, e_rast, lc) %>% 
   as.data.frame() %>%
-  dplyr::select(event_id = paste0("USA_BurnDate_",years[y],"_events"),
-                burn_doy = paste0("USA_BurnDate_",years[y]),
-                NA_L1CODE = layer
+  dplyr::select(event_id = paste0("USA_BurnDate_",years[y],"_events_ms"),
+                burn_doy = paste0("USA_BurnDate_",years[y],"_ms"),
+                NA_L1CODE = layer,
+                landcover = usa_landcover_t1_2017
                 ) %>%
   filter(event_id > 0) %>%
   mutate(year = years[y],
@@ -54,7 +60,6 @@ for(y in 1:length(years)){
   gc()
   print(years[y])
 }
-rm(e_rast)
 
 gc()
 
@@ -66,17 +71,21 @@ labels <- st_set_geometry(ecoregions,NULL) %>%
   filter(dup == FALSE) %>%
   dplyr::select(-dup)
 
+lc_labels <- read_csv("data/usa_landcover_t1_classes.csv") %>%
+  rename(landcover = value, landcover_name = name)
+
 daily <- df %>%
   group_by(modis_id, date) %>%
   summarise(pixels = n(),
-            NA_L1CODE = getmode(NA_L1CODE)) %>%
+            NA_L1CODE = getmode(NA_L1CODE),
+            landcover = getmode(landcover)) %>%
   ungroup() %>%
   group_by(modis_id) %>%
   mutate(cum_pixels = cumsum(pixels),
          total_pixels = sum(pixels),
          ignition_date = min(date),
          last_date = max(date),
-         duration = last_date-ignition_date,
+         duration = as.numeric(last_date-ignition_date)+1,
          simple_fsr_pixels = total_pixels/as.numeric(duration), 
          simple_fsr_km2 = total_pixels/as.numeric(duration)* 463*463/1000000)%>%
   ungroup()%>%
@@ -92,7 +101,10 @@ daily <- df %>%
          #rel_fsr_per_total = r
          ) %>%
   left_join(labels) %>%
+  left_join(lc_labels) %>%
   filter(is.na(l1_ecoregion) == F)
+
+write_csv(daily, "data/daily_asof_20180321.csv")
 
 # map for insets -------------------
 template <- raster("data/USA_BurnDate_2001.tif")
@@ -144,7 +156,6 @@ p1<- ggplot(daily, aes(x=event_day, cum_area_km2, group = modis_id)) +
   ggsave("images/cumulative_area.pdf", dpi = 600)
 
 
-write_csv(daily, "data/daily_asof_20180320.csv")
 
 matches <- st_read("data/matches_209_data.gpkg") %>%
   dplyr::select(INCIDENT_ID, modis_id) %>%
