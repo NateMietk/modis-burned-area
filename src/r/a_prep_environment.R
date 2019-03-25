@@ -35,8 +35,9 @@ MCD64A1_dir <- file.path(prefix, "MCD64A1")
 version_dir <- file.path(MCD64A1_dir, "C6")
 hdf_months <- file.path(version_dir, "hdf_months")
 tif_months <- file.path(version_dir, "tif_months")
-tif_year <- file.path(version_dir, "tif_years")
-fired_composites <- file.path(version_dir, "fired_composites")
+yearly_mosaic <- file.path(version_dir, "yearly_mosaic")
+monthly_mosaic <- file.path(version_dir, "monthly_mosaic")
+
 yearly_events <- file.path(version_dir, "yearly_events")
 stat_out <- file.path(version_dir, 'lvl1_eco_stats')
 
@@ -50,7 +51,7 @@ s3_base <- 's3://earthlab-natem/modis-burned-area'
 
 # Check if directory exists for all variable aggregate outputs, if not then create
 var_dir <- list(prefix, raw_prefix, us_prefix, MCD64A1_dir, version_dir, mtbs_prefix, ag_raw_dir, evt_dir,
-                hdf_months, tif_months, tif_year, fired_composites, ecoregion_prefix,
+                hdf_months, tif_months, yearly_mosaic, monthly_mosaic, ecoregion_prefix,
                 ecoregionl4_prefix, bounds_crt, ecoreg_crt, ecoregion_out, fire_dir, stat_out)
 lapply(var_dir, function(x) if(!dir.exists(x)) dir.create(x, showWarnings = FALSE))
 
