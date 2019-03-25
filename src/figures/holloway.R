@@ -1,14 +1,25 @@
 
-holloway <- mtbs_fire %>%
+mendo <- st_read('data/fire/mendo/MendoComplexProgression.shp') %>%
+  st_transform(st_crs(usa)) %>%
   st_join(., usa) %>%
-  filter(stusps == 'NV') %>%
-  filter(fire_name == 'HOLLOWAY') 
+  mutate(dates = lubridate::yday(Perimeter_)) %>%
+  lwgeom::st_make_valid(.)
 
 # C6 ----------------------------------------------------------------------
+pal <- colorRampPalette( brewer.pal( 6 , "RdYlBu" ) )
+mendo %>%
+  ggplot() + 
+  geom_sf(aes(fill = dates), color = "black") +
+  coord_sf(crs = st_crs(mendo), datum = NA) + 
+  theme_nothing(legend = TRUE) +
+  scale_fill_viridis_c(option = "plasma") +
+  theme(
+    panel.ontop = TRUE,   ## Note: this is to make the panel grid visible in this example
+    panel.grid = element_blank(), 
+    line = element_blank(), 
+    rect = element_blank(), 
+    plot.background = element_rect(fill = "white"))
 
-fire_year <- holloway$discovery_year
-fire_doy <- holloway$discovery_doy
-holloway_burnarea <- list.files(yearly_composites, full.names = TRUE, pattern = paste0(fire_year, '.tif'))
 
 holloway_rst <- raster::raster(holloway_burnarea) %>%
   raster::crop(holloway) %>%

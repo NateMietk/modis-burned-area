@@ -1,3 +1,10 @@
+# Fixed gdalUtils
+# conda install gdal
+# gdalinfo --version
+# install.packages('gdalUtils', type = "source", configure.args=c(
+#   '--with-gdal-config=/Library/Frameworks/GDAL.framework/Programs/gdal-config',
+#   '--with-proj-include=/Library/Frameworks/PROJ.framework/Headers',
+#   '--with-proj-lib=/Library/Frameworks/PROJ.framework/unix/lib'))
 
 packages <- c("tidyverse", "magrittr", "raster", "RCurl", "gdalUtils", "foreach", "doParallel", "sf", 
        "assertthat", 'lubridate', 'viridis', 'scales', 'velox', 'ggmap', 'Hmisc', 'devtools',
@@ -9,7 +16,8 @@ if (length(setdiff(packages, rownames(installed.packages()))) > 0) {
   lapply(packages, library, character.only = TRUE, verbose = FALSE) 
 }
 
-devtools::install_github("NateMietk/MODISr", force = TRUE)
+# devtools::install_github("NateMietk/FIREDr", force = TRUE)
+# library(FIREDr)
 
 p4string_ea <- "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs"
 
@@ -28,7 +36,7 @@ version_dir <- file.path(MCD64A1_dir, "C6")
 hdf_months <- file.path(version_dir, "hdf_months")
 tif_months <- file.path(version_dir, "tif_months")
 tif_year <- file.path(version_dir, "tif_years")
-yearly_composites <- file.path(version_dir, "yearly_composites")
+fired_composites <- file.path(version_dir, "fired_composites")
 yearly_events <- file.path(version_dir, "yearly_events")
 stat_out <- file.path(version_dir, 'lvl1_eco_stats')
 
@@ -42,7 +50,7 @@ s3_base <- 's3://earthlab-natem/modis-burned-area'
 
 # Check if directory exists for all variable aggregate outputs, if not then create
 var_dir <- list(prefix, raw_prefix, us_prefix, MCD64A1_dir, version_dir, mtbs_prefix, ag_raw_dir, evt_dir,
-                hdf_months, tif_months, tif_year, yearly_composites, ecoregion_prefix,
+                hdf_months, tif_months, tif_year, fired_composites, ecoregion_prefix,
                 ecoregionl4_prefix, bounds_crt, ecoreg_crt, ecoregion_out, fire_dir, stat_out)
 lapply(var_dir, function(x) if(!dir.exists(x)) dir.create(x, showWarnings = FALSE))
 
