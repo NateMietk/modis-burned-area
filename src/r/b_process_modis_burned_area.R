@@ -1,10 +1,10 @@
 # Import and prep the USA shapefile
 if (!exists("states")){
   download_data(url = "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_state_20m.zip",
-                dir = us_prefix,
+                dir = raw_dir_us,
                 layer = "cb_2016_us_state_20m") 
   
-  states <- st_read(file.path(us_prefix, "cb_2016_us_state_20m.shp")) %>%
+  states <- st_read(file.path(raw_dir_us, "cb_2016_us_state_20m.shp")) %>%
     sf::st_transform(p4string_ea) %>%
     dplyr::filter(!STUSPS %in% c("HI", "AK", "PR"))
   states$STUSPS <- droplevels(states$STUSPS)
