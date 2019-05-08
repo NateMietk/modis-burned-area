@@ -1,17 +1,46 @@
-library(tidyverse)
-library(raster)
-library(sf)
-library(fasterize)
-library(cowplot)
-# library(gridExtra)
-# library(foreach)
-# library(doParallel)
+# functions --------------------------------------------------------------------
+iini <-function(x){
+  #stands for install if not installed
+  if (!x %in% rownames(installed.packages())) install.packages(x)
+}
 
-#functions ---------------------------
+segment_dat <- function(dd, res){
+  mod1 <- lm(cum_pixels~event_day, dd)
+  #polymod <-lm(poly(cum_pixels,2)~event_day, dd)
+  segmod <- segmented(mod1, 
+                      seg.Z = ~ event_day, 
+                      psi = c(2))
+  dd$fitted = fitted(segmod)
+  
+  segs <- data.frame(day_break = c(as.numeric(segmod$psi[,2]),
+                                   as.numeric(segmod$rangeZ[2,1]))) %>%
+    round()%>%
+    mutate(pixel_break = dd$fitted[dd$event_day %in% .$day_break])%>%
+    mutate(pixel_lag = lag(pixel_break, default = 0),
+           pixel_gain = pixel_break-pixel_lag,
+           day_lag = lag(day_break, default=0),
+           day_gain = day_break - day_lag,
+           slope = pixel_gain/day_gain)
+  
+  peak_growth_pixels <- segs[segs$pixel_gain == max(segs$pixel_gain),]$pixel_gain
+  peak_growth_days <- segs[segs$pixel_gain == max(segs$pixel_gain),]$day_gain
+  peak_growth_fsr <- segs[segs$pixel_gain == max(segs$pixel_gain),]$slope
+  
+  if(res == "pix") return(peak_growth_pixels)
+  if(res == "days") return(peak_growth_days)
+  if(res == "fsr") return(peak_growth_fsr)
+  
+}
 getmode <- function(v) {
   uniqv <- unique(v)
   uniqv[which.max(tabulate(match(v, uniqv)))]
 }
+# setup ------------------------------------------------------------------------
+libs <- c("tidyverse", "raster", "sf","fasterize", "cowplot", "ggpubr", 
+          "segmented")
+
+lapply(libs, iini)
+lapply(libs, library, character.only = TRUE, verbose = FALSE)
 
 
 # do the business -----------
@@ -104,20 +133,40 @@ daily <- df %>%
   left_join(lc_labels) %>%
   filter(is.na(l1_ecoregion) == F)
 
-write_csv(daily, "data/daily_asof_20180321.csv")
+daily_1 <- daily %>%
+  filter(duration >0)%>%
+  group_by(modis_id) %>%
+  mutate(peak_growth_pixels = segment_dat(dd=., res = "pix"),
+         peak_growth_days = segment_dat(dd=., res = "days"),
+         peak_growth_fsr = segment_dat(dd=., res = "fsr"))
+
+for(i in unique(daily$modis_id)){
+  x <- filter(daily, modis_id == i) %>%
+    dplyr::select(cum_pixels, event_day, modis_id, duration)
+  if(x$duration > 40 ){
+    y<-  segment_dat(dd=x, res = "pix")
+    print(y)
+  }
+}
+
+#write_csv(daily, "data/daily_asof_20180321.csv")
+
+daily <- read_csv("data/daily_asof_20180320.csv")
 
 # map for insets -------------------
 template <- raster("data/USA_BurnDate_2001.tif")
 
 # this takes a few minutes
-ecoregions <- st_read("/home/a/data/background/ecoregions/us_eco_l1.gpkg") 
+ecoregions <- st_read("/home/a/data/background/ecoregions/us_eco_l1.gpkg") %>%
+  mutate(l1_ecoregion = as.character(l1_ecoregion))
 
-
+elabs <- ecoregions$l1_ecoregion %>% as.character()
 
 er <- list()
 da <- list()
 cp <- list()
-for(i in unique(ecoregions$NA_L1CODE)){
+labs <- vector()
+for(i in ecoregions$NA_L1CODE){
   er[[i]] <- ggplot(ecoregions) + 
     geom_sf(data=ecoregions,fill = "transparent", color = "grey", size=0.1) +
     geom_sf(data = filter(ecoregions, NA_L1CODE == i), color = "black", size=0.3)+
@@ -133,17 +182,24 @@ for(i in unique(ecoregions$NA_L1CODE)){
     theme(legend.position = "none") +
     ylim(c(0,2070)) +
     xlim(c(0,108)) +
-    ggtitle(ecoregions$l1_ecoregion[i])
+    ggtitle(filter(ecoregions, NA_L1CODE == i)$l1_ecoregion) +
+    theme(plot.title = element_text(size = 10),
+          axis.text = element_blank(),
+          axis.ticks = element_blank())
   
   cp[[i]] <- ggdraw() +
-    draw_plot(er[[i]], x = 0.6, y=0.6, width = 0.4, height=0.4)+
-    draw_plot(da[[i]]) 
+    draw_plot(da[[i]]) +
+    draw_plot(er[[i]], x = 0.55, y=0.5, width = 0.45, height=0.45)
+  
+  labs[i] <- filter(ecoregions, NA_L1CODE == i)$l1_ecoregion
 }
 
-x=ggarrange(plotlist=cp, nrow=4, ncol=3,
-          labels = ecoregions$l1_ecoregion) + 
-  ggsave("images/ecoregions_cum_area.pdf", 
-         dpi=600, width = 7.5, height =10)
+
+x=ggarrange(plotlist=cp, nrow=3, ncol=4) %>%
+  annotate_figure(left = text_grob(expression(Area~Burned~(km^2)), rot = 90, size = 20),
+                  bottom = text_grob("Days From Ignition", size = 20)) +
+    ggsave("images/ecoregions_cum_area.pdf", 
+         dpi=600, width = 10, height = 7.5)
 
 
 # e_rast <- fasterize(ecoregions, template, field="NA_L1CODE")
@@ -187,10 +243,48 @@ ggplot(daily, aes(x=event_day, rel_fsr_per_day, group = modis_id)) +
 # case study figure
 # 
 # exploration ------
-dd <- filter(daily, duration == max(duration))
-ggplot(dd, aes(x=as.numeric(date), y=total_pixels)) +
+dd <- filter(daily, duration == max(duration)) 
+
+
+segment_dat <- function(dd, res){
+  mod1 <- lm(cum_pixels~event_day, dd)
+
+  if(summary(mod1)$r.squared < 80){
+    segmod <- segmented(mod1, 
+                        seg.Z = ~ event_day, 
+                        psi = c(2,4,6))
+    dd$fitted = fitted(segmod)
+    
+    segs <- data.frame(day_break = c(as.numeric(segmod$psi[,2]),
+                                     as.numeric(segmod$rangeZ[2,1]))) %>%
+      round()%>%
+      mutate(pixel_break = dd$fitted[dd$event_day %in% .$day_break])%>%
+      mutate(pixel_lag = lag(pixel_break, default = 0),
+             pixel_gain = pixel_break-pixel_lag,
+             day_lag = lag(day_break, default=0),
+             day_gain = day_break - day_lag,
+             slope = pixel_gain/day_gain)
+    
+    peak_growth_pixels <- segs[segs$pixel_gain == max(segs$pixel_gain),]$pixel_gain
+    peak_growth_days <- segs[segs$pixel_gain == max(segs$pixel_gain),]$day_gain
+    peak_growth_fsr <- segs[segs$pixel_gain == max(segs$pixel_gain),]$slope
+  }
+  
+  if(res == "pix") return(peak_growth_pixels)
+  if(res == "days") return(peak_growth_days)
+  if(res == "fsr") return(peak_growth_fsr)
+
+}
+
+segment_dat(dd=dd, res="fsr")
+
+ggplot(dd, aes(x=event_day, y=total_pixels)) +
   geom_line(aes(y=cum_pixels)) +
-  geom_segment(y=0,yend=1180, 
-               x=as.numeric(dd$ignition_date[1]),xend=as.numeric(dd$last_date[1]))
+  geom_line(aes(y=predict(mod1)), color = "red")+
+  geom_vline(xintercept = segmod$psi[,2], lty=2)+
+# geom_line(aes(y=predict(polymod)), color = "green")+
+  geom_line(aes(y=predict(segmod)), color = "blue") #+
+  #geom_segment(y=0,yend=1180, 
+           #    x=as.numeric(dd$ignition_date[1]),xend=as.numeric(dd$last_date[1]))
 
             
