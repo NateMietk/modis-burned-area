@@ -44,8 +44,7 @@ parallel::stopCluster(cl)
 tifs <- list.files(out_dir,
                    recursive = TRUE, full.names = TRUE)
 
-# modis MCD64 starts at julian day 306, 2000
-from_r_origin <- as.Date("2000305", "%Y%j") %>% as.numeric
+from_r_origin <- as.Date("1999365", "%Y%j") %>% as.numeric
 
 leap_years <- c(2000,2004,2008,2012,2016)
 years_days <- data.frame(year = 2000:2019, days = 365) %>%
@@ -59,7 +58,7 @@ for(i in 1:length(tifs)){
   year <-substr(tifs[i], 62,65) %>% as.numeric
   days <-substr(tifs[i], 66,68) %>% as.numeric
   
-  days_to_add <- years_days[years_days$year == year, 4]
+  days_to_add <- years_days[years_days$year == year, "from_origin"]
   
   
   x <- raster(tifs[i])
@@ -71,10 +70,13 @@ for(i in 1:length(tifs)){
   print(i/length(tifs))
 }
 
+
 # # writing the stack to a single .tif takes a long time and might be unnecessary
 
-# tifs_1 <- list.files(out_dir_1,
-#                      recursive = TRUE, 
-#                      full.names = TRUE)
-# stk <- raster::stack(tifs_1)
-# writeRaster(stk, paste0(res_dir,"/h09v05_full_stack.tif"))
+tifs_1 <- list.files(out_dir_1,
+                     recursive = TRUE,
+                     full.names = TRUE)
+rl <- list()
+for(i in 1:length(tifs_1)){ rl[[i]] <- raster(tifs_1[i])}
+stk <- raster::stack(rl)
+writeRaster(stk, paste0(res_dir,"/h09v05_full_stack.nc"))
