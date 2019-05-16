@@ -35,6 +35,15 @@ dd <- d %>%
          results = map(fit, augment)) %>%
   unnest(results)
 
+ci <- d %>%
+  group_by(year, ecoregion) %>%
+  summarise(duration_mean = mean(duration),
+            duration_sd = sd(duration)) %>%
+  ungroup()%>%
+  nest(-ecoregion) %>%
+  mutate(fit = map(data, ~ mblm(duration_mean ~ year, data=., repeated=F)),
+         results = map(fit, confint))
+
 
 write_csv(dd,"data/yearly_duration_eco.csv")
 
@@ -52,7 +61,31 @@ ggplot(peak_season, aes(x=year, y=sd_peak))+
   geom_point() +
   facet_wrap(~l1_ecoregion)
 
-ggplot(dd, aes(x=year, y=duration_mean))+
+
+
+
+# model it properly ------------------------------------------------------------
+lmer(duration ~ year + (year|ecoregion), d) -> mod3
+lm(duration ~ year*ecoregion, d) -> mod3
+dd$mod3 = predict(mod3, newdata = dd)
+
+# ts <- mblm(duration ~ year, d, repeated = F)
+ts <- mblm(duration_mean ~ year, dd, repeated = T)
+ts_list <- list()
+table_ <- tibble(ecoregion = NA, slope = NA, p = NA)
+for(i in 1:length(unique(d$ecoregion))){
+  print(i)
+  ddd <- filter(dd, ecoregion == unique(d$ecoregion)[i])
+  ts_list[[i]] <- mblm(duration_mean ~ year, ddd, repeated =F)
+  summary(ts_list[[i]]) -> ss
+  
+  table_[i,1] <- unique(d$ecoregion)[i]
+  table_[i,2] <- round(ts_list[[i]]$coefficients[2] %>% as.numeric,3)
+  table_[i,3] <- round(ss$coefficients[2,4],5)
+}
+write_csv(table_, "images/ts_table.csv")
+
+pp <- ggplot(dd, aes(x=year, y=duration_mean))+
   geom_point() +
   geom_line(aes(y=.fitted))+
   geom_line(aes(y=.fitted + .se.fit), lty=2)+
@@ -61,21 +94,10 @@ ggplot(dd, aes(x=year, y=duration_mean))+
   facet_wrap(~ecoregion)+
   theme(legend.position = "none")
 
-
-# model it properly ------------------------------------------------------------
-lmer(duration ~ year + (year|ecoregion), d) -> mod3
-lm(duration ~ year*ecoregion, d) -> mod3
-dd$mod3 = predict(mod3, newdata = dd)
-
-ts <- mblm(duration ~ year, d, repeated = F)
-ts <- mblm(duration_mean ~ year, dd, repeated = F)
-ts_list <- list()
-for(i in unique(d$ecoregion)){
-  print(i)
-  ddd <- filter(dd, ecoregion == i)
-  ts_list[[i]] <- mblm(duration_mean ~ year, dd, repeated = F)
-  print(summary(ts_list[[i]]))
-}
+cowplot::ggdraw()+
+  cowplot::draw_plot(pp,0,0,1,1)+
+  cowplot::draw_grob(tableGrob(table_),.6,.05,.3,.2) +
+  ggsave("images/ts_lmm.png", width=9, height = 7)
 
 ggplot(d, aes(x = year, y=duration, color = ecoregion)) +
   #geom_point() +
