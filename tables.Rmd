@@ -1,0 +1,12 @@
+---
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(stargazer)
+library(tidyverse)
+dd<-read_csv("images/ts_table.csv") %>%
+  stargazer(type="latex", summary = FALSE)
+
+```
