@@ -6,6 +6,9 @@ library(doParallel)
 library(raster)
 library(gdalUtils)
 
+# for gdal to fully work.... i.e. for this script to work...
+# sudo apt-get install gdal-bin proj-bin libgdal-dev libproj-dev
+
 # only one tile
 # aws s3 cp s3://earthlab-natem/modis-burned-area/MCD64A1/C6/hdf_months/ /home/a/projects/modis-burned-area/scrap/ --recursive --exclude "*" --include "*h09v05*"
 
@@ -55,7 +58,6 @@ foreach (i = 1:length(hdfs), .packages = c('gdalUtils', 'foreach')) %dopar% {
 }
 parallel::stopCluster(cl)
 
-system(paste("aws s3 sync ", out_dir, "s3://earthlab-natem/modis-burned-area/MCD64A1/C6/tif_numeric_all_tiles/"))
 
 # convert the tifs and make one big stack to write out -------------------------
 tifs <- list.files(out_dir,
