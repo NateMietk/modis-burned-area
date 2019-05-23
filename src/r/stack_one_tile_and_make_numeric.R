@@ -6,9 +6,18 @@ library(doParallel)
 library(raster)
 library(gdalUtils)
 
+# only one tile
 # aws s3 cp s3://earthlab-natem/modis-burned-area/MCD64A1/C6/hdf_months/ /home/a/projects/modis-burned-area/scrap/ --recursive --exclude "*" --include "*h09v05*"
 
-in_dir <- "/home/a/projects/modis-burned-area/scrap/hdf"
+# all tiles
+# aws s3 cp s3://earthlab-natem/modis-burned-area/MCD64A1/C6/hdf_months/ /home/a/projects/modis-burned-area/scrap/"
+base_path <- getwd()
+dir.create(file.path(base_path, "data"))
+dir.create(file.path(base_path, "data", "scrap"))
+
+system(paste("aws s3 sync s3://earthlab-natem/modis-burned-area/MCD64A1/C6/hdf_months", file.path(base_path,"scrap")))
+
+in_dir <- file.path(base_path, "scrap/hdf")
 out_dir <-  "/home/a/projects/modis-burned-area/scrap/tif_months"
 out_dir_1 <- "/home/a/projects/modis-burned-area/scrap/tif_converted"
 res_dir <- "/home/a/projects/modis-burned-area/scrap/result"
