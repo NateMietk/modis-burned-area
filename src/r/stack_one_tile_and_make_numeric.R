@@ -73,7 +73,7 @@ years_days <- data.frame(year = 2000:2019, days = 365) %>%
          cum = cumsum(prior),
          from_origin = cum+from_r_origin)
 
-for(i in 1:length(tifs)){
+foreach(i = 1:length(tifs))%dopar%{
   year <-substr(tifs[i], 62,65) %>% as.numeric
   days <-substr(tifs[i], 66,68) %>% as.numeric
   
@@ -86,8 +86,9 @@ for(i in 1:length(tifs)){
   
   y=x+days_to_add
   writeRaster(y, paste0(out_dir_1, "/bd_numeric_",year, "_",days,".tif"), overwrite=T)
-  print(i/length(tifs))
+  system(paste("echo", i/length(tifs)))
 }
+
 
 
 # # writing the stack to a single .tif takes a long time and might be unnecessary
