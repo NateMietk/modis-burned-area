@@ -11,16 +11,22 @@ library(gdalUtils)
 
 # all tiles
 # aws s3 cp s3://earthlab-natem/modis-burned-area/MCD64A1/C6/hdf_months/ /home/a/projects/modis-burned-area/scrap/"
-base_path <- getwd()
-dir.create(file.path(base_path, "data"))
-dir.create(file.path(base_path, "data", "scrap"))
+wd <- getwd()
+dir.create(file.path(wd, "data"))
+dir.create(file.path(wd, "data", "scrap"))
 
-system(paste("aws s3 sync s3://earthlab-natem/modis-burned-area/MCD64A1/C6/hdf_months", file.path(base_path,"scrap")))
+system(paste("aws s3 sync s3://earthlab-natem/modis-burned-area/MCD64A1/C6/hdf_months", 
+             file.path(wd,"data/scrap/hdf")))
 
-in_dir <- file.path(base_path, "scrap/hdf")
-out_dir <-  "/home/a/projects/modis-burned-area/scrap/tif_months"
-out_dir_1 <- "/home/a/projects/modis-burned-area/scrap/tif_converted"
-res_dir <- "/home/a/projects/modis-burned-area/scrap/result"
+in_dir <- file.path(wd, "data/scrap/hdf")
+out_dir <-  file.path(wd, "data/scrap/tif_months")
+out_dir_1 <- file.path(wd, "data/scrap/tif_converted")
+res_dir <- file.path(wd, "data/scrap/result")
+
+dir.create(in_dir)
+dir.create(out_dir)
+dir.create(out_dir_1)
+dir.create(res_dir)
 
 hdfs <- list.files(in_dir,
                    recursive = TRUE, full.names = TRUE)
@@ -31,7 +37,7 @@ filename <- strsplit(basename(hdfs), "\\.") %>%
   unlist
 
 # create the final name to be written out
-outname <- paste0("bd_test", "_", filename, ".tif")
+outname <- paste0("bd_numeric", "_", filename, ".tif")
 
 n_cores <- detectCores()-1
 cl <- parallel::makeCluster(n_cores)
@@ -48,6 +54,8 @@ foreach (i = 1:length(hdfs), .packages = c('gdalUtils', 'foreach')) %dopar% {
   }
 }
 parallel::stopCluster(cl)
+
+system(paste("aws s3 sync ", out_dir, "s3://earthlab-natem/modis-burned-area/MCD64A1/C6/tif_numeric_all_tiles/"))
 
 # convert the tifs and make one big stack to write out -------------------------
 tifs <- list.files(out_dir,
