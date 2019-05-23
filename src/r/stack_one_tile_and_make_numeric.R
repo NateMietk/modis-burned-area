@@ -73,9 +73,16 @@ years_days <- data.frame(year = 2000:2019, days = 365) %>%
          cum = cumsum(prior),
          from_origin = cum+from_r_origin)
 
-foreach(i = 1:length(tifs))%dopar%{
-  year <-substr(tifs[i], 62,65) %>% as.numeric
-  days <-substr(tifs[i], 66,68) %>% as.numeric
+
+n_cores <- detectCores()-1
+cl <- parallel::makeCluster(n_cores)
+doParallel::registerDoParallel(cl)
+foreach(i = 1:length(tifs), .packages = c("dplyr", "raster"))%dopar%{
+  
+  year <-substr(tifs[i], 67,70) %>% as.numeric
+  days <-substr(tifs[i], 71,73) %>% as.numeric
+  days_char <- substr(tifs[i], 71,73)
+  tile <- substr(tifs[i], 75, 80)
   
   days_to_add <- years_days[years_days$year == year, "from_origin"]
   
@@ -85,9 +92,11 @@ foreach(i = 1:length(tifs))%dopar%{
   x[x > 366] <- NA
   
   y=x+days_to_add
-  writeRaster(y, paste0(out_dir_1, "/bd_numeric_",year, "_",days,".tif"), overwrite=T)
-  system(paste("echo", i/length(tifs)))
+  writeRaster(y, paste0(out_dir_1, "/bd_numeric_",year, "_",days_char,"_",tile,".tif"), 
+              overwrite=T)
+  system(paste("echo", round(i/length(tifs),3), "%"))
 }
+parallel::stopCluster(cl)
 
 
 
