@@ -1,7 +1,7 @@
 # aspatial event creation
 libs <- c("tidyverse", "raster", "foreach", "doParallel","sf")
 lapply(libs, library, character.only = TRUE, verbose = FALSE)
-
+dir.create("data")
 dir.create("data/scrap")
 dir.create("data/scrap/tif_alltiles")
 system("aws s3 sync s3://earthlab-natem/modis-burned-area/MCD64A1/C6/tif_converted_alltiles/ /home/a/projects/modis-burned-area/data/scrap/tif_alltiles/")
