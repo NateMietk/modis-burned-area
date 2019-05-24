@@ -6,12 +6,30 @@ library(doParallel)
 library(raster)
 library(gdalUtils)
 
+# for gdal to fully work.... i.e. for this script to work...
+# sudo apt-get install gdal-bin proj-bin libgdal-dev libproj-dev
+
+# only one tile
 # aws s3 cp s3://earthlab-natem/modis-burned-area/MCD64A1/C6/hdf_months/ /home/a/projects/modis-burned-area/scrap/ --recursive --exclude "*" --include "*h09v05*"
 
-in_dir <- "/home/a/projects/modis-burned-area/scrap/hdf"
-out_dir <-  "/home/a/projects/modis-burned-area/scrap/tif_months"
-out_dir_1 <- "/home/a/projects/modis-burned-area/scrap/tif_converted"
-res_dir <- "/home/a/projects/modis-burned-area/scrap/result"
+# all tiles
+# aws s3 cp s3://earthlab-natem/modis-burned-area/MCD64A1/C6/hdf_months/ /home/a/projects/modis-burned-area/scrap/"
+wd <- getwd()
+dir.create(file.path(wd, "data"))
+dir.create(file.path(wd, "data", "scrap"))
+
+system(paste("aws s3 sync s3://earthlab-natem/modis-burned-area/MCD64A1/C6/hdf_months", 
+             file.path(wd,"data/scrap/hdf")))
+
+in_dir <- file.path(wd, "data/scrap/hdf")
+out_dir <-  file.path(wd, "data/scrap/tif_months")
+out_dir_1 <- file.path(wd, "data/scrap/tif_converted")
+res_dir <- file.path(wd, "data/scrap/result")
+
+dir.create(in_dir)
+dir.create(out_dir)
+dir.create(out_dir_1)
+dir.create(res_dir)
 
 hdfs <- list.files(in_dir,
                    recursive = TRUE, full.names = TRUE)
@@ -22,7 +40,7 @@ filename <- strsplit(basename(hdfs), "\\.") %>%
   unlist
 
 # create the final name to be written out
-outname <- paste0("bd_test", "_", filename, ".tif")
+outname <- paste0("bd_numeric", "_", filename, ".tif")
 
 n_cores <- detectCores()-1
 cl <- parallel::makeCluster(n_cores)
@@ -40,6 +58,7 @@ foreach (i = 1:length(hdfs), .packages = c('gdalUtils', 'foreach')) %dopar% {
 }
 parallel::stopCluster(cl)
 
+
 # convert the tifs and make one big stack to write out -------------------------
 tifs <- list.files(out_dir,
                    recursive = TRUE, full.names = TRUE)
@@ -54,9 +73,16 @@ years_days <- data.frame(year = 2000:2019, days = 365) %>%
          cum = cumsum(prior),
          from_origin = cum+from_r_origin)
 
-for(i in 1:length(tifs)){
-  year <-substr(tifs[i], 62,65) %>% as.numeric
-  days <-substr(tifs[i], 66,68) %>% as.numeric
+
+n_cores <- detectCores()-1
+cl <- parallel::makeCluster(n_cores)
+doParallel::registerDoParallel(cl)
+foreach(i = 1:length(tifs), .packages = c("dplyr", "raster"))%dopar%{
+  
+  year <-substr(tifs[i], 67,70) %>% as.numeric
+  days <-substr(tifs[i], 71,73) %>% as.numeric
+  days_char <- substr(tifs[i], 71,73)
+  tile <- substr(tifs[i], 75, 80)
   
   days_to_add <- years_days[years_days$year == year, "from_origin"]
   
@@ -66,13 +92,37 @@ for(i in 1:length(tifs)){
   x[x > 366] <- NA
   
   y=x+days_to_add
-  writeRaster(y, paste0(out_dir_1, "/bd_numeric_",year, "_",days,".tif"), overwrite=T)
-  print(i/length(tifs))
+  writeRaster(y, paste0(out_dir_1, "/bd_numeric_",year, "_",days_char,"_",tile,".tif"), 
+              overwrite=T)
+  system(paste("echo", round(i/length(tifs),3), "%"))
+}
+parallel::stopCluster(cl)
+
+system("aws s3 sync data/scrap/tif_converted s3://earthlab-natem/modis-burned-area/MCD64A1/C6/tif_converted_alltiles")
+
+# mosaicking everything together============================================
+
+ctifs <- list.files(out_dir_1, full.names = TRUE)
+
+yr_mos <- ctifs %>%
+  str_extract("\\d{4}_\\d{3}") %>%
+  unique()
+
+for(i in 1:length(yr_mos)){
+  rl <- list()
+  rsts <- ctifs[str_extract(ctifs, "\\d{4}_\\d{3}")==yr_mos[i]]
+  for(j in 1:length(rsts)) {rl[[j]]<-raster(rsts[j])}
+  out <- do.call("merge", rl)
+  filename <- file.path(res_dir,paste0("bd_numeric_USA_", yr_mos[i], ".tif"))
+  writeRaster(out, filename = filename)
+  system(paste0("aws s3 cp ", filename, 
+               " s3://earthlab-natem/modis-burned-area/MCD64A1/C6/tif_converted_usa_mosaics/bd_numeric_USA",
+               yr_mos[i], ".tif"))
 }
 
 
 # # writing the stack to a single .tif takes a long time and might be unnecessary
-
+# update -  use cdo if we do it
 tifs_1 <- list.files(out_dir_1,
                      recursive = TRUE,
                      full.names = TRUE)
