@@ -63,38 +63,26 @@ for(i in 1:ddrows){
     st_cube_y <- c(dd$y[i] - ss, dd$y[i] + ss)
     st_cube_z <- c(dd$burn_date[i]-tt, dd$burn_date[i] + tt)
     
-    data_slice <- dd %>%
-      filter(burn_date > st_cube_z[1] - 1 & burn_date < st_cube_z[2] + 1 &
-               x > st_cube_x[1] - 1 & x < st_cube_x[2] + 1 &
-               y > st_cube_y[1] - 1 & y < st_cube_y[2] + 1)
+    ude <- unique(dd[dd$burn_date > st_cube_z[1] - 1 & dd$burn_date < st_cube_z[2] + 1 &
+         dd$x > st_cube_x[1] - 1 & dd$x < st_cube_x[2] + 1 &
+         dd$y > st_cube_y[1] - 1 & dd$y < st_cube_y[2] + 1,]$event)
     
-    #dsr<- nrow(data_slice)
-    ude <- unique(data_slice$event)
-    
-    #if(dsr > 0) {
-      if(length(ude) == 1){
-        if(is.na(ude)){
-          dd[dd$x %in% data_slice$x & 
-               dd$y %in% data_slice$y  &
-               dd$burn_date %in% data_slice$burn_date,]$event <- new_id
-          new_id <- new_id+1
-        }#else{
-          # 
-          # dd[dd$x %in% data_slice$x & 
-          #      dd$y %in% data_slice$y  &
-          #      dd$burn_date %in% data_slice$burn_date,]$event <- ude
-       # } # end of else (when the the one value is an NA)
-      }else{
-        lowest_id <- ude %>%
-          na.omit() %>%
-          min()
-        dd[dd$x %in% data_slice$x & 
-             dd$y %in% data_slice$y  &
-             dd$burn_date %in% data_slice$burn_date,]$event <- lowest_id
-        
-      } # end of else (when rows are > 1)
-    #} # end of if(data_slice>0)
-   
+    if(length(ude) == 1){
+      if(is.na(ude)){
+        dd[dd$burn_date > st_cube_z[1] - 1 & dd$burn_date < st_cube_z[2] + 1 &
+             dd$x > st_cube_x[1] - 1 & dd$x < st_cube_x[2] + 1 &
+             dd$y > st_cube_y[1] - 1 & dd$y < st_cube_y[2] + 1,4] <- new_id
+        new_id <- new_id+1
+      }
+    }else{
+      lowest_id <- ude %>%
+        na.omit() %>%
+        min()
+      dd[dd$burn_date > st_cube_z[1] - 1 & dd$burn_date < st_cube_z[2] + 1 &
+           dd$x > st_cube_x[1] - 1 & dd$x < st_cube_x[2] + 1 &
+           dd$y > st_cube_y[1] - 1 & dd$y < st_cube_y[2] + 1,4] <- lowest_id
+      
+    } # end of else (when rows are > 1)
   }
 }
 
