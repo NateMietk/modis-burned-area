@@ -100,8 +100,29 @@ parallel::stopCluster(cl)
 
 system("aws s3 sync data/scrap/tif_converted s3://earthlab-natem/modis-burned-area/MCD64A1/C6/tif_converted_alltiles")
 
-# # writing the stack to a single .tif takes a long time and might be unnecessary
+# mosaicking everything together============================================
 
+ctifs <- list.files(out_dir_1, full.names = TRUE)
+
+yr_mos <- ctifs %>%
+  str_extract("\\d{4}_\\d{3}") %>%
+  unique()
+
+for(i in 1:length(yr_mos)){
+  rl <- list()
+  rsts <- ctifs[str_extract(ctifs, "\\d{4}_\\d{3}")==yr_mos[i]]
+  for(j in 1:length(rsts)) {rl[[j]]<-raster(rsts[j])}
+  out <- do.call("merge", rl)
+  filename <- file.path(res_dir,paste0("bd_numeric_USA_", yr_mos[i], ".tif"))
+  writeRaster(out, filename = filename)
+  system(paste0("aws s3 cp ", filename, 
+               " s3://earthlab-natem/modis-burned-area/MCD64A1/C6/tif_converted_usa_mosaics/bd_numeric_USA",
+               yr_mos[i], ".tif"))
+}
+
+
+# # writing the stack to a single .tif takes a long time and might be unnecessary
+# update -  use cdo if we do it
 tifs_1 <- list.files(out_dir_1,
                      recursive = TRUE,
                      full.names = TRUE)
