@@ -98,7 +98,7 @@ foreach(i = 1:length(tifs), .packages = c("dplyr", "raster"))%dopar%{
 }
 parallel::stopCluster(cl)
 
-
+system("aws s3 sync data/scrap/tif_converted s3://earthlab-natem/modis-burned-area/MCD64A1/C6/tif_converted_alltiles")
 
 # # writing the stack to a single .tif takes a long time and might be unnecessary
 
