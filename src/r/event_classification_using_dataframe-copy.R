@@ -54,8 +54,11 @@ dd <- read_csv("data/bd_no_events.csv")
 
 resolution<- 463.3127
 
-ss <- 5/2*resolution
-tt <- 11/2 * resolution
+sspace<-5
+ttime<-11
+
+ss <- sspace/2 * resolution
+tt <- ttime/2 * resolution
 new_id <- 1
 
 ddrows <- nrow(dd)
@@ -92,7 +95,9 @@ for(i in 1:ddrows){
 dd$event <- vector_out
 print(Sys.time()-t0)
 write_csv(dd, "data/r_events.csv")
-system("aws s3 cp data/r_events.csv s3://earthlab-natem/modis-burned-area/MCD64A1/C6/r_events_s5d_t11d.csv")
+system(paste0("aws s3 cp data/r_events.csv ",
+              "s3://earthlab-natem/modis-burned-area/MCD64A1/C6/r_events_s",
+              sspace, "_t" ,ttime, ".csv"))
 
 
 crss <- crs(raster(tifs[1]), asText=T)
