@@ -18,39 +18,38 @@ dir.create("data/scrap/tif_alltiles")
 
 system("aws s3 cp s3://earthlab-natem/modis-burned-area/MCD64A1/C6/bd_no_events.csv data/bd_no_events.csv")
 
-
-wd <- getwd()
-
-system(paste("aws s3 sync",
-             "s3://earthlab-natem/modis-burned-area/MCD64A1/C6/tif_converted_alltiles/"
-             ,file.path(wd, "data/scrap/tif_alltiles/")))
-
-tifs <- list.files("data/scrap/tif_alltiles", full.names = T) 
-
-#tifs <- "example.tif"
-
-corz <- detectCores()-1
-registerDoParallel(corz)
-
-t0 <- Sys.time()
-dd <- foreach(i = 1:length(tifs), .combine = 'rbind') %dopar% {
+if(!file.exists("data/bd_no_events.csv")){
+  wd <- getwd()
   
-  system(paste("echo", round(i/length(tifs),3)*100, "%"))
+  system(paste("aws s3 sync",
+               "s3://earthlab-natem/modis-burned-area/MCD64A1/C6/tif_converted_alltiles/"
+               ,file.path(wd, "data/scrap/tif_alltiles/")))
   
-  rr <- raster(tifs[i])
-  names(rr) <- "burn_date"
-  rr<- rr %>%
-    as.data.frame(xy=TRUE, na.rm=T)
+  tifs <- list.files("data/scrap/tif_alltiles", full.names = T)
   
-  return(rr)
-}
-print(Sys.time()-t0) # 15 minutes on adam's computer
-t1 <- Sys.time()
-
-write_csv(dd, "data/bd_no_events.csv")
-system("aws s3 cp data/bd_no_events.csv s3://earthlab-natem/modis-burned-area/MCD64A1/C6/bd_no_events.csv")
-
-dd <- read_csv("data/bd_no_events.csv")
+  #tifs <- "example.tif"
+  
+  corz <- detectCores()-1
+  registerDoParallel(corz)
+  
+  t0 <- Sys.time()
+  dd <- foreach(i = 1:length(tifs), .combine = 'rbind') %dopar% {
+  
+    system(paste("echo", round(i/length(tifs),3)*100, "%"))
+  
+    rr <- raster(tifs[i])
+    names(rr) <- "burn_date"
+    rr<- rr %>%
+      as.data.frame(xy=TRUE, na.rm=T)
+  
+    return(rr)
+  }
+  print(Sys.time()-t0) # 15 minutes on adam's computer
+  t1 <- Sys.time()
+  
+  write_csv(dd, "data/bd_no_events.csv")
+  system("aws s3 cp data/bd_no_events.csv s3://earthlab-natem/modis-burned-area/MCD64A1/C6/bd_no_events.csv")
+}else{dd <- read_csv("data/bd_no_events.csv")}
 
 resolution<- 463.3127
 
