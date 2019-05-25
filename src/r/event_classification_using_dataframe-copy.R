@@ -73,10 +73,10 @@ for(i in 1:ddrows){
                 dd$y[i] - ss, dd$y[i] + ss,
                 dd$burn_date[i]-tt, dd$burn_date[i] + tt)
     
-    rs<- dd[dd$burn_date >= st_cube[5] & 
-         dd$burn_date <= st_cube[6]  &
-         dd$x >= st_cube[1] & dd$x <= st_cube[2] &
-         dd$y >= st_cube[3] & dd$y <= st_cube[4],4]
+    rs<- filter(dd,burn_date >= st_cube[5] & 
+         burn_date <= st_cube[6]  &
+         x >= st_cube[1] & x <= st_cube[2] &
+         y >= st_cube[3] & y <= st_cube[4])$rownums
     ude <- funique(vector_out[rs])
     
     if(length(ude) == 1){
@@ -91,17 +91,17 @@ for(i in 1:ddrows){
     } 
   }
 }
-# .05% 13:47
+
 dd$event <- vector_out
 print(Sys.time()-t0)
 write_csv(dd, "data/r_events.csv")
 system(paste0("aws s3 cp data/r_events.csv ",
-              "s3://earthlab-natem/modis-burned-area/MCD64A1/C6/r_events_s",
+              "s3://earthlab-natem/modis-burned-area/MCD64A1/C6/event_dataframes/r_events_s",
               sspace, "_t" ,ttime, ".csv"))
 
-
-crss <- crs(raster(tifs[1]), asText=T)
-subset <- filter(dd, burn_date<550) %>%
-  st_as_sf(coords = c("x", "y"),crs = crss)
-  
-st_write(subset, "subset.gpkg", delete_dsn = TRUE)
+# 
+# crss <- crs(raster(tifs[1]), asText=T)
+# subset <- filter(dd, burn_date<550) %>%
+#   st_as_sf(coords = c("x", "y"),crs = crss)
+#   
+# st_write(subset, "subset.gpkg", delete_dsn = TRUE)
