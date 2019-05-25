@@ -13,12 +13,14 @@ lapply(libs, library, character.only = TRUE, verbose = FALSE)
 
 
 dir.create("data")
-dir.create("data/scrap")
-dir.create("data/scrap/tif_alltiles")
 
 system("aws s3 cp s3://earthlab-natem/modis-burned-area/MCD64A1/C6/bd_no_events.csv data/bd_no_events.csv")
 
 if(!file.exists("data/bd_no_events.csv")){
+  
+  dir.create("data/scrap")
+  dir.create("data/scrap/tif_alltiles")
+
   wd <- getwd()
   
   system(paste("aws s3 sync",
