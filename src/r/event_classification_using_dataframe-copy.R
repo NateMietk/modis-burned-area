@@ -57,11 +57,7 @@ resolution<- 463.3127
 ss <- 5/2*resolution
 tt <- 11/2 * resolution
 new_id <- 1
-dd$event <- NA
 
-# condition1 <- nrow(data_slice) > 0
-# condition2 <-length(unique(data_slice$event)) == 1
-# condition3 <- is.na(unique(data_slice$event))
 ddrows <- nrow(dd)
 dd$rownums = 1:nrow(dd)
 t0 <- Sys.time()
@@ -74,40 +70,29 @@ for(i in 1:ddrows){
                 dd$y[i] - ss, dd$y[i] + ss,
                 dd$burn_date[i]-tt, dd$burn_date[i] + tt)
     
-    # ude <- funique(dd[dd$burn_date >= st_cube_z[1] & 
-    #                     dd$burn_date <= st_cube_z[2]  &
-    #      dd$x >= st_cube_x[1] & dd$x <= st_cube_x[2] &
-    #      dd$y >= st_cube_y[1] & dd$y <= st_cube_y[2] ,4])
     rs<- dd[dd$burn_date >= st_cube[5] & 
          dd$burn_date <= st_cube[6]  &
          dd$x >= st_cube[1] & dd$x <= st_cube[2] &
-         dd$y >= st_cube[3] & dd$y <= st_cube[4],5]
+         dd$y >= st_cube[3] & dd$y <= st_cube[4],4]
     ude <- funique(vector_out[rs])
     
     if(length(ude) == 1){
       if(is.na(ude)){
-        # dd[dd$burn_date >= st_cube_z[1] & dd$burn_date <= st_cube_z[2] &
-        #      dd$x >= st_cube_x[1] & dd$x <= st_cube_x[2] &
-        #      dd$y >= st_cube_y[1] & dd$y <= st_cube_y[2],4] <- new_id
         vector_out[rs] <- new_id
         new_id <- new_id+1
       }
     }else{
-      lowest_id <- ude %>%
+      vector_out[rs] <- ude %>%
         na.omit() %>%
         min()
-      # dd[dd$burn_date >= st_cube_z[1] & dd$burn_date <= st_cube_z[2] &
-      #      dd$x >= st_cube_x[1] & dd$x <= st_cube_x[2] &
-      #      dd$y >= st_cube_y[1] & dd$y <= st_cube_y[2],4] <- lowest_id
-      vector_out[rs] <- lowest_id
-    } # end of else (when rows are > 1)
+    } 
   }
 }
 # .05% 13:47
 dd$event <- vector_out
 print(Sys.time()-t0)
 write_csv(dd, "data/r_events.csv")
-system("aws s3 cp /home/a/projects/modis-burned-area/data/r_events.csv s3://earthlab-natem/modis-burned-area/MCD64A1/C6/r_events_s5d_t11d.csv")
+system("aws s3 cp data/r_events.csv s3://earthlab-natem/modis-burned-area/MCD64A1/C6/r_events_s5d_t11d.csv")
 
 
 crss <- crs(raster(tifs[1]), asText=T)
