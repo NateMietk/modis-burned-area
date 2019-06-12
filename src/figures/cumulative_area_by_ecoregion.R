@@ -1,10 +1,16 @@
+# to do:
+# get axis labels on x and y axes
+# convert to acres or ha
+
+# setup ------------------------------------------------------------------------
 libs <- c("tidyverse", "sf")
 lapply(libs, library, character.only = TRUE)
 
 daily_file <- Sys.glob("data/daily_stats*")
 ecoregion_file <- "/home/a/data/background/ecoregions/us_eco_l1.gpkg"
-daily<- read_csv(daily_file)
 
+# data processing --------------------------------------------------------------
+daily<- read_csv(daily_file)
 
 # this takes a few minutes
 ecoregions <- st_read(ecoregion_file) %>%
@@ -25,9 +31,14 @@ daily <- filter(daily, lc_name != "Permanent Snow and Ice",
                 lc_name = replace(lc_name, lc_name == "Woody Savannas", "Savannas"),
                 lc_name = replace(lc_name, lc_name == "Closed Shrublands", "Shrublands"),
                 lc_name = replace(lc_name, lc_name == "Open Shrublands", "Shrublands"),
-                lc_name = replace(lc_name, lc_name == "Deciduous Broadleaf Forests", "Broadleaf Forests"),
-                lc_name = replace(lc_name, lc_name == "Evergreen Broadleaf Forests", "Broadleaf Forests"),
-                lc_name = replace(lc_name, lc_name == "Evergreen Needleleaf Forests", "Conifer Forests"))
+                lc_name = replace(lc_name, lc_name == "Deciduous Broadleaf Forests", 
+                                  "Broadleaf Forests"),
+                lc_name = replace(lc_name, lc_name == "Evergreen Broadleaf Forests", 
+                                  "Broadleaf Forests"),
+                lc_name = replace(lc_name, lc_name == "Evergreen Needleleaf Forests", 
+                                  "Conifer Forests"))
+
+# plotting ---------------------------------------------------------------------
 
 # this makes the legend colors consistent
 values <- RColorBrewer::brewer.pal(length(unique(daily$lc_name)), "Dark2")
