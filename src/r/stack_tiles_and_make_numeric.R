@@ -14,6 +14,7 @@ library(gdalUtils)
 
 # all tiles
 # aws s3 cp s3://earthlab-natem/modis-burned-area/MCD64A1/C6/hdf_months/ /home/a/projects/modis-burned-area/scrap/"
+
 wd <- getwd()
 dir.create(file.path(wd, "data"))
 dir.create(file.path(wd, "data", "scrap"))
@@ -31,6 +32,7 @@ dir.create(out_dir)
 dir.create(out_dir_1)
 dir.create(res_dir)
 
+# extracting burn date layer from hdfs -----------------------------------------
 hdfs <- list.files(in_dir,
                    recursive = TRUE, full.names = TRUE)
 
@@ -63,6 +65,7 @@ parallel::stopCluster(cl)
 tifs <- list.files(out_dir,
                    recursive = TRUE, full.names = TRUE)
 
+# setting up the date to correspond with the R date origin (1970-01-01)
 from_r_origin <- as.Date("1999365", "%Y%j") %>% as.numeric
 
 leap_years <- c(2000,2004,2008,2012,2016)
@@ -73,7 +76,7 @@ years_days <- data.frame(year = 2000:2019, days = 365) %>%
          cum = cumsum(prior),
          from_origin = cum+from_r_origin)
 
-
+# the business...yeah, there's some magic numbers in there ---------------------
 n_cores <- detectCores()-1
 cl <- parallel::makeCluster(n_cores)
 doParallel::registerDoParallel(cl)
