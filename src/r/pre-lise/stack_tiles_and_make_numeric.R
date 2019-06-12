@@ -123,10 +123,10 @@ for(i in 1:length(yr_mos)){
 
 # # writing the stack to a single .tif takes a long time and might be unnecessary
 # update -  use cdo if we do it
-tifs_1 <- list.files(out_dir_1,
-                     recursive = TRUE,
-                     full.names = TRUE)
-rl <- list()
-for(i in 1:length(tifs_1)){ rl[[i]] <- raster(tifs_1[i])}
-stk <- raster::stack(rl)
-writeRaster(stk, paste0(res_dir,"/h09v05_full_stack.nc"))
+# tifs_1 <- list.files(out_dir_1,
+#                      recursive = TRUE,
+#                      full.names = TRUE)
+# rl <- list()
+# for(i in 1:length(tifs_1)){ rl[[i]] <- raster(tifs_1[i])}
+# stk <- raster::stack(rl)
+# writeRaster(stk, paste0(res_dir,"/h09v05_full_stack.nc"))

@@ -4,33 +4,7 @@ iini <-function(x){
   if (!x %in% rownames(installed.packages())) install.packages(x)
 }
 
-segment_dat <- function(dd, res){
-  mod1 <- lm(cum_pixels~event_day, dd)
-  #polymod <-lm(poly(cum_pixels,2)~event_day, dd)
-  segmod <- segmented(mod1, 
-                      seg.Z = ~ event_day, 
-                      psi = c(2))
-  dd$fitted = fitted(segmod)
-  
-  segs <- data.frame(day_break = c(as.numeric(segmod$psi[,2]),
-                                   as.numeric(segmod$rangeZ[2,1]))) %>%
-    round()%>%
-    mutate(pixel_break = dd$fitted[dd$event_day %in% .$day_break])%>%
-    mutate(pixel_lag = lag(pixel_break, default = 0),
-           pixel_gain = pixel_break-pixel_lag,
-           day_lag = lag(day_break, default=0),
-           day_gain = day_break - day_lag,
-           slope = pixel_gain/day_gain)
-  
-  peak_growth_pixels <- segs[segs$pixel_gain == max(segs$pixel_gain),]$pixel_gain
-  peak_growth_days <- segs[segs$pixel_gain == max(segs$pixel_gain),]$day_gain
-  peak_growth_fsr <- segs[segs$pixel_gain == max(segs$pixel_gain),]$slope
-  
-  if(res == "pix") return(peak_growth_pixels)
-  if(res == "days") return(peak_growth_days)
-  if(res == "fsr") return(peak_growth_fsr)
-  
-}
+
 getmode <- function(v) {
   uniqv <- unique(v)
   uniqv[which.max(tabulate(match(v, uniqv)))]
@@ -54,9 +28,6 @@ crssss <- "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 
 # aws s3 cp s3://earthlab-natem/modis-burned-area/MCD64A1/C6/yearly_events/ /home/a/projects/modis-burned-area/scrap/ --recursive --exclude "*" --include "*events_ms.tif"
 # aws s3 cp s3://earthlab-natem/modis-burned-area/MCD64A1/C6/yearly_composites/ /home/a/projects/modis-burned-area/scrap/ --recursive --exclude "*" --include "*ms.tif"
 
-template <- Sys.glob(paste0("scrap/USA_BurnDate_",years[1],"*.tif"))[2] %>% raster
-# template[is.na(template)==T] <- 0
-
 ecoregions <- st_read("/home/a/data/background/ecoregions/us_eco_l3.shp") %>%
   mutate(NA_L1CODE = as.numeric(NA_L1CODE),
          l1_ecoregion = str_to_title(NA_L1NAME)) %>%
@@ -64,19 +35,12 @@ ecoregions <- st_read("/home/a/data/background/ecoregions/us_eco_l3.shp") %>%
   dplyr::select(NA_L1CODE, l1_ecoregion)
 
 e_rast <- fasterize(ecoregions, template, field="NA_L1CODE")
+lc <- raster("/home/a/data/MCD12Q1_mosaics/")
 
-lc <- raster("data/usa_landcover_t1_2017.tif") %>%
-  resample(template)
 
 ll <- list()
 for(y in 1:length(years)){
-  filestobrick <- Sys.glob(paste0("scrap/USA_BurnDate*",years[y],"*.tif"))
-  r2 <- raster(filestobrick[2]) 
-  r1 <- raster(filestobrick[1])%>%
-    resample(r2)
-
-  ll[[y]] <- raster::stack(r1,r2, e_rast, lc) %>% 
-  as.data.frame() %>%
+  x <- read_csv("data/modis_burn_events_00_19.csv")%>%
   dplyr::select(event_id = paste0("USA_BurnDate_",years[y],"_events_ms"),
                 burn_doy = paste0("USA_BurnDate_",years[y],"_ms"),
                 NA_L1CODE = layer,
