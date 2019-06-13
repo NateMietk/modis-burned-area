@@ -44,9 +44,9 @@ df_lc <- do.call("rbind", ll) %>%
   mutate(l1_eco = raster::extract(x=e_rast, y=.))
 print(Sys.time() - t0)
 
-#adding the labels to this makes it take forever to write
-st_write(df_lc, 
-         "data/modis_points_w_landcover_02_18.gpkg") 
+#this takes forever to write... maybe it's not worth it
+# st_write(df_lc, 
+#          "data/modis_points_w_landcover_02_18.gpkg") 
 
 labels <- st_set_geometry(ecoregions,NULL) %>%
   mutate(dup = duplicated(NA_L1CODE)) %>%
@@ -81,7 +81,8 @@ daily <- df_lc %>%
          event_day = as.numeric(date - ignition_date + 1),
          ratio_area_added_to_average = daily_area_km2/simple_fsr_km2,
          prior_pixels = cum_pixels-pixels,
-         rel_fsr_per_day = ifelse(prior_pixels>0,pixels/prior_pixels, 0) # need to decide on a value for that
+         rel_fsr_per_day = ifelse(prior_pixels>0,pixels/prior_pixels, 0) 
+         # need to decide on a value for that (the else value) if this ends up being useful
   ) %>%
   left_join(labels) %>%
   left_join(lc_labels) %>%
