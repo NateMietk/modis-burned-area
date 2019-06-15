@@ -7,9 +7,16 @@ lapply(libs, library, character.only =TRUE)
 lc_path <- "/home/a/data/MCD12Q1_mosaics"
 modis_crs <- "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
 ecoregion_path <- "/home/a/data/background/ecoregions"
-template <- raster(file.path(template_path, "usa_lc_mosaic_2001.tif"))
+template_path <- "/home/a/data/MCD12Q1_mosaics"
+
+getmode <- function(v) {
+  uniqv <- na.omit(unique(v))
+  uniqv[which.max(tabulate(match(v, uniqv)))]
+}
 
 # loading in data --------------------------------------------------------------
+template <- raster(file.path(template_path, "usa_lc_mosaic_2001.tif"))
+
 ecoregions <- st_read(file.path(ecoregion_path, "us_eco_l3.shp")) %>%
   mutate(NA_L1CODE = as.numeric(NA_L1CODE),
          l1_ecoregion = str_to_title(NA_L1NAME)) %>%
@@ -28,8 +35,16 @@ df <- read_csv("data/modis_burn_events_00_19.csv") %>%
   st_as_sf(coords = c("x","y"), crs = modis_crs)
 
 # getting landcover, takes about 5 minutes
+t0<-Sys.time()
+
 ll<-list()
-cc <- 1
+
+lc <- raster(file.path(lc_path, paste0("usa_lc_mosaic_",2001,".tif")))
+ll[[1]] <- df[df$year == 2001,] %>%
+  st_as_sf(coords = c("x","y"), crs = modis_crs)%>%
+  mutate(lc = raster::extract(x=lc, y=.))
+
+cc <- 2
 years <- 2002:2018
 t0<-Sys.time()
 for(y in years){
@@ -39,6 +54,12 @@ for(y in years){
     mutate(lc = raster::extract(x=lc, y=.))
   cc<-cc+1
 }
+
+
+lc <- raster(file.path(lc_path, paste0("usa_lc_mosaic_",2017,".tif")))
+ll[[cc]] <- df[df$year == 2019,] %>%
+  st_as_sf(coords = c("x","y"), crs = modis_crs)%>%
+  mutate(lc = raster::extract(x=lc, y=.))
 
 df_lc <- do.call("rbind", ll) %>%
   mutate(l1_eco = raster::extract(x=e_rast, y=.))
@@ -56,6 +77,17 @@ labels <- st_set_geometry(ecoregions,NULL) %>%
 
 lc_labels <- read_csv("data/usa_landcover_t1_classes.csv") %>%
   rename(lc = value, lc_name = name)
+
+lc_only_events <- df_lc %>%
+  st_set_geometry(NULL) %>%
+  left_join(labels) %>%
+  left_join(lc_labels) %>%
+  group_by(id) %>%
+  summarise(lc = getmode(lc),
+            l1_eco = getmode(l1_eco)) %>%
+    ungroup()
+
+write_csv(lc_only_events, "lc_eco_events.csv")
 
 daily <- df_lc %>%
   st_set_geometry(NULL) %>%
