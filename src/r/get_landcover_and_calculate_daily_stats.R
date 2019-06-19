@@ -8,6 +8,7 @@ lc_path <- "/home/a/data/MCD12Q1_mosaics"
 modis_crs <- "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
 ecoregion_path <- "/home/a/data/background/ecoregions"
 template_path <- "/home/a/data/MCD12Q1_mosaics"
+s3_path <- "s3://earthlab-natem/modis-burned-area/MCD64A1/C6/delineated_events"
 
 getmode <- function(v) {
   uniqv <- na.omit(unique(v))
@@ -90,6 +91,8 @@ lc_only_events <- df_lc %>%
   left_join(lc_labels)
 
 write_csv(lc_only_events, "data/lc_eco_events.csv")
+system(paste("aws s3 cp data/lc_eco_events.csv",
+             file.path(s3_path,"lc_eco_events.csv")))
 
 
 
@@ -124,4 +127,6 @@ daily <- df_lc %>%
   left_join(lc_labels) %>%
   filter(is.na(l1_eco) == F)
 
-write_csv(daily,"data/daily_stats.csv")
+write_csv(daily,"data/daily_stats_w_landcover.csv")
+system(paste("aws s3 cp data/daily_stats_w_landcover.csv",
+             file.path(s3_path,"daily_stats_w_landcover.csv")))

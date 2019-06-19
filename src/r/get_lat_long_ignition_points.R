@@ -8,12 +8,14 @@ getmode <- function(v) {
   uniqv <- unique(v)
   uniqv[which.max(tabulate(match(v, uniqv)))]
 }
-
+s3_path <- "s3://earthlab-natem/modis-burned-area/MCD64A1/C6/delineated_events"
 template_path <- "/home/a/data/MCD12Q1_mosaics/usa_lc_mosaic_2001.tif"
 template <- raster(template_path)
+
 cus <- st_read("/home/a/data/background/CUS/") %>%
   st_transform(4326) %>%
   dplyr::select(state = NAME)
+
 ll <- read_csv("data/modis_burn_events_00_19.csv") %>%
   dplyr::select(id,date,x,y) %>%
   #centering the pixels on the raster cells
@@ -38,4 +40,3 @@ ll <- read_csv("data/modis_burn_events_00_19.csv") %>%
 write_csv(ll,"data/ignition_lat_longs.csv")
 system(paste("aws s3 cp data/ignition_lat_longs.csv",
              file.path(s3_path,"ignition_lat_longs.csv")))
-
