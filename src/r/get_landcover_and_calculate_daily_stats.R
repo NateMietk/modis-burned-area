@@ -6,19 +6,22 @@ lapply(libs, library, character.only =TRUE)
 
 lc_path <- "/home/a/data/MCD12Q1_mosaics"
 modis_crs <- "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
-ecoregion_path <- "/home/a/data/background/ecoregions"
-template_path <- "/home/a/data/MCD12Q1_mosaics"
-s3_path <- "s3://earthlab-natem/modis-burned-area/MCD64A1/C6/delineated_events"
-
+ecoregion_path <- "/home/a/data/background/ecoregions/us_eco_l3.shp"
+template_path <- "/home/a/data/MCD12Q1_mosaics/usa_lc_mosaic_2001.tif"
+s3_path <- "s3://earthlab-natem/modis-burned-area/delineated_events"
+s3_path1 <- "s3://earthlab-natem/modis-burned-area/derived_attributes"
+raw_events_file <- "data/modis_burn_events_00_19.csv"
+landcover_labels<-"data/usa_landcover_t1_classes.csv"
+lc_stem <- "usa_lc_mosaic_"
 getmode <- function(v) {
   uniqv <- na.omit(unique(v))
   uniqv[which.max(tabulate(match(v, uniqv)))]
 }
 
 # loading in data --------------------------------------------------------------
-template <- raster(file.path(template_path, "usa_lc_mosaic_2001.tif"))
+template <- raster(template_path)
 
-ecoregions <- st_read(file.path(ecoregion_path, "us_eco_l3.shp")) %>%
+ecoregions <- st_read(ecoregion_path) %>%
   mutate(NA_L1CODE = as.numeric(NA_L1CODE),
          l1_ecoregion = str_to_title(NA_L1NAME)) %>%
   st_transform(crs=modis_crs) %>%
@@ -27,7 +30,7 @@ ecoregions <- st_read(file.path(ecoregion_path, "us_eco_l3.shp")) %>%
 e_rast <- fasterize(ecoregions, template, field="NA_L1CODE")
 
 # loading in fire event data frame
-df <- read_csv("data/modis_burn_events_00_19.csv") %>%
+df <- read_csv(raw_events_file) %>%
   dplyr::select(id,date,x,y) %>%
   #centering the pixels on the raster cells
   mutate(x = x + (res(template)[1]/2),
@@ -41,7 +44,7 @@ t0<-Sys.time()
 
 ll<-list()
 
-lc <- raster(file.path(lc_path, paste0("usa_lc_mosaic_",2001,".tif")))
+lc <- raster(file.path(lc_path, paste0(lc_stem,2001,".tif")))
 ll[[1]] <- df[df$year == 2001,] %>%
   st_as_sf(coords = c("x","y"), crs = modis_crs)%>%
   mutate(lc = raster::extract(x=lc, y=.))
@@ -50,15 +53,14 @@ cc <- 2
 years <- 2002:2018
 t0<-Sys.time()
 for(y in years){
-  lc <- raster(file.path(lc_path, paste0("usa_lc_mosaic_",y-1,".tif")))
+  lc <- raster(file.path(lc_path, paste0(lc_stem,y-1,".tif")))
   ll[[cc]] <- df[df$year == y,] %>%
     st_as_sf(coords = c("x","y"), crs = modis_crs)%>%
     mutate(lc = raster::extract(x=lc, y=.))
   cc<-cc+1
 }
 
-
-lc <- raster(file.path(lc_path, paste0("usa_lc_mosaic_",2017,".tif")))
+lc <- raster(file.path(lc_path, paste0(lc_stem,2017,".tif")))
 ll[[cc]] <- df[df$year == 2019,] %>%
   st_as_sf(coords = c("x","y"), crs = modis_crs)%>%
   mutate(lc = raster::extract(x=lc, y=.))
@@ -67,17 +69,14 @@ df_lc <- do.call("rbind", ll) %>%
   mutate(l1_eco = raster::extract(x=e_rast, y=.))
 print(Sys.time() - t0)
 
-#this takes forever to write... maybe it's not worth it
-# st_write(df_lc, 
-#          "data/modis_points_w_landcover_02_18.gpkg") 
-
+# getting the labels
 labels <- st_set_geometry(ecoregions,NULL) %>%
   mutate(dup = duplicated(NA_L1CODE)) %>%
   filter(dup == FALSE) %>%
   dplyr::select(-dup) %>%
   dplyr::rename(l1_eco = NA_L1CODE)
 
-lc_labels <- read_csv("data/usa_landcover_t1_classes.csv") %>%
+lc_labels <- read_csv(landcover_labels) %>%
   rename(lc = value, lc_name = name)
 
 lc_only_events <- df_lc %>%
@@ -92,7 +91,7 @@ lc_only_events <- df_lc %>%
 
 write_csv(lc_only_events, "data/lc_eco_events.csv")
 system(paste("aws s3 cp data/lc_eco_events.csv",
-             file.path(s3_path,"lc_eco_events.csv")))
+             file.path(s3_path1,"lc_eco_events.csv")))
 
 
 
@@ -129,4 +128,4 @@ daily <- df_lc %>%
 
 write_csv(daily,"data/daily_stats_w_landcover.csv")
 system(paste("aws s3 cp data/daily_stats_w_landcover.csv",
-             file.path(s3_path,"daily_stats_w_landcover.csv")))
+             file.path(s3_path1,"daily_stats_w_landcover.csv")))
