@@ -51,6 +51,7 @@ df_poly <- df %>%
 print(Sys.time()-t0)
 
 st_write(df_poly, "data/modis_event_polygons.gpkg", delete_dsn=TRUE)
+df_poly<-st_read("data/modis_event_polygons.gpkg")
 
 cus <- st_read(cus_path) %>%
   summarise() %>%
@@ -62,7 +63,7 @@ df_cus <- df_poly[x2,]
 
 lc <- read_csv("data/lc_eco_events.csv")
 ll <- read_csv("data/ignition_lat_longs.csv") %>%
-  dplyr::select(id, -ignition_date, 
+  dplyr::select(id, -ignition_date, ignition_state,
                 ignition_latitude = latitude,
                 ignition_longitude = longitude)
 event_attributes <- df %>%
