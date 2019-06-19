@@ -6,12 +6,14 @@ library(stars)
 
 modis_crs <- "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
 ecoregion_path <- "/home/a/data/background/ecoregions"
+event_attributes <- "data/event_attributes.csv"
+s3_path <- "s3://earthlab-natem/modis-burned-area/MCD64A1/C6/tables_related_to_paper"
 
 
 # lc_labels <- read_csv("data/usa_landcover_t1_classes.csv") %>%
 #   rename(lc = value, lc_name = name)
 #d <- st_read("data/events_w_attributes_cus.gpkg") %>%
-d<- read_csv("data/event_attributes.csv") %>%
+d<- read_csv(event_attributes) %>%
   filter(ignition_year<2017, ignition_year>2000) %>%
   group_by(l1_ecoregion) %>%
   summarise(events = n(),
@@ -21,6 +23,8 @@ sum(d$burned_area)
 sum(d$events)
 
 write_csv(d, "data/fired_ecoregion_summary_2001-2016.csv")
+system(paste("aws s3 cp data/fired_ecoregion_summary_2001-2016.csv",
+             file.path(s3_path, "fired_ecoregion_summary_2001-2016.csv")))
 
 ecoregions <- st_read(file.path(ecoregion_path, "us_eco_l3.shp")) %>%
   mutate(NA_L1CODE = as.numeric(NA_L1CODE),
@@ -42,4 +46,5 @@ sum(test$burned_area_km2)
 sum(test$events)
 
 write_csv(test, "data/mtbs_ecoregion_summary_2001-2016.csv")
-
+system(paste("aws s3 cp data/mtbs_ecoregion_summary_2001-2016.csv",
+             file.path(s3_path, "mtbs_ecoregion_summary_2001-2016.csv")))
