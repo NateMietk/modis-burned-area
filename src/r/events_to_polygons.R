@@ -1,3 +1,4 @@
+# functions ====================================================================
 getmode <- function(v) {
   uniqv <- unique(v)
   uniqv[which.max(tabulate(match(v, uniqv)))]
@@ -11,17 +12,26 @@ helper_function<- function(x) {
     return(FALSE)
   }
 }
-# setup ------------------------------------------------------------------------
+
+pix_km2      <- function(p) p * 463.3127*463.3127 / 1000000
+pix_acres    <- function(p) p * 463.3127*463.3127 * 0.000247105
+pix_hectares <- function(p) p * 463.3127*463.3127 * 0.0001
+  
+# setup ========================================================================
 libs <- c("tidyverse", "raster", "sf","fasterize", "cowplot", "ggpubr", 
           "segmented")
 
 lapply(libs, library, character.only = TRUE, verbose = FALSE)
 
+# paths ========================================================================
 local_data <- "/home/a/data"
 template_path <- "/home/a/data/MCD12Q1_mosaics/usa_lc_mosaic_2001.tif"
 ecoregion_path <- "home/a/data/background_ecoregions"
 s3_path <- "s3://earthlab-natem/modis-burned-area/MCD64A1/C6/delineated_events"
 cus_path <- "/home/a/data/background/CUS"
+raw_events_file <- "data/modis_burn_events_00_19.csv"
+landcover_eco_file <- "data/lc_eco_events.csv"
+lat_longs_file <- "data/ignition_lat_longs.csv"
 
 # only requirement here is native modis projection (sinusiodal, 463.something resolution)
 # this is for changing everything into the same projection
@@ -29,7 +39,7 @@ template <- raster(template_path)
 
 
 # loading in fire event data frame
-df <- read_csv("data/modis_burn_events_00_19.csv") %>%
+df <- read_csv(raw_events_file) %>%
   dplyr::select(id,date,x,y) %>%
   #centering the pixels on the raster cells
   mutate(x = x + (res(template)[1]/2),
@@ -61,8 +71,8 @@ st_intersects(df_poly, cus) -> x1
 x2<- map_lgl(x1, helper_function)
 df_cus <- df_poly[x2,]
 
-lc <- read_csv("data/lc_eco_events.csv")
-ll <- read_csv("data/ignition_lat_longs.csv") %>%
+lc <- read_csv(landcover_eco_file)
+ll <- read_csv(lat_longs_file) %>%
   dplyr::select(id, -ignition_date, ignition_state,
                 ignition_latitude = latitude,
                 ignition_longitude = longitude)
@@ -81,25 +91,25 @@ event_attributes <- df %>%
             ignition_year = substr(ignition_date, 1,4),
             last_date = max(date),
             duration = as.numeric(last_date-ignition_date)+1,
-            total_area_km2 = total_pixels * 463.3127*463.3127/1000000,
-            total_area_acres = total_pixels * 463.3127*463.3127 * 0.000247105,
-            total_area_ha = total_pixels * 463.3127*463.3127 * 0.0001, 
+            total_area_km2 = total_pixels %>% pix_km2(),
+            total_area_acres = total_pixels %>% pix_acres(),
+            total_area_ha = total_pixels %>% pix_hectares(), 
             fsr_pixels_per_day = total_pixels/as.numeric(duration), 
-            fsr_km2_per_day = total_pixels/as.numeric(duration)* 463.3127*463.3127/1000000,
-            fsr_acres_per_day = total_pixels/as.numeric(duration)* 463.3127*463.3127 * 0.000247105,
-            fsr_ha_per_day = total_pixels/as.numeric(duration) * 463.3127*463.3127 * 0.0001,
+            fsr_km2_per_day = total_pixels/as.numeric(duration)%>% pix_km2(),
+            fsr_acres_per_day = total_pixels/as.numeric(duration)%>% pix_acres(),
+            fsr_ha_per_day = total_pixels/as.numeric(duration) %>% pix_hectares(),
             max_growth_pixels = max(pixels),
-            max_growth_km2 = max(pixels) * 463.3127*463.3127/1000000,
-            max_growth_acres = max(pixels)* 463.3127*463.3127 * 0.000247105,
-            max_growth_ha = max(pixels)* 463.3127*463.3127 * 0.0001,
+            max_growth_km2 = max(pixels) %>% pix_km2(),
+            max_growth_acres = max(pixels)%>% pix_acres(),
+            max_growth_ha = max(pixels)%>% pix_hectares(),
             min_growth_pixels = min(pixels),
-            min_growth_km2 = min(pixels)* 463.3127*463.3127/1000000,
-            min_growth_acres = min(pixels)* 463.3127*463.3127 * 0.000247105,
-            min_growth_ha = min(pixels)* 463.3127*463.3127 * 0.0001,
+            min_growth_km2 = min(pixels)%>% pix_km2(),
+            min_growth_acres = min(pixels)%>% pix_acres(),
+            min_growth_ha = min(pixels)%>% pix_hectares(),
             mean_growth_pixels = mean(pixels), 
-            mean_growth_km2 = mean(pixels)* 463.3127*463.3127/1000000, 
-            mean_growth_acres = mean(pixels)* 463.3127*463.3127 * 0.000247105, 
-            mean_growth_ha = mean(pixels)* 463.3127*463.3127 * 0.0001, 
+            mean_growth_km2 = mean(pixels)%>% pix_km2(), 
+            mean_growth_acres = mean(pixels)%>% pix_acres(), 
+            mean_growth_ha = mean(pixels)%>% pix_hectares(), 
             max_growth_date = first(date)
             )%>%
   ungroup() %>%
@@ -132,7 +142,7 @@ system(paste("aws s3 cp data/events_w_attributes_cus.gpkg",
 
 # takes 1.5-2 hours on Adam's laptop
 t0 <- Sys.time()
-df <- read_csv("data/modis_burn_events_00_19.csv") %>%
+df <- read_csv(raw_events_file) %>%
   dplyr::select(id,date,x,y) %>%
   distinct(x,y,id, .keep_all = T) %>%
   mutate(x = x + (res(template)[1]/2),
@@ -141,9 +151,9 @@ df <- read_csv("data/modis_burn_events_00_19.csv") %>%
   group_by(id, date) %>%
   st_buffer(dist = 1+(res(template)[1]/2), endCapStyle = "SQUARE")%>%
   summarize(pixels = n(),
-            area_km2 = n() * 463.3127*463.3127/1000000,
-            area_acres = n()* 463.3127*463.3127 * 0.000247105,
-            area_ha = n() * 463.3127*463.3127 * 0.0001)
+            area_km2 = n() %>% pix_km2(),
+            area_acres = n()%>% pix_acres(),
+            area_ha = n()%>% pix_hectares())
 print(Sys.time() - t0)
 
 st_write(df, "data/daily_polygons.gpkg")
