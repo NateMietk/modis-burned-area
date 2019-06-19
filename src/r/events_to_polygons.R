@@ -114,6 +114,8 @@ nrow(event_attributes)==nrow(df_poly)
 
 # writing everything out =======================================================
 write_csv(event_attributes, "data/event_attributes.csv")
+system(paste("aws s3 cp data/event_attributes.csv",
+             file.path(s3_path,"event_attributes.csv")))
 
 st_write(left_join(dplyr::select(df_poly,-start_date), event_attributes), 
          "data/events_w_attributes.gpkg", delete_dsn = TRUE)
