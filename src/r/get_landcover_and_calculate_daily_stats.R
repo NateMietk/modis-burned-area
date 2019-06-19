@@ -13,10 +13,12 @@ s3_path1 <- "s3://earthlab-natem/modis-burned-area/derived_attributes"
 raw_events_file <- "data/modis_burn_events_00_19.csv"
 landcover_labels<-"data/usa_landcover_t1_classes.csv"
 lc_stem <- "usa_lc_mosaic_"
+
 getmode <- function(v) {
   uniqv <- na.omit(unique(v))
   uniqv[which.max(tabulate(match(v, uniqv)))]
 }
+pix_km2 <- function(p) p*463.3127*463.3127/1000000
 
 # loading in data --------------------------------------------------------------
 template <- raster(template_path)
@@ -109,11 +111,11 @@ daily <- df_lc %>%
          last_date = max(date),
          duration = as.numeric(last_date-ignition_date)+1,
          simple_fsr_pixels = total_pixels/as.numeric(duration), 
-         simple_fsr_km2 = total_pixels/as.numeric(duration)* 463*463/1000000)%>%
+         simple_fsr_km2 = total_pixels/as.numeric(duration)%>% pix_km2())%>%
   ungroup()%>%
-  mutate(daily_area_km2 = pixels * 463*463/1000000,
-         cum_area_km2 = cum_pixels * 463*463/1000000,
-         total_area_km2 = total_pixels * 463*463/1000000,
+  mutate(daily_area_km2 = pixels %>% pix_km2(),
+         cum_area_km2 = cum_pixels %>% pix_km2(),
+         total_area_km2 = total_pixels %>% pix_km2(),
          pct_total_area = pixels/total_pixels*100,
          pct_cum_area = pixels/cum_pixels*100,
          event_day = as.numeric(date - ignition_date + 1),
