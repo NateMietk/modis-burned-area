@@ -2,6 +2,15 @@ getmode <- function(v) {
   uniqv <- unique(v)
   uniqv[which.max(tabulate(match(v, uniqv)))]
 }
+
+helper_function<- function(x) {
+  # thanks http://rpubs.com/sogletr/sf-ops
+  if (length(x) == 1) {
+    return(TRUE)
+  } else {
+    return(FALSE)
+  }
+}
 # setup ------------------------------------------------------------------------
 libs <- c("tidyverse", "raster", "sf","fasterize", "cowplot", "ggpubr", 
           "segmented")
@@ -10,14 +19,14 @@ lapply(libs, iini)
 lapply(libs, library, character.only = TRUE, verbose = FALSE)
 
 local_data <- "/home/a/data"
-template_path <- "/home/a/data/MCD12Q1_mosaics"
+template_path <- "/home/a/data/MCD12Q1_mosaics/usa_lc_mosaic_2001.tif"
 ecoregion_path <- "home/a/data/background_ecoregions"
 s3_path <- "s3://earthlab-natem/modis-burned-area/MCD64A1/C6/delineated_events"
 cus_path <- "/home/a/data/background/CUS"
 
 # only requirement here is native modis projection (sinusiodal, 463.something resolution)
 # this is for changing everything into the same projection
-template <- raster(file.path(template_path, "usa_lc_mosaic_2001.tif"))
+template <- raster(template_path)
 
 
 # loading in fire event data frame
@@ -26,7 +35,9 @@ df <- read_csv("data/modis_burn_events_00_19.csv") %>%
   #centering the pixels on the raster cells
   mutate(x = x + (res(template)[1]/2),
          y = y - (res(template)[1]/2),
-         year = as.numeric(substr(date, 1,4)))
+         year = as.numeric(substr(date, 1,4))) %>%
+  # removing about 8000 repeat pixels (i.e. adjacent month detections)
+  distinct(x,y,id, .keep_all = T)
 
 # writing out polygon and attribute table ======================================
 
@@ -46,24 +57,17 @@ cus <- st_read(cus_path) %>%
   summarise() %>%
   st_transform(st_crs(template))
 
-st_intersects(df_poly, cus) ->x1
-x2<- map_lgl(x1, unnecessary)
-             
-unnecessary<- function(x) {
-  # thanks http://rpubs.com/sogletr/sf-ops
-  if (length(x) == 1) {
-    return(TRUE)
-  } else {
-    return(FALSE)
-  }
-}
-
+st_intersects(df_poly, cus) -> x1
+x2<- map_lgl(x1, helper_function)
 df_cus <- df_poly[x2,]
 
-
-
+lc <- read_csv("data/lc_eco_events.csv")
+ll <- read_csv("data/ignition_lat_longs.csv") %>%
+  dplyr::select(id, -ignition_date, 
+                ignition_latitude = latitude,
+                ignition_longitude = longitude)
 event_attributes <- df %>%
-  dplyr::select(-x,-y,-year) %>%
+  dplyr::select(-year) %>%
   group_by(id, date) %>%
   summarise(pixels = n()) %>%
   ungroup() %>%
@@ -98,14 +102,17 @@ event_attributes <- df %>%
             mean_growth_ha = mean(pixels)* 463.3127*463.3127 * 0.0001, 
             max_growth_date = first(date)
             )%>%
-  ungroup()
+  ungroup() %>%
+  left_join(lc, by = "id") %>%
+  left_join(ll, by = "id")
 
-# need mode landcover
+
 
 
 # checking to make sure they're the same
 nrow(event_attributes)==nrow(df_poly)
 
+# writing everything out =======================================================
 write_csv(event_attributes, "data/event_attributes.csv")
 
 st_write(left_join(dplyr::select(df_poly,-start_date), event_attributes), 
@@ -118,15 +125,14 @@ st_write(left_join(dplyr::select(df_cus,-start_date), event_attributes),
 system(paste("aws s3 cp data/events_w_attributes_cus.gpkg",
              file.path(s3_path,"modis_event_polygons_cus.gpkg")))
 
-e_w_a_lc<-st_read("data/events_w_attributes_cus.gpkg") %>%
-  left_join(lc_only_events, by = "id")
-st_write(e_w_a_lc, "data/events_w_attributes_cus.gpkg", delete_dsn = TRUE)
 
 # daily level ==================================================================
 
+# takes 1.5-2 hours on Adam's laptop
 t0 <- Sys.time()
 df <- read_csv("data/modis_burn_events_00_19.csv") %>%
   dplyr::select(id,date,x,y) %>%
+  distinct(x,y,id, .keep_all = T) %>%
   mutate(x = x + (res(template)[1]/2),
          y = y - (res(template)[1]/2)) %>%
   st_as_sf(coords = c("x","y"), crs = crs(template, asText=TRUE)) %>%

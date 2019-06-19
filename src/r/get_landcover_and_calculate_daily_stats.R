@@ -32,6 +32,7 @@ df <- read_csv("data/modis_burn_events_00_19.csv") %>%
   mutate(x = x + (res(template)[1]/2),
          y = y - (res(template)[1]/2),
          year = as.numeric(substr(date, 1,4))) %>%
+  distinct(x,y,id, .keep_all = TRUE) %>%
   st_as_sf(coords = c("x","y"), crs = modis_crs)
 
 # getting landcover, takes about 5 minutes
@@ -79,15 +80,18 @@ lc_labels <- read_csv("data/usa_landcover_t1_classes.csv") %>%
   rename(lc = value, lc_name = name)
 
 lc_only_events <- df_lc %>%
-  st_set_geometry(NULL) %>%
-  left_join(labels) %>%
-  left_join(lc_labels) %>%
+  st_set_geometry(NULL)  %>%
   group_by(id) %>%
   summarise(lc = getmode(lc),
-            l1_eco = getmode(l1_eco)) %>%
-    ungroup()
+            l1_eco = getmode(l1_eco)
+            ) %>%
+    ungroup()%>%
+  left_join(labels) %>%
+  left_join(lc_labels)
 
-write_csv(lc_only_events, "lc_eco_events.csv")
+write_csv(lc_only_events, "data/lc_eco_events.csv")
+
+
 
 daily <- df_lc %>%
   st_set_geometry(NULL) %>%
