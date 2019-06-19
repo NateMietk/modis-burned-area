@@ -63,6 +63,7 @@ print(Sys.time()-t0)
 st_write(df_poly, "data/modis_event_polygons.gpkg", delete_dsn=TRUE)
 df_poly<-st_read("data/modis_event_polygons.gpkg")
 
+# clipping to the continental US
 cus <- st_read(cus_path) %>%
   summarise() %>%
   st_transform(st_crs(template))
@@ -70,6 +71,11 @@ cus <- st_read(cus_path) %>%
 st_intersects(df_poly, cus) -> x1
 x2<- map_lgl(x1, helper_function)
 df_cus <- df_poly[x2,]
+
+
+# calculating event attributes, bringing in tables generated elsewhere
+# lc is from "get_landcover_and_calculate_daily_stats.R"
+# ll is from "get_lat_long_ignition_points.R"
 
 lc <- read_csv(landcover_eco_file)
 ll <- read_csv(lat_longs_file) %>%
@@ -138,7 +144,7 @@ system(paste("aws s3 cp data/events_w_attributes_cus.gpkg",
              file.path(s3_path,"modis_event_polygons_cus.gpkg")))
 
 
-# daily level ==================================================================
+# daily level polygons =========================================================
 
 # takes 1.5-2 hours on Adam's laptop
 t0 <- Sys.time()
