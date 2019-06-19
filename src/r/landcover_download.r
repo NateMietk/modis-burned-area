@@ -12,14 +12,18 @@ tiles = c("h08v04","h09v04","h10v04","h11v04","h12v04","h13v04",
 
 years = 2001:2017
 
+local_data <- "/home/a/data/MCD12Q1"
+
+# input your username and password here as character strings
 uu <- "admahood" 
 pp <-
+
 u_p <- paste0(uu,":",pp)
 
 corz <- detectCores()-1
 registerDoParallel(corz)
 foreach (y = 1:length(years))%dopar%{
-  dir.create(paste0("/home/a/data/MCD12Q1/", years[y]), showWarnings = F)
+  dir.create(file.path(local_data, years[y]), showWarnings = F)
   
   url1 <-paste0("https://e4ftl01.cr.usgs.gov/MOTA/MCD12Q1.006/", years[y], ".01.01/")
   
@@ -38,7 +42,7 @@ foreach (y = 1:length(years))%dopar%{
     filter(substr(X1,18,23) %in% tiles)
   
   for(i in dir_listing1$X1){
-    output_file_name <- file.path("/home/a/data/MCD12Q1",years[y],i)
+    output_file_name <- file.path(local_data,years[y],i)
     if(!file.exists(output_file_name)){
       httr::GET(paste0(url1,i),
                 authenticate(uu,pp),
@@ -47,7 +51,8 @@ foreach (y = 1:length(years))%dopar%{
   }
 }
 
+# checking to make sure they're all there
 for(y in years){
   print(y)
-print(length(list.files(paste0("/home/a/data/MCD12Q1/",y))))
+print(length(list.files(file.path(local_data,y))))
 }
