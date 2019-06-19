@@ -15,7 +15,6 @@ helper_function<- function(x) {
 libs <- c("tidyverse", "raster", "sf","fasterize", "cowplot", "ggpubr", 
           "segmented")
 
-lapply(libs, iini)
 lapply(libs, library, character.only = TRUE, verbose = FALSE)
 
 local_data <- "/home/a/data"
