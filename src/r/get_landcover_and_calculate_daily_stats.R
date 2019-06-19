@@ -124,4 +124,4 @@ daily <- df_lc %>%
   left_join(lc_labels) %>%
   filter(is.na(l1_eco) == F)
 
-write_csv(daily,"data/daily_stats_02-18_asof_20180612.csv")
+write_csv(daily,"data/daily_stats.csv")
