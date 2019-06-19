@@ -9,7 +9,7 @@ getmode <- function(v) {
   uniqv[which.max(tabulate(match(v, uniqv)))]
 }
 
-s3_path <- "s3://earthlab-natem/modis-burned-area/delineated_events"
+s3_path <- "s3://earthlab-natem/modis-burned-area/derived_attributes"
 cus_path <- "/home/a/data/background/CUS/"
 template_path <- "/home/a/data/MCD12Q1_mosaics/usa_lc_mosaic_2001.tif"
 raw_events_file <- "data/modis_burn_events_00_19.csv"
