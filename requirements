@@ -1,0 +1,10 @@
+descartes
+geopandas  # This will cause problems in windows. Install shapely and fiona with Gohlke's wheels.
+matplotlib
+netcdf4
+numpy
+pandas
+pyyaml
+scipy
+tqdm
+xarray==0.11.3
