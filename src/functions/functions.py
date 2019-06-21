@@ -303,7 +303,7 @@ class EventGrid:
         self.next_event_id = 1
         self.input_array = self.get_input_xarray()
 
-    def get_event_stats(self,event_type='Fire'):
+    def get_event_stats(self, event_type='Fire'):
         id_list = []
         mergeid_list = []
         coords_list = []

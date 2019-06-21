@@ -32,13 +32,13 @@ warnings.filterwarnings('ignore')
 frame = getframeinfo(currentframe()).filename
 file_path = os.path.dirname(os.path.abspath(frame))
 os.chdir(os.path.join(file_path, '../..'))
-sys.path.insert(0, os.path.join(file_path, '../functions'))
+sys.path.insert(0, 'src/functions')
 
 # Import functions
 from functions import dateRange, edgeCheck, EventGrid, flttn, spCheck
 
 # Start the timer (seconds)
-start = time.clock()
+start = time.perf_counter()
 
 # With defaults - 11x11 spatial window, 11 day temporal window
 files = glob('data/bd_numeric_tiles/netcdfs/*nc')
@@ -192,7 +192,7 @@ df = df[['id', 'tile', 'date', 'x', 'y', 'duration', 'detections']]
 df.to_csv('data/modis_burn_events_00_19_test.csv', index=False)
 
 # Print the time it took
-end = time.clock()
+end = time.perf_counter()
 seconds = end - start
 minutes = seconds/60
 print('Job completed in {} minutes'.format(round(minutes, 2)))
