@@ -89,7 +89,7 @@ gdf['final_perimeter'] = gdf['geometry'].length
 
 # Now save as a geopackage
 print('Saving file...')
-gdf.to_file('data/modis_event_polygons_test.gpkg', driver='GPKG')  # <--------------------------- Cryptic error here, but it appears to work
+gdf.to_file('data/modis_event_polygons_test.gpkg', driver='GPKG')  # <--------- Cryptic error here, but it appears to work
 
 # Print the time it took
 end = time.perf_counter()

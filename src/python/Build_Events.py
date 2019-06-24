@@ -196,3 +196,9 @@ end = time.perf_counter()
 seconds = end - start
 minutes = seconds/60
 print('Job completed in {} minutes'.format(round(minutes, 2)))
+
+# The next steps are to characterize attributes, and attach land use and land
+# cover classifications. However, adam's scripts don't work. They are filled
+# with local files and broken functions.
+
+# Next time I see Nate I'll see if we can't identify what is wanted and do it.
