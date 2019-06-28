@@ -6,8 +6,8 @@ lapply(libs, library, character.only =TRUE)
 
 lc_path <- "/home/a/data/MCD12Q1_mosaics"
 modis_crs <- "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
-ecoregion_path <- "/home/a/data/background/ecoregions/us_eco_l3.shp"
-template_path <- "/home/a/data/MCD12Q1_mosaics/usa_lc_mosaic_2001.tif"
+ecoregion_path <- "data/shapefiles/us_eco_l3_modis.shp"
+template_path <- "data/bd_numeric_tiles/*.tif"
 s3_path <- "s3://earthlab-natem/modis-burned-area/delineated_events"
 s3_path1 <- "s3://earthlab-natem/modis-burned-area/derived_attributes"
 raw_events_file <- "data/modis_burn_events_00_19.csv"
@@ -21,7 +21,8 @@ getmode <- function(v) {
 pix_km2 <- function(p) p*463.3127*463.3127/1000000
 
 # loading in data --------------------------------------------------------------
-template <- raster(template_path)
+template_files = list.files("data/bd_numeric_tiles/", pattern='2001_001', full.names=TRUE)
+template <- Reduce(merge, lapply(template_files, raster))
 
 ecoregions <- st_read(ecoregion_path) %>%
   mutate(NA_L1CODE = as.numeric(NA_L1CODE),
@@ -46,7 +47,8 @@ t0<-Sys.time()
 
 ll<-list()
 
-lc <- raster(file.path(lc_path, paste0(lc_stem,2001,".tif")))
+lc <- raster(file.path(lc_path, paste0(lc_stem, 2001,".tif")))
+
 ll[[1]] <- df[df$year == 2001,] %>%
   st_as_sf(coords = c("x","y"), crs = modis_crs)%>%
   mutate(lc = raster::extract(x=lc, y=.))

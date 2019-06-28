@@ -1,10 +1,18 @@
+from bs4 import BeautifulSoup
 import datetime as dt
+import geopandas as gpd
+from glob import glob
+from http.cookiejar import CookieJar
 from netCDF4 import Dataset
 import numpy as np
 import os
-from osgeo import gdal, osr
+from osgeo import gdal, ogr, osr
 import pandas as pd
+import rasterio
+from rasterio.merge import merge
+from rasterio.plot import show
 from tqdm import tqdm
+import urllib.request as urllib2
 import yaml
 
 # Supress depreciation warning for dask when importing xarray (temporary)
@@ -166,6 +174,52 @@ def dateRange(perimeter):
     return day1
 
 
+def getShapes():
+    '''
+    Just a way to grab some basic shapefiles.
+    '''
+    if not os.path.exists('data/shapefiles'):
+        os.mkdir('data/shapefiles')
+
+    # Variables
+    conus_states = ['WV', 'FL', 'IL', 'MN', 'MD', 'RI', 'ID', 'NH', 'NC', 'VT',
+                    'CT', 'DE', 'NM', 'CA', 'NJ', 'WI', 'OR', 'NE', 'PA', 'WA',
+                    'LA', 'GA', 'AL', 'UT', 'OH', 'TX', 'CO', 'SC', 'OK', 'TN',
+                    'WY', 'ND', 'KY', 'VI', 'ME', 'NY', 'NV', 'MI', 'AR', 'MS',
+                    'MO', 'MT', 'KS', 'IN', 'SD', 'MA', 'VA', 'DC', 'IA', 'AZ']
+    modis_crs= ('+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 ' +
+                 '+b=6371007.181 +units=m +no_defs')
+
+    # Contiguous United States - WGS84
+    if not os.path.exists('data/shapefiles/conus.shp'):
+        print("Downloading US state shapfile from the Census Bureau...")
+        usa = gpd.read_file('http://www2.census.gov/geo/tiger/GENZ2016/shp/' +
+                            'cb_2016_us_state_20m.zip')
+        conus = usa[usa['STUSPS'].isin(conus_states)]
+        conus.to_file('data/shapefiles/conus.shp')
+
+    # Contiguous United States - MODIS Sinusoidal
+    if not os.path.exists('data/shapefiles/conus_modis.shp'):
+        print("Reprojecting state shapefile to MODIS Sinusoidal...")
+        conus = gpd.read_file('data/shapefiles/conus.shp')
+        modis_conus = conus.to_crs(modis_crs)
+        modis_conus.to_file('data/shapefiles/conus_modis.shp')
+
+    # Omernick Level III Ecoregions - USGS North American Albers
+    if not os.path.exists('data/shapefiles/us_eco_l3.shp'):
+        print("Downloading Omernick Level III Ecoregions from the USGS...")
+        eco_l3 = gpd.read_file('ftp://ftp.epa.gov/wed/ecoregions/us/' +
+                               'us_eco_l3.zip')
+        eco_l3.to_file('data/shapefiles/us_eco_l3.shp')
+
+    # Omernick Level III Ecoregions - MODSI Sinusoidal
+    if not os.path.exists('data/shapefiles/us_eco_l3_modis.shp'):
+        print("Reprojecting ecoregions to MODIS Sinusoidal...")
+        eco_l3 = gpd.read_file('data/shapefiles/us_eco_l3.shp')
+        eco_l3 = eco_l3.to_crs(modis_crs)
+        eco_l3.to_file('data/shapefiles/us_eco_l3_modis.shp')
+
+
 def mergeChecker(new_coords, full_list, temporal_param, radius):
     '''
     This uses a radius for the spatial window, but the original event
@@ -253,7 +307,257 @@ def toDays(date, base):
     return days
 
 
-# Classes 
+# Classes
+class Data_Getter():
+    def __init__(self):
+        self.date = dt.datetime.today().strftime('%m-%d-%Y')
+        self.modis_template_path = 'data/rasters/mosaic_template.tif'
+        self.landcover_path = 'data/landcover'   # <-------------------------- Move to rasters folder
+        self.landcover_mosaic_path = 'data/landcover/mosaics'
+        self.tiles = ["h08v04", "h09v04", "h10v04", "h11v04", "h12v04",
+                      "h13v04", "h08v05", "h09v05", "h10v05", "h11v05",
+                      "h12v05", "h08v06", "h09v06", "h10v06", "h11v06"]
+
+    def getShapes(self):
+        '''
+        Just to grab some basic shapefiles needed for calculating statistics.
+        '''
+        if not os.path.exists('data/shapefiles'):
+            os.mkdir('data/shapefiles')
+    
+        # Variables
+        conus_states = ['WV', 'FL', 'IL', 'MN', 'MD', 'RI', 'ID', 'NH', 'NC',
+                        'VT', 'CT', 'DE', 'NM', 'CA', 'NJ', 'WI', 'OR', 'NE',
+                        'PA', 'WA', 'LA', 'GA', 'AL', 'UT', 'OH', 'TX', 'CO',
+                        'SC', 'OK', 'TN', 'WY', 'ND', 'KY', 'VI', 'ME', 'NY',
+                        'NV', 'MI', 'AR', 'MS', 'MO', 'MT', 'KS', 'IN', 'SD',
+                        'MA', 'VA', 'DC', 'IA', 'AZ']
+        modis_crs= ('+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 ' +
+                     '+b=6371007.181 +units=m +no_defs')
+    
+        # Contiguous United States - WGS84
+        if not os.path.exists('data/shapefiles/conus.shp'):
+            print("Downloading US state shapfile from the Census Bureau...")
+            usa = gpd.read_file('http://www2.census.gov/geo/tiger/GENZ2016/' +
+                                'shp/cb_2016_us_state_20m.zip')
+            conus = usa[usa['STUSPS'].isin(conus_states)]
+            conus.to_file('data/shapefiles/conus.shp')
+    
+        # Contiguous United States - MODIS Sinusoidal
+        if not os.path.exists('data/shapefiles/conus_modis.shp'):
+            print("Reprojecting state shapefile to MODIS Sinusoidal...")
+            conus = gpd.read_file('data/shapefiles/conus.shp')
+            modis_conus = conus.to_crs(modis_crs)
+            modis_conus.to_file('data/shapefiles/conus_modis.shp')
+    
+        # Omernick Level III Ecoregions - USGS North American Albers
+        if not os.path.exists('data/shapefiles/us_eco_l3.shp'):
+            print("Downloading Omernick Level III Ecoregions from the USGS...")
+            eco_l3 = gpd.read_file('ftp://ftp.epa.gov/wed/ecoregions/us/' +
+                                   'us_eco_l3.zip')
+            eco_l3.to_file('data/shapefiles/us_eco_l3.shp')
+    
+        # Omernick Level III Ecoregions - MODSI Sinusoidal
+        if not os.path.exists('data/shapefiles/us_eco_l3_modis.shp'):
+            print("Reprojecting ecoregions to MODIS Sinusoidal...")
+            eco_l3 = gpd.read_file('data/shapefiles/us_eco_l3.shp')
+            eco_l3 = eco_l3.to_crs(modis_crs)
+            eco_l3.to_file('data/shapefiles/us_eco_l3_modis.shp')
+
+    def getLancover(self):
+        """
+        A method to download and process landcover data from NASA's Land
+        Processes Distributed Active Archive Center, which is an Earthdata
+        thing. You'll need register for a username and password, but that's
+        free. Fortunately, there is a tutorial on how to get this data:
+            
+        https://wiki.earthdata.nasa.gov/display/EL/How+To+Access+Data+With+
+        Python
+        
+        sample citation for later:
+            ASTER Mount Gariwang image from 2018 was retrieved from
+            https://lpdaac.usgs.gov, maintained by the NASA EOSDIS Land
+            Processes Distributed Active Archive Center (LP DAAC) at the USGS
+            Earth Resources Observation and Science (EROS) Center, Sioux Falls,
+            South Dakota. 2018, https://lpdaac.usgs.gov/resources/data-action/
+            aster-ultimate-2018-winter-olympics-observer/.
+        """
+        # Create target directory
+        if not os.path.exists(self.landcover_path):
+            os.mkdir(self.landcover_path)
+        
+        # MODIS tiles
+        tiles = self.tiles
+        years = [str(y) for y in range(2001, 2017)]
+        
+        # Access
+        username = input('Enter NASA Earthdata User Name: ')
+        password = input('Enter NASA Earthdata Password: ')
+        pw_manager = urllib2.HTTPPasswordMgrWithDefaultRealm()
+        pw_manager.add_password(None, 'https://urs.earthdata.nasa.gov',
+                                username, password)
+        cookiejar = CookieJar()
+        opener = urllib2.build_opener(urllib2.HTTPBasicAuthHandler(pw_manager),
+                                      urllib2.HTTPCookieProcessor(cookiejar))
+        urllib2.install_opener(opener)
+        
+        # Land cover data from earthdata.nasa.gov
+        for year in years:
+            print('Retrieving landcover data for ' + year)
+            url = ('https://e4ftl01.cr.usgs.gov/MOTA/MCD12Q1.006/' + year +
+                   '.01.01/')
+            r = urllib2.urlopen(url)
+            soup = BeautifulSoup(r,
+                                 from_encoding=r.info().get_param('charset'),
+                                 features="lxml")
+            names = [link['href'] for link in soup.find_all('a', href=True)]
+            names = [f for f in names if'hdf' in f and f[17:23] in tiles]
+            links = [url + l for l in names]
+            for i in range(len(links)):
+                request = urllib2.Request(links[i])
+                with open('data/landcover/' + names[i], 'wb') as file:
+                    response = urllib2.urlopen(request).read()
+                    file.write(response)
+
+        # Now process these tiles into yearly geotiffs. (Landcover_process.r)
+        if not os.path.exists(self.landcover_mosaic_path):
+            os.mkdir(self.landcover_mosaic_path)
+        lc_tiles = glob(os.path.join(self.landcover_path, "*hdf"))
+        for y in years:
+            print(y)
+
+
+
+
+
+    def getBurns(self):
+        '''
+        This will download the MODIS burn event data set tiles and create a
+        singular mosaic to use as a template file for coordinate reference
+        information and geometries.
+        '''
+        # Pull out paths
+        template_path = self.modis_template_path
+
+        # Download data
+        # ...
+
+        # Merge one year into a reference mosaic
+        if not os.path.exists(template_path):
+            files = glob('data/bd_numeric_tiles/*tif')
+            files = [f for f in files if '2001_001' in f]
+            tiles = [rasterio.open(f) for f in files]
+            mosaic, transform = merge(tiles)
+            crs = tiles[0].meta.copy()
+            crs.update({'driver': 'GTIFF',
+                        'height': mosaic.shape[1],
+                        'width': mosaic.shape[2],
+                        'transform': transform})
+            with rasterio.open(template_path, 'w', **crs) as dest:
+                dest.write(mosaic)        
+
+
+
+class calculateStatistics:
+    def __init__(self, ecoregion_level=1):
+        self.tiles = ["h08v04", "h09v04", "h10v04", "h11v04", "h12v04",
+                      "h13v04", "h08v05", "h09v05", "h10v05", "h11v05",
+                      "h12v05", "h08v06", "h09v06", "h10v06", "h11v06"]
+        self.event_file = 'data/modis_event_polygons.gpkg'
+        self.lc_path = 'data/landcover'
+        self.ecoregion_level = ecoregion_level
+        self.ecoregion_dict = {1: {'code': 'NA_L1CODE',
+                                   'name': 'NA_L1NAME'},
+                               2: {'code': 'NA_L2CODE',
+                                   'name': 'NA_L2NAME'},
+                               3: {'code': 'NA_L3CODE',
+                                   'name': 'NA_L3NAME'}}
+
+    def calculateEcoregions(self):
+        template_path = 'data/rasters/mosaic_template.tif'
+        ecoregion_level = self.ecoregion_level
+        ecoregion_dict = self.ecoregion_dict
+        code = ecoregion_dict[ecoregion_level]['code']
+        lc_path = self.lc_path
+
+        # Get the template modis mosaic 
+        if not os.path.exists(template_path):  # <----------------------------- Moving all data processing to the download object
+            files = glob('data/bd_numeric_tiles/*tif')
+            files = [f for f in files if '2001_001' in f]
+            tiles = [rasterio.open(f) for f in files]
+            mosaic, transform = merge(tiles)
+            crs = tiles[0].meta.copy()
+            crs.update({'driver': 'GTIFF',
+                        'height': mosaic.shape[1],
+                        'width': mosaic.shape[2],
+                        'transform': transform})
+            with rasterio.open(template_path, 'w', **crs) as dest:
+                dest.write(mosaic)
+        template = gdal.Open(template_path)
+
+        # Rasterize Ecoregion according to the template crs and geometry
+        src = 'data/shapefiles/us_eco_l3_modis.shp'
+        dst = 'data/rasters/landcover.tif'
+        transform = template.GetGeoTransform()
+        crs = template.GetProjection()
+        if not os.path.exists(dst):
+            self.rasterize(src, dst, code, transform, crs)
+        eco_raster = gdal.Open(dst)
+
+        # Now read in the event file
+        event_df = gpd.read_file(self.event_file)
+
+        # Now I need landcover raster mosaics
+        
+        
+
+
+
+
+    def rasterize(self, src, dst, attribute, transform, crs, all_touch=False,
+                  na=-9999):
+        '''
+        It seems to be unreasonably involved to do this in Python compared to
+        the command line.
+        '''
+        resolution = transform[1]
+
+        # Open shapefile, retrieve the layer
+        src_data = ogr.Open(src)
+        layer = src_data.GetLayer()
+        extent = layer.GetExtent()
+
+        # Create the target raster layer
+        xmin, xmax, ymin, ymax = extent
+        cols = int((xmax - xmin)/resolution)
+        rows = int((ymax - ymin)/resolution)
+        trgt = gdal.GetDriverByName('GTiff').Create(dst, cols, rows, 1,
+                                   gdal.GDT_Float32)
+        trgt.SetGeoTransform((xmin, resolution, 0, ymax, 0, -resolution))
+
+        # Add crs
+        refs = osr.SpatialReference()
+        refs.ImportFromWkt(crs)
+        trgt.SetProjection(refs.ExportToWkt())
+
+        # Set no value
+        band = trgt.GetRasterBand(1)
+        band.SetNoDataValue(na)
+
+        # Set options
+        if all_touch is True:
+            ops = ['-at', 'ATTRIBUTE=' + attribute]
+        else:
+            ops = ['ATTRIBUTE=' + attribute]
+
+        # Finally rasterize
+        gdal.RasterizeLayer(trgt, [1], layer, options=ops)
+
+        # Close target an source rasters
+        del trgt
+        del src_data
+
+
 class EventPerimeter:
     def __init__(self, event_id, coord_list=[]):
         self.event_id = event_id

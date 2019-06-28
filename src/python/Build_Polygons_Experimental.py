@@ -77,7 +77,7 @@ df = df.sort_values('detections')
 df17 = df[df['year'] == '2017']
 big_ones = df17['id'][-30000:].drop_duplicates().values
 
-shp = toPolygons(big_ones[1], df)
+shp = toPolygons(big_ones[5], df)
 bounds = shp.geometry.bounds
 for i in range(shp.shape[0]):
     shp.loc[[i],'geometry'].plot()
