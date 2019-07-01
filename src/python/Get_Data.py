@@ -27,11 +27,11 @@ from functions import Data_Getter
 # Create data object (you can specify which tiles as an attribute)
 data = Data_Getter()
 
-# Get all of the MODIS burn area hdfs
-data.getBurns()
-
 # Get US Boundary and Ecoregion shapefiles
 data.getShapes()
 
 # Get Landcover hdfs
 data.getLandcover()
+
+# Get all of the MODIS burn area hdfs
+data.getBurns()

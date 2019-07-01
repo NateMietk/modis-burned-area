@@ -1,9 +1,11 @@
 # When this is working add version numbers
-
+bs4
 descartes
+pygdal==2.4.0.4
 geopandas  # This will cause problems in windows. Install shapely and fiona with Gohlke's wheels.
+lxml
 matplotlib
-netcdf4
+#netcdf4
 numpy
 pandas
 pyyaml
