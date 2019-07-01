@@ -7,28 +7,33 @@ Created on Thu Jun 20 11:12:20 2019
 @author: Travis
 """
 from glob import glob
-from inspect import currentframe, getframeinfo
 import numpy as np
 import os
+from subprocess import check_output, CalledProcessError
 import sys 
 
 # Set working directory to the repo root and add path to functions
-frame = getframeinfo(currentframe()).filename
-file_path = os.path.dirname(os.path.abspath(frame))
-os.chdir(os.path.join(file_path, '../..'))
-sys.path.insert(0, os.path.join(file_path, '../functions'))
+try:
+    gitroot = check_output('git rev-parse --show-toplevel', shell=True)
+    gitroot = gitroot.decode('utf-8').strip()
+    os.chdir(gitroot)
+    sys.path.insert(0, 'src/functions')
+except CalledProcessError:
+    raise IOError('This is not a git repository, using current directory.')
 
 # Import functions
 from functions import buildNC
 
 # Get File Paths
-files = glob('data/bd_numeric_tiles/*tif')
-tile_ids = np.unique([f[-10:-4] for f in files])
-tile_files = {tid: [f for f in files if f[-10:-4] == tid] for tid in tile_ids}
-
-# Loop through tile ids and build events from all tid in each
+tile_folders = glob('data/rasters/burn_area/hdfs/*')
+tile_ids = np.unique([f[-6:] for f in tile_folders])
+tile_files = {}
 for tid in tile_ids:
-    print(tid)
+    files = glob(os.path.join('data/rasters/burn_area/hdfs', tid, '*hdf'))
+    tile_files[tid] = files
+
+# Loop through tile ids and build tiles from all tid in each
+for tid in tile_ids:
     files = tile_files[tid]
-    savepath = 'data/bd_numeric_tiles/netcdfs'
+    savepath = 'data/rasters/burn_area/netcdfs'
     buildNC(files, savepath)

@@ -1,5 +1,8 @@
+# -*- coding: utf-8 -*-
+
 from bs4 import BeautifulSoup
 import datetime as dt
+import ftplib
 import geopandas as gpd
 from glob import glob
 from http.cookiejar import CookieJar
@@ -8,9 +11,8 @@ import numpy as np
 import os
 from osgeo import gdal, ogr, osr
 import pandas as pd
-import rasterio
-from rasterio.merge import merge
-from rasterio.plot import show
+#import rasterio
+#from rasterio.merge import merge
 from tqdm import tqdm
 import urllib.request as urllib2
 import yaml
@@ -46,31 +48,40 @@ cmaps = {'Perceptually Uniform Sequential': ['viridis', 'plasma', 'inferno',
 # Functions
 def buildNC(files, savepath):
     '''
-    Take in a list of files for the full mosaic of the MODIS burn detection
-    dataset and create a singular netcdf file.
+    Take in a time series of files for the MODIS burn detection dataset and
+    create a singular netcdf file.
     '''
+    
+    # Check that the target folder exists, agian.
+    if not os.path.exists('data/rasters/burn_area/netcdfs'):
+        os.mkdir('data/rasters/burn_area/netcdfs')
+
     # Set file names
     files.sort()
     names = [os.path.split(f)[-1] for f in files]
-    names = [f.split('.')[0] for f in names]
-    tile_id = files[0][-10:-4]
+    names = [f.split('.')[2] + '_' + f.split('.')[1][1:] for f in names]
+    tile_id = names[0].split('_')[0]
     print("Building tile " + tile_id)
     file_name = os.path.join(savepath, tile_id + '.nc')
 
     # Use a sample to get geography information and geometries
     sample = files[0]
-    raster = gdal.Open(sample)
-    geom = raster.GetGeoTransform()
-    proj = raster.GetProjection()
+#    raster = gdal.Open(sample)  # <-------------------------------------------- Use hdfs from now on
+    ds = gdal.Open(sample).GetSubDatasets()[0][0]
+    hdf = gdal.Open(ds)
+    geom = hdf.GetGeoTransform()
+    proj = hdf.GetProjection()
+    data = hdf.GetRasterBand(1)
+#    geom = raster.GetGeoTransform()
+#    proj = raster.GetProjection()
     crs = osr.SpatialReference()
 
-    # There may be an issue with transformations with this proj4 string
-    # if so try '+proj=sinu +R=6371007.181 +nadgrids=@null +wktext'
+    # Get the proj4 string usign the WKT
     crs.ImportFromWkt(proj)
     proj4 = crs.ExportToProj4()
 
     # Use one tif (one array) for spatial attributes
-    array = raster.ReadAsArray()
+    array = data.ReadAsArray()
     ny, nx = array.shape
     xs = np.arange(nx) * geom[1] + geom[0]
     ys = np.arange(ny) * geom[5] + geom[3]
@@ -88,10 +99,10 @@ def buildNC(files, savepath):
     nco.createDimension('time', None)
 
     # Variables
-    y = nco.createVariable('y',  'f4', ('y',))
-    x = nco.createVariable('x',  'f4', ('x',))
-    times = nco.createVariable('time', 'f4', ('time',))
-    variable = nco.createVariable('value', 'f4', ('time', 'y', 'x'),
+    y = nco.createVariable('y',  np.float64, ('y',))
+    x = nco.createVariable('x',  np.float64, ('x',))
+    times = nco.createVariable('time', np.int64, ('time',))
+    variable = nco.createVariable('value', np.int16, ('time', 'y', 'x'),
                                   fill_value=-9999, zlib=True)
     variable.standard_name = 'day'
     variable.long_name = 'Burn Days'
@@ -130,11 +141,11 @@ def buildNC(files, savepath):
     times.units = 'days since 1970-01-01'
     times.standard_name = 'time'
     times.calendar = 'gregorian'
-    datestrings = [f[-15:-7] for f in names]
+    datestrings = [f[-7:] for f in names]
     dates = []
     for d in datestrings:
         year = dt.datetime(year=int(d[:4]), month=1, day=1)
-        date = year + dt.timedelta(int(d[5:]))
+        date = year + dt.timedelta(int(d[4:]))
         dates.append(date)
     deltas = [d - dt.datetime(1970, 1, 1) for d in dates]
     days = np.array([d.days for d in deltas])
@@ -147,7 +158,12 @@ def buildNC(files, savepath):
     # One file a time, write the arrays
     tidx = 0
     for f in tqdm(files):
-        array = gdal.Open(f).ReadAsArray()
+        array = gdal.Open(f).ReadAsArray()  # <-------------------------------- Use HDFs from now on, convert to days since 1970 here.
+#        ds = gdal.Open(f).GetSubDatasets()[0][0]
+#        hdf = gdal.Open(ds)
+#        data = hdf.GetRasterBand(1)
+#        array = data.ReadAsArray()
+       # array = self.convertDates(array)
         try:
             variable[tidx, :, :] = array
         except:
@@ -311,60 +327,26 @@ def toDays(date, base):
 class Data_Getter():
     def __init__(self):
         self.date = dt.datetime.today().strftime('%m-%d-%Y')
+        self.createPaths()
+        self.cpus = os.cpu_count()
         self.modis_template_path = 'data/rasters/mosaic_template.tif'
-        self.landcover_path = 'data/landcover'   # <-------------------------- Move to rasters folder
-        self.landcover_mosaic_path = 'data/landcover/mosaics'
+        self.landcover_path = 'data/rasters/landcover'
+        self.landcover_mosaic_path = 'data/rasters/landcover/mosaics'
         self.tiles = ["h08v04", "h09v04", "h10v04", "h11v04", "h12v04",
                       "h13v04", "h08v05", "h09v05", "h10v05", "h11v05",
                       "h12v05", "h08v06", "h09v06", "h10v06", "h11v06"]
 
-    def getShapes(self):
-        '''
-        Just to grab some basic shapefiles needed for calculating statistics.
-        '''
-        if not os.path.exists('data/shapefiles'):
-            os.mkdir('data/shapefiles')
-    
-        # Variables
-        conus_states = ['WV', 'FL', 'IL', 'MN', 'MD', 'RI', 'ID', 'NH', 'NC',
-                        'VT', 'CT', 'DE', 'NM', 'CA', 'NJ', 'WI', 'OR', 'NE',
-                        'PA', 'WA', 'LA', 'GA', 'AL', 'UT', 'OH', 'TX', 'CO',
-                        'SC', 'OK', 'TN', 'WY', 'ND', 'KY', 'VI', 'ME', 'NY',
-                        'NV', 'MI', 'AR', 'MS', 'MO', 'MT', 'KS', 'IN', 'SD',
-                        'MA', 'VA', 'DC', 'IA', 'AZ']
-        modis_crs= ('+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 ' +
-                     '+b=6371007.181 +units=m +no_defs')
-    
-        # Contiguous United States - WGS84
-        if not os.path.exists('data/shapefiles/conus.shp'):
-            print("Downloading US state shapfile from the Census Bureau...")
-            usa = gpd.read_file('http://www2.census.gov/geo/tiger/GENZ2016/' +
-                                'shp/cb_2016_us_state_20m.zip')
-            conus = usa[usa['STUSPS'].isin(conus_states)]
-            conus.to_file('data/shapefiles/conus.shp')
-    
-        # Contiguous United States - MODIS Sinusoidal
-        if not os.path.exists('data/shapefiles/conus_modis.shp'):
-            print("Reprojecting state shapefile to MODIS Sinusoidal...")
-            conus = gpd.read_file('data/shapefiles/conus.shp')
-            modis_conus = conus.to_crs(modis_crs)
-            modis_conus.to_file('data/shapefiles/conus_modis.shp')
-    
-        # Omernick Level III Ecoregions - USGS North American Albers
-        if not os.path.exists('data/shapefiles/us_eco_l3.shp'):
-            print("Downloading Omernick Level III Ecoregions from the USGS...")
-            eco_l3 = gpd.read_file('ftp://ftp.epa.gov/wed/ecoregions/us/' +
-                                   'us_eco_l3.zip')
-            eco_l3.to_file('data/shapefiles/us_eco_l3.shp')
-    
-        # Omernick Level III Ecoregions - MODSI Sinusoidal
-        if not os.path.exists('data/shapefiles/us_eco_l3_modis.shp'):
-            print("Reprojecting ecoregions to MODIS Sinusoidal...")
-            eco_l3 = gpd.read_file('data/shapefiles/us_eco_l3.shp')
-            eco_l3 = eco_l3.to_crs(modis_crs)
-            eco_l3.to_file('data/shapefiles/us_eco_l3_modis.shp')
+    def createPaths(self):
+        folders = ['data', 'data/rasters', 'data/shapefiles', 'data/tables',
+                   'data/rasters/burn_area', 'data/rasters/burn_area/hdfs',
+                   'data/rasters/landcover', 'data/rasters/ecoregion',
+                   'data/shapefiles/burn_area', 'data/shapefiles/landcover', 
+                   'data/shapefiles/ecoregion']
+        for f in folders:
+            if not os.path.exists(f):
+                os.mkdir(f)
 
-    def getLancover(self):
+    def getLandcover(self):
         """
         A method to download and process landcover data from NASA's Land
         Processes Distributed Active Archive Center, which is an Earthdata
@@ -415,7 +397,7 @@ class Data_Getter():
             links = [url + l for l in names]
             for i in range(len(links)):
                 request = urllib2.Request(links[i])
-                with open('data/landcover/' + names[i], 'wb') as file:
+                with open('data/rasters/landcover/' + names[i], 'wb') as file:
                     response = urllib2.urlopen(request).read()
                     file.write(response)
 
@@ -426,21 +408,117 @@ class Data_Getter():
         for y in years:
             print(y)
 
-
-
-
-
     def getBurns(self):
         '''
         This will download the MODIS burn event data set tiles and create a
         singular mosaic to use as a template file for coordinate reference
         information and geometries.
+
+        User manual:
+            http://modis-fire.umd.edu/files/MODIS_C6_BA_User_Guide_1.2.pdf
+
+        FTP:
+            ftp://fire:burnt@fuoco.geog.umd.edu/gfed4/MCD64A1/C6/
+
+        This doesn't have a way to deal with missed downloads just yet.
         '''
-        # Pull out paths
+        # Pull out paths and variables
+        tiles = self.tiles
+
+        # Download original hdf files
+        def downloadBA(file):
+            missing = []
+            tile = file[17:23]
+            folder = os.path.join('data/rasters/burn_area/hdfs', tile)
+            if not os.path.exists(folder):
+                os.mkdir(folder)
+            trgt = os.path.join(folder, file)
+            if not os.path.exists(trgt):
+                try:
+                    with open(trgt, 'wb') as dst:
+                        ftp.retrbinary('RETR %s' % file, dst.write, 102400)
+                except ftplib.all_errors as e:
+                    missing.append(file)
+                    print('FTP Transfer Error: ', e)
+            return missing
+
+        # Get only the specified tiles
+        ftp = ftplib.FTP('fuoco.geog.umd.edu')
+        ftp.login('fire', 'burnt')
+        missings = []
+        for tile in tiles:
+            print("Downloading " + tile)
+            ftp_folder =  '/MCD64A1/C6/' + tile
+            ftp.cwd(ftp_folder)
+            hdfs = ftp.nlst()
+            hdfs = [h for h in hdfs if '.hdf' in h]
+            for h in tqdm(hdfs, position=0):
+                missing = downloadBA(h)
+                if len(missing) > 0:
+                    missings = missings + missing
+        ftp.quit()
+
+        # How to best handle this?
+        print('Missed Files: \n' + str(missings))
+  
+
+    def burnToTiff(self):
+        '''
+        This will take the original HDF4 files retrieved from get Burns,
+        convert the data (in julien days) to days since 1970 and save them as
+        individual tiffs in 'data/rasters/burn_area/geotiffs'
+        '''
+        # Let's start with one tile
+        tiles = self.tiles
+        tile_filess = glob('data/rasters/burn_area/hdfs/*')
+        tile_files.sort()
         template_path = self.modis_template_path
 
-        # Download data
-        # ...
+        # To convert a single day
+        def convertDate(julien_day, year):
+            '''
+            Take the year and julien day and convert it to days since Jan 1 1970.
+            '''
+            base = dt.datetime(1970, 1, 1)
+            date = dt.datetime(year, 1, 1) + dt.timedelta(int(julien_day))
+            days = date - base
+            return days.days
+        
+        # Loop through everything, convert dates, and save to tiff
+        for t in tiles_files:
+            files = glob(os.path.join(t, '*hdf'))
+            files.sort()
+            for f in tqdm(files, position=0):
+                if not os.path.exists(f):
+                    # Get data and attributes
+                    year = int(f[44:48])
+                    day = f[48:51]
+                    ds = gdal.Open(f).GetSubDatasets()[0][0]
+                    hdf = gdal.Open(ds)
+                    geometry = hdf.GetGeoTransform()
+                    proj = hdf.GetProjection()
+                    data = hdf.GetRasterBand(1)
+                    array = data.ReadAsArray()
+
+                    # Loop through each position with data and convert
+                    locs = np.where(array > 0)
+                    ys = locs[0]
+                    xs = locs[1]
+                    locs = [[ys[i], xs[i]] for i in range(len(xs))]
+                    for l in locs:
+                        y = l[0]
+                        x = l[1]
+                        array[y, x] = convertDate(array[y, x], year)
+            
+                    # Save as a geotiff...see if we get the same output
+                    tile = os.path.basename(t)
+                    tfolder = os.path.join('data/rasters/burn_area/geotiffs/',
+                                           tile)
+                    if not os.path.exists(tfolder):
+                        os.mkdir(tfolder)
+                    tfile = tile + '_' + str(year) + day + '.tif'
+                    trgt = os.path.join(tfolder, tfile)
+                    self.toRaster(array, trgt, geometry, proj)
 
         # Merge one year into a reference mosaic
         if not os.path.exists(template_path):
@@ -454,9 +532,79 @@ class Data_Getter():
                         'width': mosaic.shape[2],
                         'transform': transform})
             with rasterio.open(template_path, 'w', **crs) as dest:
-                dest.write(mosaic)        
+                dest.write(mosaic)      
 
+    def getShapes(self):
+        '''
+        Just to grab some basic shapefiles needed for calculating statistics.
+        '''
+        if not os.path.exists('data/shapefiles'):
+            os.mkdir('data/shapefiles')
+    
+        # Variables
+        conus_states = ['WV', 'FL', 'IL', 'MN', 'MD', 'RI', 'ID', 'NH', 'NC',
+                        'VT', 'CT', 'DE', 'NM', 'CA', 'NJ', 'WI', 'OR', 'NE',
+                        'PA', 'WA', 'LA', 'GA', 'AL', 'UT', 'OH', 'TX', 'CO',
+                        'SC', 'OK', 'TN', 'WY', 'ND', 'KY', 'VI', 'ME', 'NY',
+                        'NV', 'MI', 'AR', 'MS', 'MO', 'MT', 'KS', 'IN', 'SD',
+                        'MA', 'VA', 'DC', 'IA', 'AZ']
+        modis_crs= ('+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 ' +
+                     '+b=6371007.181 +units=m +no_defs')
 
+        # MODIS Sinusoial World Grid
+        if not os.path.exists('data/shapefiles/modis-world_grid.shp'):
+            src = ('http://book.ecosens.org/wp-content/uploads/2016/06/' +
+                   'modis_grid.zip')
+            modis = gpd.read_file(src)
+            modis.to_file('data/shapefiles/modis-world_grid.shp')
+
+        # Contiguous United States - WGS84
+        if not os.path.exists('data/shapefiles/conus.shp'):
+            print("Downloading US state shapfile from the Census Bureau...")
+            usa = gpd.read_file('http://www2.census.gov/geo/tiger/GENZ2016/' +
+                                'shp/cb_2016_us_state_20m.zip')
+            conus = usa[usa['STUSPS'].isin(conus_states)]
+            conus.to_file('data/shapefiles/conus.shp')
+    
+        # Contiguous United States - MODIS Sinusoidal
+        if not os.path.exists('data/shapefiles/conus_modis.shp'):
+            print("Reprojecting state shapefile to MODIS Sinusoidal...")
+            conus = gpd.read_file('data/shapefiles/conus.shp')
+            modis_conus = conus.to_crs(modis_crs)
+            modis_conus.to_file('data/shapefiles/conus_modis.shp')
+    
+        # Omernick Level III Ecoregions - USGS North American Albers
+        if not os.path.exists('data/shapefiles/us_eco_l3.shp'):
+            print("Downloading Omernick Level III Ecoregions from the USGS...")
+            eco_l3 = gpd.read_file('ftp://ftp.epa.gov/wed/ecoregions/us/' +
+                                   'us_eco_l3.zip')
+            eco_l3.to_file('data/shapefiles/us_eco_l3.shp')
+    
+        # Omernick Level III Ecoregions - MODSI Sinusoidal
+        if not os.path.exists('data/shapefiles/us_eco_l3_modis.shp'):
+            print("Reprojecting ecoregions to MODIS Sinusoidal...")
+            eco_l3 = gpd.read_file('data/shapefiles/us_eco_l3.shp')
+            eco_l3 = eco_l3.to_crs(modis_crs)
+            eco_l3.to_file('data/shapefiles/us_eco_l3_modis.shp')
+
+    def toRaster(self, array, trgt, geometry, proj, navalue=-9999):
+        """
+        Writes a single array to a raster with coordinate system and
+        geometric information.
+    
+        trgt = target path
+        proj = spatial reference system
+        geom = geographic transformation
+        """
+        ypixels = array.shape[0]
+        xpixels = array.shape[1]
+        trgt = trgt.encode('utf-8')
+        image = gdal.GetDriverByName("GTiff").Create(trgt, xpixels, ypixels, 1,
+                                                     gdal.GDT_Float32)
+        image.SetGeoTransform(geometry)
+        image.SetProjection(proj)
+        image.GetRasterBand(1).WriteArray(array)
+        image.GetRasterBand(1).SetNoDataValue(navalue)
 
 class calculateStatistics:
     def __init__(self, ecoregion_level=1):
@@ -508,11 +656,6 @@ class calculateStatistics:
         event_df = gpd.read_file(self.event_file)
 
         # Now I need landcover raster mosaics
-        
-        
-
-
-
 
     def rasterize(self, src, dst, attribute, transform, crs, all_touch=False,
                   na=-9999):
@@ -592,8 +735,7 @@ class EventGrid:
     individual tiles. If you use the full mosaic without a rather large amount
     of RAM it will be incredibly slow.
 
-    Use Build_From_Mosaic.py for the full mosaic netcdfs and
-    Build_From_Tiles.py for the tiled netcdfs to build a csv with each
+    Use Build_From_Tiles.py for the tiled netcdfs to build a csv with each
     classified event.
     '''
     def __init__(self, nc_path=('/data/netcdfs/'), spatial_param=5,  # <------- Create nc_path if not present, where would this occur?
