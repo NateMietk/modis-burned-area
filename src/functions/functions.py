@@ -261,9 +261,7 @@ class Data_Getter():
     def createPaths(self):
         folders = ['data', 'data/rasters', 'data/shapefiles', 'data/tables',   # Set these to the path attributes?
                    'data/rasters/burn_area', 'data/rasters/burn_area/hdfs',
-                   'data/rasters/landcover', 'data/rasters/ecoregion',
-                   'data/shapefiles/burn_area', 'data/shapefiles/landcover', 
-                   'data/shapefiles/ecoregion']
+                   'data/rasters/landcover', 'data/rasters/ecoregion']
         for f in folders:
             if not os.path.exists(f):
                 os.mkdir(f)
@@ -284,7 +282,7 @@ class Data_Getter():
         '''
         # Pull out paths and variables
         hdf_path = self.hdf_path
-        template_path = self.template_path
+        template_path = self.modis_template_path
         tiles = self.tiles
 
         # Download original hdf files
@@ -333,26 +331,28 @@ class Data_Getter():
             tile_files[tid] = files
 
         # Merge one year into a reference mosaic
-        if not os.path.exists(template_path):
-            folders = glob(os.path.join(hdf_path, '*'))
-            file_groups = [glob(os.path.join( f, '*hdf')) for f in folders]
+        if not os.path.exists(self.modis_template_path):
+            folders = glob(os.path.join(self.hdf_path, '*'))
+            file_groups = [glob(os.path.join(f, '*hdf')) for f in folders]
             for f in file_groups:
                 f.sort()
             files = [f[0] for f in file_groups]
-            tiles = [rasterio.open(f) for f in files]
+            dss = [rasterio.open(f).subdatasets[0] for f in files]
+            tiles = [rasterio.open(d) for d in dss]
             mosaic, transform = merge(tiles)
             crs = tiles[0].meta.copy()
             crs.update({'driver': 'GTIFF',
                         'height': mosaic.shape[1],
                         'width': mosaic.shape[2],
                         'transform': transform})
-            with rasterio.open(template_path, 'w', **crs) as dest:
-                dest.write(mosaic)    
+            with rasterio.open(self.modis_template_path, 'w', **crs) as dest:
+                dest.write(mosaic)
 
         # Build one netcdf per tile
         for tid in tile_ids:
             files = tile_files[tid]
             self.buildNCs(files)
+
 
     def getLandcover(self):
         """
@@ -403,17 +403,33 @@ class Data_Getter():
             names = [f for f in names if'hdf' in f and f[17:23] in tiles]
             links = [url + l for l in names]
             for i in range(len(links)):
-                request = urllib2.Request(links[i])
-                with open(os.path.join(landcover_path, names[i]), 'wb') as file:
-                    response = urllib2.urlopen(request).read()
-                    file.write(response)
+                if not os.path.exists(os.path.join(landcover_path, year)):
+                    os.mkdir(os.path.join(landcover_path, year))
+                path = os.path.join(landcover_path, year, names[i])
+                if not os.path.exists(path):
+                    request = urllib2.Request(links[i])
+                    with open(path, 'wb') as file:
+                        response = urllib2.urlopen(request).read()
+                        file.write(response)
 
         # Now process these tiles into yearly geotiffs. (Landcover_process.r)
         if not os.path.exists(self.landcover_mosaic_path):
             os.mkdir(self.landcover_mosaic_path)
-        lc_tiles = glob(os.path.join(self.landcover_path, "*hdf"))
-        for y in years:
-            print(y)  # <------------------------------------------------------ Left off here
+        for year in years:
+            print('Stitching together landcover tiles for year ' + year)
+            lc_tiles = glob(os.path.join(self.landcover_path, year, "*hdf"))
+            dss = [rasterio.open(f).subdatasets[0] for f in lc_tiles]
+            tiles = [rasterio.open(d) for d in dss]
+            mosaic, transform = merge(tiles)
+            crs = tiles[0].meta.copy()
+            crs.update({'driver': 'GTIFF',
+                        'height': mosaic.shape[1],
+                        'width': mosaic.shape[2],
+                        'transform': transform})
+            file = 'us_lc_mosaic_' + year + '.tif'
+            path = os.path.join(self.landcover_mosaic_path, file)
+            with rasterio.open(path, 'w', **crs) as dest:
+                dest.write(mosaic)
 
     def getShapes(self):
         '''
@@ -454,20 +470,20 @@ class Data_Getter():
             modis_conus = conus.to_crs(modis_crs)
             modis_conus.to_file('data/shapefiles/conus_modis.shp')
 
-        # Omernick Level III Ecoregions - USGS North American Albers
-        if not os.path.exists('data/shapefiles/us_eco_l3.shp'):
-            print("Downloading Omernick Level III Ecoregions from the USGS...")
-            eco_l3 = gpd.read_file('ftp://ftp.epa.gov/wed/ecoregions/us/' +
-                                   'us_eco_l3.zip')
-            eco_l3.crs = {'init': 'epsg:4326'}
-            eco_l3.to_file('data/shapefiles/us_eco_l3.shp')
-    
-        # Omernick Level III Ecoregions - MODSI Sinusoidal
-        if not os.path.exists('data/shapefiles/us_eco_l3_modis.shp'):
+        # Omernick Level IV Ecoregions - USGS North American Albers
+        if not os.path.exists('data/shapefiles/us_eco_l4.shp'):
+            print("Downloading Omernick Level IV Ecoregions from the USGS...")
+            eco_l4 = gpd.read_file('ftp://ftp.epa.gov/wed/ecoregions/us/' +
+                                   'us_eco_l4.zip')
+            eco_l4.crs = {'init': 'epsg:4326'}
+            eco_l4.to_file('data/shapefiles/us_eco_l4.shp')
+
+        # Omernick Level IV Ecoregions - MODIS Sinusoidal
+        if not os.path.exists('data/shapefiles/us_eco_l4_modis.shp'):
             print("Reprojecting ecoregions to MODIS Sinusoidal...")
-            eco_l3 = gpd.read_file('data/shapefiles/us_eco_l3.shp')
-            eco_l3_modis = eco_l3.to_crs(modis_crs)
-            eco_l3_modis.to_file('data/shapefiles/us_eco_l3_modis.shp')
+            eco_l4 = gpd.read_file('data/shapefiles/us_eco_l4.shp')
+            eco_l4_modis = eco_l4.to_crs(modis_crs)
+            eco_l4_modis.to_file('data/shapefiles/us_eco_l4_modis.shp')
 
     def buildNCs(self, files):
         '''
@@ -643,7 +659,7 @@ class Data_Getter():
                     toRaster(array, trgt, geometry, proj)
 
         # Merge one year into a reference mosaic
-        if not os.path.exists(self.template_path):
+        if not os.path.exists(self.modis_template_path):
             folder = 'data/rasters/burn_area/geotiffs'
             folders = glob(os.path.join(folder, '*'))
             file_groups = [glob(os.path.join( f, '*tif')) for f in folders]
@@ -657,7 +673,7 @@ class Data_Getter():
                         'height': mosaic.shape[1],
                         'width': mosaic.shape[2],
                         'transform': transform})
-            with rasterio.open(self.template_path, 'w', **crs) as dest:
+            with rasterio.open(self.modis_template_path, 'w', **crs) as dest:
                 dest.write(mosaic)      
 
 
@@ -667,6 +683,7 @@ class calculateStatistics:
                       "h13v04", "h08v05", "h09v05", "h10v05", "h11v05",
                       "h12v05", "h08v06", "h09v06", "h10v06", "h11v06"]
         self.event_file = 'data/modis_event_polygons.gpkg'
+        self.template_path = 'data/rasters/mosaic_template.tif'
         self.lc_path = 'data/landcover'
         self.ecoregion_level = ecoregion_level
         self.ecoregion_dict = {1: {'code': 'NA_L1CODE',
@@ -677,7 +694,7 @@ class calculateStatistics:
                                    'name': 'NA_L3NAME'}}
 
     def calculateEcoregions(self):
-        template_path = 'data/rasters/mosaic_template.tif'
+        template_path = self.template_path
         ecoregion_level = self.ecoregion_level
         ecoregion_dict = self.ecoregion_dict
         code = ecoregion_dict[ecoregion_level]['code']
@@ -831,6 +848,12 @@ class EventGrid:
         return perimeters
 
     def get_spatial_window(self, y, x, array_dims):
+        '''
+        Pull in the spatial window around a detected event and determine its
+        shape and the position of the original point within it. Finding this
+        origin point is related to another time saving step in the event
+        classification procedure.
+        '''
         top = max(0, y - self.spatial_param)
         bottom = min(array_dims[0], y + self.spatial_param)
         left = max(0, x - self.spatial_param)
@@ -883,13 +906,16 @@ class EventGrid:
         print(self.event_grid)
 
     def get_availables(self):
-        try:
-            mask = self.input_array.max(dim='time')
-        except:
-            burns = xr.open_dataset(self.nc_path, chunks=1000)
-            array = burns.value
-            mask = array.max(dim='time').compute().values
-            burns.close()
+        '''
+        To save time, avoid checking cells with no events at any time step.
+        Create a mask of max values at each point. If the maximum at a cell is
+        less than or equal to zero there were no values and it will not be
+        checked in the event classification step. 
+        '''
+        burns = xr.open_dataset(self.nc_path, chunks=1000)
+        array = burns.value
+        mask = array.max(dim='time').compute().values
+        burns.close()
         locs = np.where(mask > 0)
         available_pairs = []
         for i in range(len(locs[0])):
@@ -898,6 +924,10 @@ class EventGrid:
         return available_pairs
 
     def get_event_perimeters_3d(self):
+        '''
+        Iterate through each cell in the 3D MODIS Burn Date tile and group it
+        into fire events using the space-time window.        
+        '''
         print("Filtering out cells with no events...")
         available_pairs = self.get_availables()
 

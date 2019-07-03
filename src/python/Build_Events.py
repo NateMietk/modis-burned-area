@@ -7,9 +7,9 @@ groups them together into a dataframe.
 Next steps:
     - work this into a module or import as a function in order to work it into
       a single script for everything.
-    - make the save folder an argument
+    - make the save folder an argument.
     - possibly, to speed up the post event builder merge step, only merge with
-      neighboring tiles somehow.
+      neighboring tiles.
 
 Created on Thu June 20 2019
 
@@ -18,21 +18,24 @@ Created on Thu June 20 2019
 from collections import OrderedDict
 import datetime as dt
 from glob import glob
-from inspect import currentframe, getframeinfo
 import os
 import numpy as np
 import pandas as pd
+from subprocess import check_output, CalledProcessError
 import sys
 import time
 from tqdm import tqdm
 import warnings
 warnings.filterwarnings('ignore')
 
-# Set working directory to the repo root and add path to functions
-frame = getframeinfo(currentframe()).filename
-file_path = os.path.dirname(os.path.abspath(frame))
-os.chdir(os.path.join(file_path, '../..'))
-sys.path.insert(0, 'src/functions')
+# Experimenting wit different ways of doing this
+try:
+    gitroot = check_output('git rev-parse --show-toplevel', shell=True)
+    gitroot = gitroot.decode('utf-8').strip()
+    os.chdir(gitroot)
+    sys.path.insert(0, 'src/functions')
+except CalledProcessError:
+    raise IOError('This is not a git repository, using current directory.')
 
 # Import functions
 from functions import dateRange, edgeCheck, EventGrid, flttn, spCheck
@@ -41,7 +44,7 @@ from functions import dateRange, edgeCheck, EventGrid, flttn, spCheck
 start = time.perf_counter()
 
 # With defaults - 11x11 spatial window, 11 day temporal window
-files = glob('data/bd_numeric_tiles/netcdfs/*nc')
+files = glob('data/rasters/burn_area/netcdfs/*nc')
 tile_list = []
 df = pd.DataFrame(columns=['id', 'date', 'x', 'y', 'duration', 'edge', 'tile'])
 base = dt.datetime(1970, 1, 1)
