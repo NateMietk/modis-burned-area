@@ -11,19 +11,23 @@ Created on Thu Jun 20 09:40:59 2019
 @author: Travis
 """
 import geopandas as gpd
-from inspect import currentframe, getframeinfo
 from netCDF4 import Dataset
 import os
 import pandas as pd
 from shapely.geometry import Point, Polygon, MultiPolygon
+from subprocess import check_output, CalledProcessError
 import sys
 import time
 
-# Set working directory to the repo root and add path to functions
-frame = getframeinfo(currentframe()).filename
-file_path = os.path.dirname(os.path.abspath(frame))
-os.chdir(os.path.join(file_path, '../..'))
-sys.path.insert(0, 'src/functions')
+# Experimenting wit different ways of doing this
+try:
+    gitroot = check_output('git rev-parse --show-toplevel', shell=True)
+    gitroot = gitroot.decode('utf-8').strip()
+    os.chdir(gitroot)
+    sys.path.insert(0, 'src/functions')
+except CalledProcessError:
+    raise IOError('This is not a git repository, using current directory.')
+
 
 # Import objects and methods
 from functions import cmaps
@@ -32,17 +36,18 @@ from functions import cmaps
 start = time.perf_counter()
 
 # Read in the event table and a reference nc file for geometric information
-df = pd.read_csv('data/modis_burn_events_00_19.csv')
-sample = Dataset('data/bd_numeric_tiles/netcdfs/h08v04.nc')
+df = pd.read_csv('data/tables/modis_burn_events_00_19_test.csv')
+#df = bdf.loc[:1000]  # <------------------------------------------------------- Sample for developing
+sample = Dataset('data/rasters/burn_area/netcdfs/h08v04.nc')
 crs = sample.variables['crs']
 geom = crs.geo_transform
 proj4 = crs.proj4
-res = [geom[0], geom[1]]
+res = [geom[1], geom[-1]]
 
 # Filter columns, center pixel coordinates, and remove repeating pixels
 df = df[['id', 'date', 'x', 'y']]
 df['x'] = df['x'] + (res[0]/2)
-df['y'] = df['y'] - (res[1]/2)
+df['y'] = df['y'] + (res[1]/2)
 df = df.drop_duplicates(['id', 'x', 'y'])
 
 # We will create a square buffer around each point and then merge these by id
@@ -51,6 +56,8 @@ def makePoint(x):
     return Point(tuple(x))
 df['geometry'] = df[['x', 'y']].apply(makePoint, axis=1)
 df = df[['id', 'date', 'geometry']]
+
+
 gdf = gpd.GeoDataFrame(df, crs=proj4, geometry=df['geometry'])
 
 # Test output of points
@@ -58,11 +65,12 @@ color = cmaps['Diverging']
 
 # Looks good moving on. First create a circle buffer
 print("Creating Buffer...")
-gdf['geometry'] = gdf.buffer(1 + (res[0]/2))
+geometry = gdf.buffer(1 + (res[0]/2))
+gdf['geometry'] = geometry
 sample = gdf[gdf['id'] == 3]
 sample.plot(column='id', cmap=color[1], legend=True)
 
-# Then create a square envelope around each
+# Then create a square envelope around the circle
 gdf['geometry'] = gdf.envelope
 sample = gdf[gdf['id'] == 3]
 sample.plot(column='id', cmap=color[1], legend=True)
@@ -89,7 +97,7 @@ gdf['final_perimeter'] = gdf['geometry'].length
 
 # Now save as a geopackage
 print('Saving file...')
-gdf.to_file('data/modis_event_polygons_test.gpkg', driver='GPKG')  # <--------- Cryptic error here, but it appears to work
+gdf.to_file('data/shapefiles/modis_event_polygons_test.gpkg', driver='GPKG')  # <--------- Cryptic error here, but it appears to work
 
 # Print the time it took
 end = time.perf_counter()

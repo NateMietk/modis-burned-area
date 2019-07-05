@@ -282,7 +282,6 @@ class Data_Getter():
         '''
         # Pull out paths and variables
         hdf_path = self.hdf_path
-        template_path = self.modis_template_path
         tiles = self.tiles
 
         # Download original hdf files
@@ -380,8 +379,8 @@ class Data_Getter():
         years = [str(y) for y in range(2001, 2017)]
 
         # Access
-        username = input('Enter NASA Earthdata User Name: ')
-        password = input('Enter NASA Earthdata Password: ')
+        username = 'travissius'  # input('Enter NASA Earthdata User Name: ') <- Mine for developing
+        password = 'tobehere1.'  # input('Enter NASA Earthdata Password: ') <-- Temporary, still building the script
         pw_manager = urllib2.HTTPPasswordMgrWithDefaultRealm()
         pw_manager.add_password(None, 'https://urs.earthdata.nasa.gov',
                                 username, password)
@@ -769,7 +768,7 @@ class EventGrid:
     '''
     def __init__(self, nc_path=('/data/rasters/burn_area/netcdfs/'),
                  spatial_param=5, temporal_param=11, area_unit='Unknown',
-                 time_unit='days since 1970-01-01'):
+                 time_unit='days since 1970-01-01', low_memory=True):
         self.nc_path = nc_path
         self.spatial_param = spatial_param
         self.temporal_param = temporal_param
@@ -778,6 +777,7 @@ class EventGrid:
         self.event_grid = {}
         self.next_event_id = 1
         self.input_array = self.get_input_xarray()
+        self.low_memory = low_memory
 
     def get_event_stats(self, event_type='Fire'):
         id_list = []
@@ -911,6 +911,9 @@ class EventGrid:
         Create a mask of max values at each point. If the maximum at a cell is
         less than or equal to zero there were no values and it will not be
         checked in the event classification step. 
+
+        If the computer has enough memory, this option could be combined
+        with the event_perimeter method to read this data in once.
         '''
         burns = xr.open_dataset(self.nc_path, chunks=1000)
         array = burns.value
@@ -928,17 +931,25 @@ class EventGrid:
         Iterate through each cell in the 3D MODIS Burn Date tile and group it
         into fire events using the space-time window.        
         '''
-        print("Filtering out cells with no events...")
-        available_pairs = self.get_availables()
+        print("\nFiltering out cells with no events...")
+        if self.low_memory:
+            available_pairs = self.get_availables()
+            arr = self.input_array
+        else:
+            arr = self.data_set.value
+            mask = arr.max(dim='time').compute().values
+            locs = np.where(mask > 0)
+            available_pairs = []
+            for i in range(len(locs[0])):
+                available_pairs.append([locs[0][i], locs[1][i]])
 
         # This is to check the window positions
         nz, ny, nx = self.input_array.shape
         dims = [ny, nx]
-        arr = self.input_array
         perimeters = []
 
         # traverse spatially, processing each burn day
-        print("Building event perimeters...")
+        print("Building event perimeters...\n")
         for pair in tqdm(available_pairs, position=0):
             # Separate coordinates
             y, x = pair
@@ -949,7 +960,7 @@ class EventGrid:
             cy, cx = center
 
             # what if we pull in the window?
-            window = arr[:, top:bottom+1, left:right+1].data
+            window = arr[:, top:bottom+1, left:right+1].data  # <-------------- If it is slow, this is the problem
 
             # The center of the window is the target burn day
             center_burn = window[:, cy, cx]

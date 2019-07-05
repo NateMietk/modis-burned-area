@@ -53,7 +53,8 @@ for file in files:
     print(tile_id)
 
     # Create event object
-    builder = EventGrid(nc_path=file, spatial_param=5, temporal_param=11)
+    builder = EventGrid(nc_path=file, spatial_param=5, temporal_param=11,
+                        low_memory=False)
 
     # Classify event perimeters
     perimeters = builder.get_event_perimeters_3d()
@@ -120,6 +121,8 @@ for file in files:
                                     'edge': edges, 'tile': tile_id}))
     df = pd.concat([df, edf])
 
+# save in case of failure
+df.to_csv('data/modis_burn_events_interem.csv', index=False)
 
 # Recreate unique ids (id + tile perhaps)
 def toDays(date, base):
