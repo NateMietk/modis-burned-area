@@ -24,13 +24,13 @@ except CalledProcessError:
 # Import data download methods
 from functions import Data_Getter
 
-# Create data object (you can specify which tiles as an attribute)
+# Create data object (you can specify which tiles as an attribute)  # <-------- Parameterize this with a shapefile
 data = Data_Getter()
 
 # Get US Boundary and Ecoregion shapefiles
 data.getShapes()
 
-# Get Landcover hdfs
+# Get Landcover hdfs - register at https://urs.earthdata.nasa.gov/users/new
 data.getLandcover()
 
 # Get all of the MODIS burn area hdfs

@@ -18,9 +18,12 @@ Created on Thu June 20 2019
 from collections import OrderedDict
 import datetime as dt
 from glob import glob
+import geopandas as gpd
 import os
+from netCDF4 import Dataset
 import numpy as np
 import pandas as pd
+from shapely.geometry import Point
 from subprocess import check_output, CalledProcessError
 import sys
 import time
@@ -54,7 +57,7 @@ for file in files:
 
     # Create event object
     builder = EventGrid(nc_path=file, spatial_param=5, temporal_param=11,
-                        low_memory=False)
+                        low_memory=False)  # <--------------------------------- The low memory works just as fast as this on my work machine, but slowly on my linux distro?
 
     # Classify event perimeters
     perimeters = builder.get_event_perimeters_3d()
@@ -195,7 +198,25 @@ df['duration'] = df['id'].map(durmap)
 df = df[['id', 'tile', 'date', 'x', 'y', 'duration', 'detections']]
 
 # Finally save
-df.to_csv('data/modis_burn_events_00_19_test.csv', index=False)
+df.to_csv('data/tables/modis_burn_events_00_19_test.csv', index=False)
+
+# Let's go ahead and create a shapefile in WGS84
+sample = Dataset('data/rasters/burn_area/netcdfs/h08v04.nc')
+crs = sample.variables['crs']
+geom = crs.geo_transform
+proj4 = crs.proj4
+res = [geom[1], geom[-1]]
+
+# Filter columns, center pixel coordinates, and remove repeating pixels
+df = df[['id', 'date', 'x', 'y']]
+df['x'] = df['x'] + (res[0]/2)
+df['y'] = df['y'] + (res[1]/2)
+df = df.drop_duplicates(['id', 'x', 'y'])
+def makePoint(x):
+    return Point(tuple(x))
+df['geometry'] = df[['x', 'y']].apply(makePoint, axis=1)
+gdf = gpd.GeoDataFrame(df, crs=proj4, geometry=df['geometry'])
+gdf.to_file('data/shapefiles/modis_event_points.gpkg', driver='GPKG')
 
 # Print the time it took
 end = time.perf_counter()

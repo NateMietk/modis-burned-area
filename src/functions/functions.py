@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 from bs4 import BeautifulSoup
 import datetime as dt
+import fiona
 import ftplib
 import geopandas as gpd
 from glob import glob
 from http.cookiejar import CookieJar
+import itertools
 from netCDF4 import Dataset
 import numpy as np
 import os
@@ -12,12 +14,12 @@ from osgeo import gdal, ogr, osr
 import pandas as pd
 import rasterio
 from rasterio.merge import merge
+import shapely as shp
 from subprocess import check_output, CalledProcessError
 import sys
 from tqdm import tqdm
 import urllib.request as urllib2
 import yaml
-
 # Supress depreciation warning for dask when importing xarray (temporary)
 yaml.warnings({'YAMLLoadWarning': False})
 import xarray as xr
@@ -280,15 +282,11 @@ class Data_Getter():
 
         This doesn't have a way to deal with missed downloads just yet.
         '''
-        # Pull out paths and variables
-        hdf_path = self.hdf_path
-        tiles = self.tiles
-
         # Download original hdf files
         def downloadBA(file):
             missing = []
             tile = file[17:23]
-            folder = os.path.join(hdf_path, tile)
+            folder = os.path.join(self.hdf_path, tile)
             if not os.path.exists(folder):
                 os.mkdir(folder)
             trgt = os.path.join(folder, file)
@@ -305,7 +303,7 @@ class Data_Getter():
         ftp = ftplib.FTP('fuoco.geog.umd.edu')
         ftp.login('fire', 'burnt')
         missings = []
-        for tile in tiles:
+        for tile in self.tiles:
             print("Downloading " + tile)
             ftp_folder =  '/MCD64A1/C6/' + tile
             ftp.cwd(ftp_folder)
@@ -322,11 +320,11 @@ class Data_Getter():
 
         # Should I go ahead and build the netcdfs here?
         # Get File Paths
-        tile_folders = glob(os.path.join(hdf_path, '*'))
+        tile_folders = glob(os.path.join(self.hdf_path, '*'))
         tile_ids = np.unique([f[-6:] for f in tile_folders])
         tile_files = {}
         for tid in tile_ids:
-            files = glob(os.path.join(hdf_path, tid, '*hdf'))
+            files = glob(os.path.join(self.hdf_path, tid, '*hdf'))
             tile_files[tid] = files
 
         # Merge one year into a reference mosaic
@@ -376,7 +374,7 @@ class Data_Getter():
         tiles = self.tiles
 
         # We need years in strings  <------------------------------------------ Parameterize this
-        years = [str(y) for y in range(2001, 2017)]
+        years = [str(y) for y in range(2001, 2020)]
 
         # Access
         username = 'travissius'  # input('Enter NASA Earthdata User Name: ') <- Mine for developing
@@ -414,6 +412,7 @@ class Data_Getter():
         # Now process these tiles into yearly geotiffs. (Landcover_process.r)
         if not os.path.exists(self.landcover_mosaic_path):
             os.mkdir(self.landcover_mosaic_path)
+            os.mkdir(os.path.join(self.landcover_mosaic_path, 'wgs'))
         for year in years:
             print('Stitching together landcover tiles for year ' + year)
             lc_tiles = glob(os.path.join(self.landcover_path, year, "*hdf"))
@@ -429,6 +428,13 @@ class Data_Getter():
             path = os.path.join(self.landcover_mosaic_path, file)
             with rasterio.open(path, 'w', **crs) as dest:
                 dest.write(mosaic)
+
+            # Transform into geographic coordinate system
+#            wgs_path = os.path.join(self.landcover_mosaic_path, 'wgs', file)
+#            ds = gdal.Warp(wgs_path, path, dstSRS='EPSG:4326', xRes=res,
+#                           yRes=res, outputBounds=[-130, 20, -55, 50])
+#            del ds
+
 
     def getShapes(self):
         '''
@@ -460,6 +466,7 @@ class Data_Getter():
             usa = gpd.read_file('http://www2.census.gov/geo/tiger/GENZ2016/' +
                                 'shp/cb_2016_us_state_20m.zip')
             conus = usa[usa['STUSPS'].isin(conus_states)]
+            conus.crs = {'init': 'epsg:4326', 'no_defs': True}
             conus.to_file('data/shapefiles/conus.shp')
 
         # Contiguous United States - MODIS Sinusoidal
@@ -469,13 +476,37 @@ class Data_Getter():
             modis_conus = conus.to_crs(modis_crs)
             modis_conus.to_file('data/shapefiles/conus_modis.shp')
 
-        # Omernick Level IV Ecoregions - USGS North American Albers
-        if not os.path.exists('data/shapefiles/us_eco_l4.shp'):
-            print("Downloading Omernick Level IV Ecoregions from the USGS...")
+        # Level IV Omernick Ecoregions - USGS North American Albers
+        if not os.path.exists('data/shapefiles/ecoregion/us_eco_l4.shp'):
+            print("Downloading Omernick Levels IV Ecoregions from the USGS...")
             eco_l4 = gpd.read_file('ftp://ftp.epa.gov/wed/ecoregions/us/' +
                                    'us_eco_l4.zip')
-            eco_l4.crs = {'init': 'epsg:4326'}
-            eco_l4.to_file('data/shapefiles/us_eco_l4.shp')
+            eco_l4.crs = {'init': 'epsg:5070'}
+            eco_l4 = eco_l4.to_crs(modis_crs)
+            eco_l4.to_file('data/shapefiles/ecoregion/us_eco_l4_modis.shp')
+
+        # Level I Omernick Ecoregions - WGS 84
+        if not os.path.exists('data/shapefiles/ecoregion/us_eco_l1.shp'):
+            print('Dissolving level IV into level I ecoregions...')
+            l4 = 'data/shapefiles/ecoregion/us_eco_l4_modis.shp'
+            l1 = 'data/shapefiles/ecoregion/us_eco_l1_modis.shp'
+            eco_l4 = gpd.read_file(l4)
+            eco_l4['NA_L1CODE'] = eco_l4['NA_L1CODE'].astype(int)
+            name_dict = eco_l4[['NA_L1CODE', 'NA_L1CODE']].drop_duplicates()
+            name_dict = dict(zip(eco_l4['NA_L1NAME'], eco_l4['NA_L1CODE']))
+            eco_l1 = eco_l4[['NA_L1CODE', 'NA_L1NAME', 'geometry']]
+            eco_l1 = eco_l1.dissolve(by='NA_L1CODE')
+            eco_l1['NA_L1CODE'] = eco_l1['NA_L1NAME'].map(name_dict)
+            eco_l1.to_file(l1, driver='ESRI Shapefile')
+            
+        # Rasterize Level Omernick Ecoregions - WGS 84
+        src = 'data/shapefiles/ecoregion/us_eco_l1_modis.shp'
+        dst = 'data/rasters/ecoregion/us_eco_l1.tif'
+        t = 'data/rasters/landcover/mosaics/us_lc_mosaic_2001.tif'
+        template = gdal.Open(t)
+        transform = template.GetGeoTransform()
+        crs = template.GetProjection()
+        rasterize(src, dst, 'NA_L1CODE', transform, crs)
 
         # Omernick Level IV Ecoregions - MODIS Sinusoidal
         if not os.path.exists('data/shapefiles/us_eco_l4_modis.shp'):
@@ -917,7 +948,7 @@ class EventGrid:
         '''
         burns = xr.open_dataset(self.nc_path, chunks=1000)
         array = burns.value
-        mask = array.max(dim='time').compute().values
+        mask = array.max(dim='time').compute().values  # <--------------------- See if mean would be faster next time
         burns.close()
         locs = np.where(mask > 0)
         available_pairs = []
