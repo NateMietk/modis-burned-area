@@ -1,0 +1,19 @@
+name,value
+Evergreen Needleleaf Forests,1
+Evergreen Broadleaf Forests,2
+Deciduous Needleleaf Forests,3
+Deciduous Broadleaf Forests,4
+Mixed Forests,5
+Closed Shrublands,6
+Open Shrublands,7
+Woody Savannas,8
+Savannas,9
+Grasslands,10
+Permanent Wetlands,11
+Croplands,12
+Urban and Built-up Lands,13
+Cropland/Natural  Vegetation  Mosaics,14
+Permanent Snow and Ice,15
+Barren,16
+Water Bodies,17
+Unclassified,255
