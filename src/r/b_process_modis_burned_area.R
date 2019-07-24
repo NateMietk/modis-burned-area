@@ -10,6 +10,19 @@ if (!exists("states")){
   states$STUSPS <- droplevels(states$STUSPS)
 }
 
+# world shapefile
+
+# if (!exists("world")){
+#   download_data(url = "http://thematicmapping.org/downloads/TM_WORLD_BORDERS_SIMPL-0.3.zip",
+#                 dir = raw_dir_us,
+#                 layer = "TM_WORLD_BORDERS_SIMPL-0.3") 
+#   
+#   states <- st_read(file.path(raw_dir_us, "TM_WORLD_BORDERS_SIMPL-0.3.shp")) #%>%
+#     #sf::st_transform(p4string_ea) %>%
+#     #dplyr::filter(!STUSPS %in% c("HI", "AK", "PR"))
+#   #states$STUSPS <- droplevels(states$STUSPS)
+# }
+
 # Vector of MODIS tiles to download
 tiles <- FIREDr::get_tiles(states)
 

@@ -1,4 +1,4 @@
-download_data <-  function(url, dir, layer, rp = raw_prefix) {
+download_data <-  function(url, dir, layer, rp = raw_dir) {
   dest <- paste0(rp, ".zip")
   
   if (!file.exists(layer)) {
