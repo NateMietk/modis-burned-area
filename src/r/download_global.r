@@ -51,6 +51,7 @@ dl_stuff<-function (tiles, url = "ftp://fuoco.geog.umd.edu/MCD64A1/C6/",
       file.path("s3://earthlab-natem/modis-burned-area/MCD64A1/C6/hdf_months",tiles[j])
     ))
     system("rm hdfs/*")
+    print(paste(tiles[j], "done"))
   }
   unlink("tmp.txt")
 }
