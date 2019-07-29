@@ -83,9 +83,9 @@ p3 <- ggplot(output_table, aes(max_area, slope)) +
   scale_x_continuous(labels = comma)+
   ylab("Estimate")
 
-ggarrange(p1, p2, p3, nrow = 1, ncol=3, labels = "auto") +
+ggarrange(p1, p2, p3, nrow = 1, ncol=3, labels = "AUTO") +
   ggsave("images/area_analyse.pdf", dpi = 600, height = 4.5, width = 13)
-ggarrange(p1, p2,p3, nrow = 1, ncol=3, labels = "auto") +
+ggarrange(p1, p2,p3, nrow = 1, ncol=3, labels = "AUTO") +
   ggsave("images/area_analyse.png", dpi = 400, height = 4.5, width = 13,
         limitsize = T)
 
