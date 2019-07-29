@@ -7,6 +7,7 @@ dl_stuff<-function (tiles, url = "ftp://fuoco.geog.umd.edu/MCD64A1/C6/",
   requireNamespace("tidyverse")
   requireNamespace("RCurl")
   for (j in 1:length(tiles)) {
+    t0 <- Sys.time()
     filenames <- RCurl::getURL(paste0(url, tiles[j], "/"), 
                                userpwd = u_p, v = T, ftp.use.epsv = FALSE)
     cat(filenames, file = "tmp.txt")
@@ -51,6 +52,8 @@ dl_stuff<-function (tiles, url = "ftp://fuoco.geog.umd.edu/MCD64A1/C6/",
       file.path("s3://earthlab-natem/modis-burned-area/MCD64A1/C6/hdf_months",tiles[j])
     ))
     system("rm hdfs/*")
+    print(paste(tiles[j], "done"))
+    print(Sys.time() -t0 )
   }
   unlink("tmp.txt")
 }
@@ -65,4 +68,4 @@ cat(filenames, file = "tmp.txt")
 tiles <- read_fwf("tmp.txt", fwf_empty("tmp.txt"))[4:271,9]$X9
 dir.create("hdfs", showWarnings = F)
 dl_stuff(tiles=tiles, url=url1, u_p = u_p, out_dir = "hdfs")
-
+system("sudo shutdown now")
