@@ -22,15 +22,26 @@ dl_stuff<-function (tiles, url = "ftp://fuoco.geog.umd.edu/MCD64A1/C6/",
       s3_file_name <- dir_listing$filename[i]
       if (!file.exists(output_file_name)) {
         download.file(paste0(u_p_url, tiles[j], "/", dir_listing$filename[i]),
-                      output_file_name, method = "wget", quiet = TRUE)
+                      output_file_name, method = "internal", quiet = TRUE)
         
         local_size <- file.info(output_file_name)$size
+
         are_bytes_identical <- as.integer(local_size) == dir_listing$size_in_bytes[i]
         
-        if (!are_bytes_identical) {
+        wc <- 1
+        while (!are_bytes_identical & wc < 10) {
+          # using the while loop with the counter forces it to re-download 
+          # and also gives up after a reasonable amount of retries
           warning(paste("Mismatch in file size found for", 
                         dir_listing$filename[i]))
           unlink(dir_listing$filename[i])
+          download.file(paste0(u_p_url, tiles[j], "/", dir_listing$filename[i]),
+                        output_file_name, method = "wget", quiet = TRUE)
+          
+          local_size <- file.info(output_file_name)$size
+          are_bytes_identical <- as.integer(local_size) == dir_listing$size_in_bytes[i]
+          if(are_bytes_identical) print(paste(dir_listing$filename[i],"downloaded properly"))
+          wc <- wc+1
         }
       }
     }
