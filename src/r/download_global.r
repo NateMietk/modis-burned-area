@@ -1,3 +1,6 @@
+library("tidyverse")
+library("httr")
+
 dl_stuff<-function (tiles, url = "ftp://fuoco.geog.umd.edu/MCD64A1/C6/", 
           u_p = "fire:burnt", out_dir) 
 {
@@ -16,15 +19,10 @@ dl_stuff<-function (tiles, url = "ftp://fuoco.geog.umd.edu/MCD64A1/C6/",
       filter(substr(filename,1,7) == "MCD64A1")
     for (i in 1:nrow(dir_listing)) {
       output_file_name <- file.path(out_dir, dir_listing$filename[i])
+      s3_file_name <- dir_listing$filename[i]
       if (!file.exists(output_file_name)) {
-        # download.file(paste0(u_p_url, tiles[j], "/", dir_listing$filename[i]), 
-        #               output_file_name)
-        uu<-strsplit(u_p, ":")[[1]][1]
-        pp<-strsplit(u_p, ":")[[1]][2]
-        httr::GET(paste0(url,tiles[j],"/",dir_listing$filename[i]),
-                  authenticate(uu,pp),
-                  write_disk(path = output_file_name,overwrite =TRUE)
-                  )
+        download.file(paste0(u_p_url, tiles[j], "/", dir_listing$filename[i]),
+                      output_file_name, method = "internal", quiet = TRUE)
         
         local_size <- file.info(output_file_name)$size
         are_bytes_identical <- identical(as.integer(local_size), 
@@ -34,8 +32,13 @@ dl_stuff<-function (tiles, url = "ftp://fuoco.geog.umd.edu/MCD64A1/C6/",
                         dir_listing$filename[i]))
           unlink(dir_listing$filename[i])
         }
+        system(paste0("aws s3 cp ", output_file_name, " ",
+                      "s3://earthlab-natem/modis-burned-area/MCD64A1/C6/hdf_months/",
+                      tiles[j], "/", s3_file_name, " ",
+                      "--only-show-errors"))
       }
     }
+    
   }
   unlink("tmp.txt")
 }
@@ -49,4 +52,4 @@ filenames <- RCurl::getURL(url1,
 cat(filenames, file = "tmp.txt")
 tiles <- read_fwf("tmp.txt", fwf_empty("tmp.txt"))[4:271,9]$X9
 dir.create("hdfs")
-dl_stuff(tiles=tiles, url=url1, u_p = u_p, out_dir = "hdfs")
+dl_stuff(tiles=tiles[1], url=url1, u_p = u_p, out_dir = "hdfs")
