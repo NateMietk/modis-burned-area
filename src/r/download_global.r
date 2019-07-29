@@ -17,25 +17,27 @@ dl_stuff<-function (tiles, url = "ftp://fuoco.geog.umd.edu/MCD64A1/C6/",
                             "filename")
     dir_listing <- dplyr::select(dir_listing, -starts_with("z"))%>%
       filter(substr(filename,1,7) == "MCD64A1")
+    
     for (i in 1:nrow(dir_listing)) {
       output_file_name <- file.path(out_dir, dir_listing$filename[i])
       s3_file_name <- dir_listing$filename[i]
       if (!file.exists(output_file_name)) {
         download.file(paste0(u_p_url, tiles[j], "/", dir_listing$filename[i]),
-                      output_file_name, method = "internal", quiet = TRUE)
+                      output_file_name, method = "wget", quiet = TRUE)
         
         local_size <- file.info(output_file_name)$size
-        are_bytes_identical <- identical(as.integer(local_size), 
-                                         dir_listing$size_in_bytes[i])
+        are_bytes_identical <- as.integer(local_size) == dir_listing$size_in_bytes[i]
+        
         if (!are_bytes_identical) {
           warning(paste("Mismatch in file size found for", 
                         dir_listing$filename[i]))
           unlink(dir_listing$filename[i])
-        }
+        }else{
         system(paste0("aws s3 cp ", output_file_name, " ",
                       "s3://earthlab-natem/modis-burned-area/MCD64A1/C6/hdf_months/",
                       tiles[j], "/", s3_file_name, " ",
                       "--only-show-errors"))
+        unlink(output_file_name)}
       }
     }
     
