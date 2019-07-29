@@ -22,7 +22,7 @@ dl_stuff<-function (tiles, url = "ftp://fuoco.geog.umd.edu/MCD64A1/C6/",
       s3_file_name <- dir_listing$filename[i]
       if (!file.exists(output_file_name)) {
         download.file(paste0(u_p_url, tiles[j], "/", dir_listing$filename[i]),
-                      output_file_name, method = "internal", quiet = TRUE)
+                      output_file_name, method = "wget", quiet = TRUE)
         
         local_size <- file.info(output_file_name)$size
 
