@@ -7,6 +7,7 @@ dl_stuff<-function (tiles, url = "ftp://fuoco.geog.umd.edu/MCD64A1/C6/",
   requireNamespace("tidyverse")
   requireNamespace("RCurl")
   for (j in 1:length(tiles)) {
+    t0 <- Sys.time()
     filenames <- RCurl::getURL(paste0(url, tiles[j], "/"), 
                                userpwd = u_p, v = T, ftp.use.epsv = FALSE)
     cat(filenames, file = "tmp.txt")
@@ -52,6 +53,7 @@ dl_stuff<-function (tiles, url = "ftp://fuoco.geog.umd.edu/MCD64A1/C6/",
     ))
     system("rm hdfs/*")
     print(paste(tiles[j], "done"))
+    print(Sys.time() -t0 )
   }
   unlink("tmp.txt")
 }
