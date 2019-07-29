@@ -66,4 +66,4 @@ cat(filenames, file = "tmp.txt")
 tiles <- read_fwf("tmp.txt", fwf_empty("tmp.txt"))[4:271,9]$X9
 dir.create("hdfs", showWarnings = F)
 dl_stuff(tiles=tiles, url=url1, u_p = u_p, out_dir = "hdfs")
-
+system("sudo shutdown now")
