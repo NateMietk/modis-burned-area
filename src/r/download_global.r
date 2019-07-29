@@ -1,5 +1,4 @@
 library("tidyverse")
-library("httr")
 
 dl_stuff<-function (tiles, url = "ftp://fuoco.geog.umd.edu/MCD64A1/C6/", 
           u_p = "fire:burnt", out_dir) 
@@ -32,15 +31,15 @@ dl_stuff<-function (tiles, url = "ftp://fuoco.geog.umd.edu/MCD64A1/C6/",
           warning(paste("Mismatch in file size found for", 
                         dir_listing$filename[i]))
           unlink(dir_listing$filename[i])
-        }else{
-        system(paste0("aws s3 cp ", output_file_name, " ",
-                      "s3://earthlab-natem/modis-burned-area/MCD64A1/C6/hdf_months/",
-                      tiles[j], "/", s3_file_name, " ",
-                      "--only-show-errors"))
-        unlink(output_file_name)}
+        }
       }
     }
-    
+    system(paste(
+      "aws s3 sync",
+      "hdfs",
+      file.path("s3://earthlab-natem/modis-burned-area/MCD64A1/C6/hdf_months",tiles[j])
+    ))
+    system("rm hdfs/*")
   }
   unlink("tmp.txt")
 }
@@ -53,5 +52,6 @@ filenames <- RCurl::getURL(url1,
                            userpwd = u_p, v = T, ftp.use.epsv = FALSE)
 cat(filenames, file = "tmp.txt")
 tiles <- read_fwf("tmp.txt", fwf_empty("tmp.txt"))[4:271,9]$X9
-dir.create("hdfs")
-dl_stuff(tiles=tiles[1], url=url1, u_p = u_p, out_dir = "hdfs")
+dir.create("hdfs", showWarnings = F)
+dl_stuff(tiles=tiles, url=url1, u_p = u_p, out_dir = "hdfs")
+
