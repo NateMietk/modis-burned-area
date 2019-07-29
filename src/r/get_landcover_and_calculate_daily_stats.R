@@ -4,6 +4,15 @@
 libs<- c("raster", "sf", "tidyverse", "fasterize")
 lapply(libs, library, character.only =TRUE)
 
+# lc_path <- "/home/a/data/MCD12Q1_mosaics"
+# modis_crs <- "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
+# ecoregion_path <- "data/shapefiles/us_eco_l3_modis.shp"
+# template_path <- "data/bd_numeric_tiles/*.tif"
+# s3_path <- "s3://earthlab-natem/modis-burned-area/delineated_events"
+# s3_path1 <- "s3://earthlab-natem/modis-burned-area/derived_attributes"
+# raw_events_file <- "data/modis_burn_events_00_19.csv"
+# landcover_labels<-"data/usa_landcover_t1_classes.csv"
+# lc_stem <- "usa_lc_mosaic_"
 lc_path <- "/home/a/data/MCD12Q1_mosaics"
 modis_crs <- "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
 ecoregion_path <- "data/shapefiles/us_eco_l3_modis.shp"
@@ -13,7 +22,6 @@ s3_path1 <- "s3://earthlab-natem/modis-burned-area/derived_attributes"
 raw_events_file <- "data/modis_burn_events_00_19.csv"
 landcover_labels<-"data/usa_landcover_t1_classes.csv"
 lc_stem <- "usa_lc_mosaic_"
-
 getmode <- function(v) {
   uniqv <- na.omit(unique(v))
   uniqv[which.max(tabulate(match(v, uniqv)))]

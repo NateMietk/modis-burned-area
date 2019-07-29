@@ -11,9 +11,9 @@ Created on Thu Jun 20 09:40:59 2019
 
 @author: Travis
 """
+import datetime as dt
 import geopandas as gpd
 from netCDF4 import Dataset
-import numpy as np
 import os
 import pandas as pd
 from shapely.geometry import Point, Polygon, MultiPolygon
@@ -32,6 +32,8 @@ try:
     sys.path.insert(0, 'src/functions')
 except CalledProcessError:
     raise IOError('This is not a git repository, using current directory.')
+
+from functions import mode
 
 # Start the timer (seconds)
 start = time.perf_counter()
@@ -58,9 +60,8 @@ print('Converting data frame to spatial object...')
 def makePoint(x):
     return Point(tuple(x))
 df['geometry'] = df[['x', 'y']].apply(makePoint, axis=1)
-df = df[['id', 'date', 'geometry']]
-gdf = gpd.GeoDataFrame(df, crs=proj4, geometry=df['geometry'])
-del df
+gdf = df[['id', 'date', 'geometry']]
+gdf = gpd.GeoDataFrame(gdf, crs=proj4, geometry=gdf['geometry'])
 
 # Let's go ahead and create the lat lon file here  # <------------------------- Where to put this?
 print('Creating WGS84 ignition file...')
@@ -83,15 +84,6 @@ wdf['ignition_date'] = group['date'].transform('min')
 wdf.to_csv('data/tables/ignition_lat_longs.csv', index=False)
 
 # Why don't developers make mode functions simpler?
-def mode(lst):    
-    if len(np.unique(lst)) > 1:
-        grouped_lst = [list(lst[lst == s]) for s in lst]
-        counts = {len(a): a for a in grouped_lst}  # overwrites matches
-        max_count = np.max(list(counts.keys()))
-        mode = counts[max_count][0]
-    else:
-        mode = lst[0]
-    return mode
 wdf['ignition_state'] = group['state'].transform(lambda x: mode(x))
 wdf = wdf[['id', 'latitude', 'longitude', 'ignition_date', 'ignition_state']]
 wdf = wdf.drop_duplicates()
@@ -121,11 +113,15 @@ gdf['geometry'] = gdf['geometry'].apply(asMultiPolygon)
 
 # Calculate perimeter length
 print('Calculating perimeter lengths...')
-gdf['final_perimeter'] = gdf['geometry'].length
+gdf['final_perimeter'] = gdf['geometry'].length  # <--------------------------- Check accuracy of this, QGIS is slightly different (also check adams)
 
 # Now save as a geopackage  # <------------------------------------------------ Should we also make a shapefile for ESRI users?
 print('Saving file...')
 gdf.to_file('data/shapefiles/modis_event_polygons.gpkg', driver='GPKG')
+
+
+# Daily shapefiles?
+
 
 # Print the time it took
 end = time.perf_counter()

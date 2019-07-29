@@ -94,6 +94,55 @@ def dateRange(perimeter):
     return day1
 
 
+def edgeCheck(yedges, xedges, coord, sp_buffer):
+    '''
+    Let's identify edge cases to make merging events quicker later
+    '''
+    y = coord[0]
+    x = coord[1]
+    if y in yedges:
+        edge = True
+    elif x in xedges:
+        edge = True
+    else:
+        edge = False
+    return edge
+
+
+def flttn(lst):
+    '''
+    Just a quick way to flatten lists of lists
+    '''
+    lst = [l for sl in lst for l in sl]
+    return lst
+
+
+def maxGrowthDate(x):
+    dates = x['date'].to_numpy()
+    pixels = x['pixels'].to_numpy()
+    loc = np.where(pixels == np.max(pixels))[0]
+    d = np.unique(dates[loc])
+    if len(d) > 1:
+        d = ', '.join(d)
+    else:
+        d = d[0]
+    return d
+
+
+def toAcres(p, res):
+    return (p*res**2) * 0.000247105
+
+
+def toHa(p, res):
+    return (p*res**2) * 0.0001
+
+
+
+
+def toKms(p, res):
+    return (p*res**2)/1000000
+
+
 def mergeChecker(new_coords, full_list, temporal_param, radius):
     '''
     This uses a radius for the spatial window, but the original event
@@ -135,48 +184,46 @@ def mergeChecker(new_coords, full_list, temporal_param, radius):
                 return i, False
 
 
-def edgeCheck(yedges, xedges, coord, sp_buffer):
-    '''
-    Let's identify edge cases to make merging events quicker later
-    '''
-    y = coord[0]
-    x = coord[1]
-    if y in yedges:
-        edge = True
-    elif x in xedges:
-        edge = True
+def mode(lst):    
+    if len(np.unique(lst)) > 1:
+        grouped_lst = [list(lst[lst == s]) for s in lst]
+        counts = {len(a): a for a in grouped_lst}  # overwrites matches
+        max_count = np.max(list(counts.keys()))
+        mode = counts[max_count][0]
     else:
-        edge = False
-    return edge
+        mode = lst.unique()[0]
+    return mode
 
 
-def flttn(lst):
-    '''
-    Just a quick way to flatten lists of lists
-    '''
-    lst = [l for sl in lst for l in sl]
-    return lst
+def pquery(p, lc, lc_array):
+    row, col = lc.index(p.x, p.y)
+    lc_value = lc_array[row, col]
+    return lc_value
 
 
-def rasterize(src, dst, attribute, transform, crs, all_touch=False,
+def rasterize(src, dst, attribute, transform, crs, extent, all_touch=False,
               na=-9999):
     '''
     It seems to be unreasonably involved to do this in Python compared to
     the command line.
     '''
-    resolution = transform[1]
+    resolution = transform[0]
 
     # Open shapefile, retrieve the layer
     src_data = ogr.Open(src)
     layer = src_data.GetLayer()
-    extent = layer.GetExtent()
+
+    # Use transform to derive coordinates and dimensions
+    xmin = extent[0]
+    ymin = extent[1]
+    xmax = extent[2]
+    ymax = extent[3]
 
     # Create the target raster layer
-    xmin, xmax, ymin, ymax = extent
     cols = int((xmax - xmin)/resolution)
-    rows = int((ymax - ymin)/resolution)
+    rows = int((ymax - ymin)/resolution) + 1  # <------------------------------ Potential hack job, it was one off?
     trgt = gdal.GetDriverByName('GTiff').Create(dst, cols, rows, 1,
-                               gdal.GDT_Float32)
+                                gdal.GDT_Float32)
     trgt.SetGeoTransform((xmin, resolution, 0, ymax, 0, -resolution))
 
     # Add crs
@@ -247,13 +294,22 @@ def toRaster(array, trgt, geometry, proj, navalue=-9999):
 
 # Classes
 class Data_Getter():
+    '''
+    Things to do/remember:
+        - authorization issues, add user inputs
+        - use shapefile to determine appropriate tiles
+        - perhaps create a pool for parallel downloads
+    
+    '''
     def __init__(self):
         self.date = dt.datetime.today().strftime('%m-%d-%Y')
         self.createPaths()
         self.cpus = os.cpu_count()
-        self.modis_template_path = 'data/rasters/mosaic_template.tif'
+        self.modis_template_path = 'data/rasters/'
+        self.modis_template_file_root = 'mosaic_template.tif'
         self.landcover_path = 'data/rasters/landcover'
         self.landcover_mosaic_path = 'data/rasters/landcover/mosaics'
+        self.landcover_file_root = 'us_lc_mosaic_'
         self.nc_path = 'data/rasters/burn_area/netcdfs'
         self.hdf_path = 'data/rasters/burn_area/hdfs'
         self.tiles = ["h08v04", "h09v04", "h10v04", "h11v04", "h12v04",
@@ -299,27 +355,80 @@ class Data_Getter():
                     print('FTP Transfer Error: ', e)
             return missing
 
-        # Get only the specified tiles
+        # Check in to the site
         ftp = ftplib.FTP('fuoco.geog.umd.edu')
-        ftp.login('fire', 'burnt')
+        ftp.login('fire', 'burnt')  # <---------------------------------------- Authorization Required, how best to handle this?
+
+        # Use specified tiles or...
+        if len(self.tiles) > 0:
+            tiles = self.tiles
+        # ...download all tiles if the list is empty
+        else:
+            ftp.cwd('/MCD64A1/C6/')
+            tiles = ftp.nlst()
+            tiles = [t for t in tiles if 'h' in t]
+
+        # Download the available files and catch failed downloads
         missings = []
-        for tile in self.tiles:
+        for tile in tiles:
             print("Downloading " + tile)
             ftp_folder =  '/MCD64A1/C6/' + tile
             ftp.cwd(ftp_folder)
             hdfs = ftp.nlst()
             hdfs = [h for h in hdfs if '.hdf' in h]
             for h in tqdm(hdfs, position=0):
-                missing = downloadBA(h)
+                trgt = os.path.join(self.hdf_path, tile, h)
+
+                # Check if the file already exists and works
+                try:
+                    gdal.Open(trgt).GetSubDatasets()[0][0]
+                    missing = []
+                except:
+                    missing = downloadBA(h)
+
+                # If the downla failed, add to missing
                 if len(missing) > 0:
                     missings = missings + missing
+
+                # Even if it didn't fail, make sure it works or add to missing
+                try:
+                    gdal.Open(trgt).GetSubDatasets()[0][0]
+                except:
+                    missings = missings + [h]
+                    os.remove(trgt)
+
+        # Now try again for the missed files
+        print('Missed Files: \n' + str(missings) + ", trying again...")
+        for file in missings:
+            tile = file[17:23]
+            ftp_folder =  '/MCD64A1/C6/' + tile
+            ftp.cwd(ftp_folder)
+            trgt = os.path.join(self.hdf_path, tile, h)
+            if os.path.exists(trgt):
+                os.remove(trgt)
+            try:
+                with open(trgt, 'wb') as dst:
+                    ftp.retrbinary('RETR %s' % file, dst.write, 102400)
+            except ftplib.all_errors as e:
+                missing.append(file)
+                print('FTP Transfer Error: ', e)
+            try:
+                gdal.Open(trgt).GetSubDatasets()[0][0]
+                missings.remove(file)
+            except Exception as e:
+                print(str(e))
+
+        # If that doesn't get them all, give up and let the user handle it.
+        if len(missings) > 0:
+            print('There are still ' + str(len(missings)) + ' missed files.')
+            print('Try downloading these files manually: ')
+            for m in missings:
+                print(m)
+
+        # And quit the ftp service
         ftp.quit()
 
-        # How to best handle this?
-        print('Missed Files: \n' + str(missings))
-
-        # Should I go ahead and build the netcdfs here?
-        # Get File Paths
+        # Build the netcdfs here
         tile_folders = glob(os.path.join(self.hdf_path, '*'))
         tile_ids = np.unique([f[-6:] for f in tile_folders])
         tile_files = {}
@@ -338,18 +447,25 @@ class Data_Getter():
             tiles = [rasterio.open(d) for d in dss]
             mosaic, transform = merge(tiles)
             crs = tiles[0].meta.copy()
+            template_path = os.path.join(self.modis_template_path,
+                                         self.modis_template_file_root)
             crs.update({'driver': 'GTIFF',
                         'height': mosaic.shape[1],
                         'width': mosaic.shape[2],
                         'transform': transform})
-            with rasterio.open(self.modis_template_path, 'w', **crs) as dest:
+            with rasterio.open(template_path, 'w', **crs) as dest:
                 dest.write(mosaic)
 
         # Build one netcdf per tile
         for tid in tile_ids:
             files = tile_files[tid]
-            self.buildNCs(files)
-
+            try:
+                self.buildNCs(files)
+            except Exception as e:
+                file_name = os.path.join(self.nc_path, tid + '.nc')
+                print('Error on tile ' + tid + ': ' + str(e))
+                print('Removing ' + file_name + ' and moving on.')
+                os.remove(file_name)
 
     def getLandcover(self):
         """
@@ -369,16 +485,24 @@ class Data_Getter():
             South Dakota. 2018, https://lpdaac.usgs.gov/resources/data-action/
             aster-ultimate-2018-winter-olympics-observer/.
         """
-        # Pull paths and variables out
-        landcover_path = self.landcover_path
-        tiles = self.tiles
+        # Use specified tiles or...
+        if len(self.tiles) > 0:
+            tiles = self.tiles
+        # ...download all tiles if the list is empty
+        else:
+            # Check in to the burn data site
+            ftp = ftplib.FTP('fuoco.geog.umd.edu')
+            ftp.login('fire', 'burnt')  # <---------------------------------------- Authorization Required, how best to handle this?
+            ftp.cwd('/MCD64A1/C6/')
+            tiles = ftp.nlst()
+            tiles = [t for t in tiles if 'h' in t]
 
-        # We need years in strings  <------------------------------------------ Parameterize this
-        years = [str(y) for y in range(2001, 2020)]
+        # We need years in strings  <------------------------------------------ Parameterize this?
+        years = [str(y) for y in range(2001, 2017)]
 
         # Access
         username = 'travissius'  # input('Enter NASA Earthdata User Name: ') <- Mine for developing
-        password = 'tobehere1.'  # input('Enter NASA Earthdata Password: ') <-- Temporary, still building the script
+        password = 'Tobehere1.'  # input('Enter NASA Earthdata Password: ') <-- Temporary, still building the script
         pw_manager = urllib2.HTTPPasswordMgrWithDefaultRealm()
         pw_manager.add_password(None, 'https://urs.earthdata.nasa.gov',
                                 username, password)
@@ -397,12 +521,12 @@ class Data_Getter():
                                  from_encoding=r.info().get_param('charset'),
                                  features="lxml")
             names = [link['href'] for link in soup.find_all('a', href=True)]
-            names = [f for f in names if'hdf' in f and f[17:23] in tiles]
+            names = [f for f in names if 'hdf' in f and f[17:23] in tiles]
             links = [url + l for l in names]
-            for i in range(len(links)):
-                if not os.path.exists(os.path.join(landcover_path, year)):
-                    os.mkdir(os.path.join(landcover_path, year))
-                path = os.path.join(landcover_path, year, names[i])
+            for i in tqdm(range(len(links)), position=0):
+                if not os.path.exists(os.path.join(self.landcover_path, year)):
+                    os.mkdir(os.path.join(self.landcover_path, year))
+                path = os.path.join(self.landcover_path, year, names[i])
                 if not os.path.exists(path):
                     request = urllib2.Request(links[i])
                     with open(path, 'wb') as file:
@@ -416,7 +540,7 @@ class Data_Getter():
         for year in years:
             print('Stitching together landcover tiles for year ' + year)
             lc_tiles = glob(os.path.join(self.landcover_path, year, "*hdf"))
-            dss = [rasterio.open(f).subdatasets[0] for f in lc_tiles]
+            dss = [rasterio.open(f).subdatasets[0] for f in lc_tiles]           
             tiles = [rasterio.open(d) for d in dss]
             mosaic, transform = merge(tiles)
             crs = tiles[0].meta.copy()
@@ -424,16 +548,10 @@ class Data_Getter():
                         'height': mosaic.shape[1],
                         'width': mosaic.shape[2],
                         'transform': transform})
-            file = 'us_lc_mosaic_' + year + '.tif'
+            file = self.landcover_file_root + year + '.tif'
             path = os.path.join(self.landcover_mosaic_path, file)
             with rasterio.open(path, 'w', **crs) as dest:
                 dest.write(mosaic)
-
-            # Transform into geographic coordinate system
-#            wgs_path = os.path.join(self.landcover_mosaic_path, 'wgs', file)
-#            ds = gdal.Warp(wgs_path, path, dstSRS='EPSG:4326', xRes=res,
-#                           yRes=res, outputBounds=[-130, 20, -55, 50])
-#            del ds
 
 
     def getShapes(self):
@@ -454,11 +572,11 @@ class Data_Getter():
                      '+b=6371007.181 +units=m +no_defs')
 
         # MODIS Sinusoial World Grid
-        if not os.path.exists('data/shapefiles/modis-world_grid.shp'):
+        if not os.path.exists('data/shapefiles/modis_world_grid.shp'):
             src = ('http://book.ecosens.org/wp-content/uploads/2016/06/' +
                    'modis_grid.zip')
             modis = gpd.read_file(src)
-            modis.to_file('data/shapefiles/modis-world_grid.shp')
+            modis.to_file('data/shapefiles/modis_world_grid.shp')
 
         # Contiguous United States - WGS84
         if not os.path.exists('data/shapefiles/conus.shp'):
@@ -476,44 +594,67 @@ class Data_Getter():
             modis_conus = conus.to_crs(modis_crs)
             modis_conus.to_file('data/shapefiles/conus_modis.shp')
 
-        # Level IV Omernick Ecoregions - USGS North American Albers
-        if not os.path.exists('data/shapefiles/ecoregion/us_eco_l4.shp'):
-            print("Downloading Omernick Levels IV Ecoregions from the USGS...")
-            eco_l4 = gpd.read_file('ftp://ftp.epa.gov/wed/ecoregions/us/' +
-                                   'us_eco_l4.zip')
-            eco_l4.crs = {'init': 'epsg:5070'}
-            eco_l4 = eco_l4.to_crs(modis_crs)
-            eco_l4.to_file('data/shapefiles/ecoregion/us_eco_l4_modis.shp')
+        # Level III Omernick Ecoregions - USGS North American Albers
+        if not os.path.exists('data/shapefiles/ecoregion/us_eco_l3.shp'):
+            print("Downloading Omernick Level III Ecoregions from the USGS...")
+            eco_l3 = gpd.read_file('ftp://ftp.epa.gov/wed/ecoregions/us/' +
+                                   'us_eco_l3.zip')
+            eco_l3.crs = {'init': 'epsg:5070'}
+            eco_l3 = eco_l3.to_crs(modis_crs)
+            eco_l3.to_file('data/shapefiles/ecoregion/us_eco_l3_modis.shp')
+            eco_ref = eco_l3[['US_L3CODE', 'NA_L3NAME', 'NA_L2NAME',
+                              'NA_L1NAME']].drop_duplicates()
+            def cap(string):
+                strings = string.split()
+                strings = [s.lower() if s != 'USA' else s for s in strings]
+                caps = [s.capitalize()  if s != 'USA' else s for s in strings]
+                return " ".join(caps)
+            eco_ref['NA_L2NAME'] = eco_ref['NA_L2NAME'].apply(cap)
+            eco_ref['NA_L1NAME'] = eco_ref['NA_L1NAME'].apply(cap)
+            eco_ref.to_csv('data/tables/eco_refs.csv', index=False)
 
-        # Level I Omernick Ecoregions - WGS 84
-        if not os.path.exists('data/shapefiles/ecoregion/us_eco_l1.shp'):
-            print('Dissolving level IV into level I ecoregions...')
-            l4 = 'data/shapefiles/ecoregion/us_eco_l4_modis.shp'
-            l1 = 'data/shapefiles/ecoregion/us_eco_l1_modis.shp'
-            eco_l4 = gpd.read_file(l4)
-            eco_l4['NA_L1CODE'] = eco_l4['NA_L1CODE'].astype(int)
-            name_dict = eco_l4[['NA_L1CODE', 'NA_L1CODE']].drop_duplicates()
-            name_dict = dict(zip(eco_l4['NA_L1NAME'], eco_l4['NA_L1CODE']))
-            eco_l1 = eco_l4[['NA_L1CODE', 'NA_L1NAME', 'geometry']]
-            eco_l1 = eco_l1.dissolve(by='NA_L1CODE')
-            eco_l1['NA_L1CODE'] = eco_l1['NA_L1NAME'].map(name_dict)
-            eco_l1.to_file(l1, driver='ESRI Shapefile')
-            
         # Rasterize Level Omernick Ecoregions - WGS 84
-        src = 'data/shapefiles/ecoregion/us_eco_l1_modis.shp'
-        dst = 'data/rasters/ecoregion/us_eco_l1.tif'
-        t = 'data/rasters/landcover/mosaics/us_lc_mosaic_2001.tif'
-        template = gdal.Open(t)
-        transform = template.GetGeoTransform()
-        crs = template.GetProjection()
-        rasterize(src, dst, 'NA_L1CODE', transform, crs)
+        if not os.path.exists('data/rasters/ecoregion/us_eco_l3_modis.tif'):
+            src = 'data/shapefiles/ecoregion/us_eco_l3_modis.shp'
+            dst = 'data/rasters/ecoregion/us_eco_l3_modis.tif'
+            t = 'data/rasters/landcover/mosaics/us_lc_mosaic_2001.tif'
+            template = rasterio.open(t)
+            transform = template.transform
+            crs = template.crs.wkt
+            extent = template.bounds
+            attribute = 'US_L3CODE'
+            rasterize(src, dst, attribute, transform, crs, extent)
 
-        # Omernick Level IV Ecoregions - MODIS Sinusoidal
-        if not os.path.exists('data/shapefiles/us_eco_l4_modis.shp'):
-            print("Reprojecting ecoregions to MODIS Sinusoidal...")
-            eco_l4 = gpd.read_file('data/shapefiles/us_eco_l4.shp')
-            eco_l4_modis = eco_l4.to_crs(modis_crs)
-            eco_l4_modis.to_file('data/shapefiles/us_eco_l4_modis.shp')
+    def shapeToTiles(self, shp_path):
+        '''
+        Set or reset the tile list using a shapefile. Where shapes intersect
+        with the modis siinusoidal grid determines which tiles to use.
+        Allow this to take in projections. 
+        '''
+        source = gpd.read_file(shp_path)
+        modis_crs = ('+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 ' +
+                     '+b=6371007.181 +units=m +no_defs')
+        try:
+            source = source.to_crs(modis_crs)
+        except Exception as e:
+            print("Error: " + str(e))
+            print("Failed to reproject file, ensure a coordinate reference " +
+                  "system is specified.")
+        try:
+            modis_grid = gpd.read_file('data/shapefiles/modis_world_grid.shp')
+        except:
+            modis_grid = gpd.read_file('http://book.ecosens.org/wp-content/' +
+                                       'uploads/2016/06/modis_grid.zip')
+            modis_grid.to_file('data/shapefiles/modis_world_grid.shp')
+
+        # Left join shapefiles with source shape as the left
+        shared = gpd.sjoin(source, modis_grid, how='left')
+        shared['h'] = shared['h'].apply(lambda x: 'h{:02d}'.format(x))
+        shared['v'] = shared['v'].apply(lambda x: 'h{:02d}'.format(x))
+        shared['tile'] = shared['h'] + shared['v']
+        tiles = pd.unique(shared['tile'].values)
+        self.tiles = tiles
+
 
     def buildNCs(self, files):
         '''
@@ -525,7 +666,7 @@ class Data_Getter():
         # Check that the target folder exists, agian.
         if not os.path.exists(savepath):
             os.mkdir(savepath)
-    
+
         # Set file names
         files.sort()
         names = [os.path.split(f)[-1] for f in files]
@@ -533,120 +674,121 @@ class Data_Getter():
         tile_id = names[0].split('_')[0]
         print("Building netcdf for tile " + tile_id)
         file_name = os.path.join(savepath, tile_id + '.nc')
-    
-        # Use a sample to get geography information and geometries
-        sample = files[0]
-    #    raster = gdal.Open(sample)  # <--------------------------------------- Using hdfs from now on
-    #    geom = raster.GetGeoTransform()
-    #    proj = raster.GetProjection()
-        ds = gdal.Open(sample).GetSubDatasets()[0][0]
-        hdf = gdal.Open(ds)
-        geom = hdf.GetGeoTransform()
-        proj = hdf.GetProjection()
-        data = hdf.GetRasterBand(1)
-        crs = osr.SpatialReference()
-    
-        # Get the proj4 string usign the WKT
-        crs.ImportFromWkt(proj)
-        proj4 = crs.ExportToProj4()
-    
-        # Use one tif (one array) for spatial attributes
-        array = data.ReadAsArray()
-        ny, nx = array.shape
-        xs = np.arange(nx) * geom[1] + geom[0]
-        ys = np.arange(ny) * geom[5] + geom[3]
-    
-        # Todays date for attributes
-        todays_date = dt.datetime.today()
-        today = np.datetime64(todays_date)
-    
-        # Create Dataset
-        nco = Dataset(file_name, mode='w', format='NETCDF4', clobber=True)
-    
-        # Dimensions
-        nco.createDimension('y', ny)
-        nco.createDimension('x', nx)
-        nco.createDimension('time', None)
-    
-        # Variables
-        y = nco.createVariable('y',  np.float64, ('y',))
-        x = nco.createVariable('x',  np.float64, ('x',))
-        times = nco.createVariable('time', np.int64, ('time',))
-        variable = nco.createVariable('value', np.int16, ('time', 'y', 'x'),
-                                      fill_value=-9999, zlib=True)
-        variable.standard_name = 'day'
-        variable.long_name = 'Burn Days'
-    
-        # Appending the CRS information - <------------------------------------ Not overly confident with this, got it from here: "https://cf-trac.llnl.gov/trac/ticket/77"
-        crs = nco.createVariable('crs', 'c')
-        variable.setncattr('grid_mapping', 'crs')
-        crs.spatial_ref = proj4
-        crs.proj4 = proj4
-        crs.geo_transform = geom
-        crs.grid_mapping_name = "sinusoidal"
-        crs.false_easting = 0.0
-        crs.false_northing = 0.0
-        crs.longitude_of_central_meridian = 0.0
-        crs.longitude_of_prime_meridian = 0.0
-        crs.semi_major_axis = 6371007.181
-        crs.inverse_flattening = 0.0
-    
-        # Coordinate attributes
-        x.standard_name = "projection_x_coordinate"
-        x.long_name = "x coordinate of projection"
-        x.units = "m"
-        y.standard_name = "projection_y_coordinate"
-        y.long_name = "y coordinate of projection"
-        y.units = "m"
-    
-        # Other attributes
-        nco.title = "Burn Days"
-        nco.subtitle = "Burn Days Detection by MODIS since 1970."
-        nco.description = "The day that a fire is detected."
-        nco.date = pd.to_datetime(str(today)).strftime("%Y-%m-%d")
-        nco.projection = "MODIS Sinusoidal"
-        nco.Conventions = "CF-1.6"
-    
-        # Variable Attrs
-        times.units = 'days since 1970-01-01'
-        times.standard_name = 'time'
-        times.calendar = 'gregorian'
-        datestrings = [f[-7:] for f in names]
-        dates = []
-        for d in datestrings:
-            year = dt.datetime(year=int(d[:4]), month=1, day=1)
-            date = year + dt.timedelta(int(d[4:]))
-            dates.append(date)
-        deltas = [d - dt.datetime(1970, 1, 1) for d in dates]
-        days = np.array([d.days for d in deltas])
-    
-        # Write dimension data
-        x[:] = xs
-        y[:] = ys
-        times[:] = days
-    
-        # One file a time, write the arrays
-        tidx = 0
-        for f in tqdm(files):
-    #        array = gdal.Open(f).ReadAsArray()  # <--------------------------- Use HDFs from now on, convert to days since 1970 here.
-            ds = gdal.Open(f).GetSubDatasets()[0][0]
-            hdf = gdal.Open(ds)
-            data = hdf.GetRasterBand(1)
-            array = data.ReadAsArray()
-            year = int(f[44:48])
-            array = convertDates(array, year)
 
-            try:
-                variable[tidx, :, :] = array
-            except:
-                print(f + ": failed, probably had wrong dimensions, " +
-                      "inserting a blank array in its place.")
-                blank = np.zeros((ny, nx))
-                variable[tidx, :, :] = blank
-            tidx += 1
+        # Skip if it exists already
+        if os.path.exists(file_name):
+#            os.remove(file_name)
+            print(file_name + ' exists.')
+        else:
+            # Use a sample to get geography information and geometries
+            sample = files[0]
+            ds = gdal.Open(sample).GetSubDatasets()[0][0]
+            hdf = gdal.Open(ds)
+            geom = hdf.GetGeoTransform()
+            proj = hdf.GetProjection()
+            data = hdf.GetRasterBand(1)
+            crs = osr.SpatialReference()
     
-        # Done
-        nco.close()
+            # Get the proj4 string usign the WKT
+            crs.ImportFromWkt(proj)
+            proj4 = crs.ExportToProj4()
+    
+            # Use one tif (one array) for spatial attributes
+            array = data.ReadAsArray()
+            ny, nx = array.shape
+            xs = np.arange(nx) * geom[1] + geom[0]
+            ys = np.arange(ny) * geom[5] + geom[3]
+
+            # Todays date for attributes
+            todays_date = dt.datetime.today()
+            today = np.datetime64(todays_date)
+    
+            # Create Dataset
+            nco = Dataset(file_name, mode='w', format='NETCDF4', clobber=True)
+    
+            # Dimensions
+            nco.createDimension('y', ny)
+            nco.createDimension('x', nx)
+            nco.createDimension('time', None)
+    
+            # Variables
+            y = nco.createVariable('y',  np.float64, ('y',))
+            x = nco.createVariable('x',  np.float64, ('x',))
+            times = nco.createVariable('time', np.int64, ('time',))
+            variable = nco.createVariable('value',np.int16,
+                                          ('time', 'y', 'x'),
+                                          fill_value=-9999, zlib=True)
+            variable.standard_name = 'day'
+            variable.long_name = 'Burn Days'
+    
+            # Appending the CRS information - <-------------------------------- Not overly confident with this, got it from here: "https://cf-trac.llnl.gov/trac/ticket/77"
+            crs = nco.createVariable('crs', 'c')
+            variable.setncattr('grid_mapping', 'crs')
+            crs.spatial_ref = proj4
+            crs.proj4 = proj4
+            crs.geo_transform = geom
+            crs.grid_mapping_name = "sinusoidal"
+            crs.false_easting = 0.0
+            crs.false_northing = 0.0
+            crs.longitude_of_central_meridian = 0.0
+            crs.longitude_of_prime_meridian = 0.0
+            crs.semi_major_axis = 6371007.181
+            crs.inverse_flattening = 0.0
+
+            # Coordinate attributes
+            x.standard_name = "projection_x_coordinate"
+            x.long_name = "x coordinate of projection"
+            x.units = "m"
+            y.standard_name = "projection_y_coordinate"
+            y.long_name = "y coordinate of projection"
+            y.units = "m"
+    
+            # Other attributes
+            nco.title = "Burn Days"
+            nco.subtitle = "Burn Days Detection by MODIS since 1970."
+            nco.description = "The day that a fire is detected."
+            nco.date = pd.to_datetime(str(today)).strftime("%Y-%m-%d")
+            nco.projection = "MODIS Sinusoidal"
+            nco.Conventions = "CF-1.6"
+    
+            # Variable Attrs
+            times.units = 'days since 1970-01-01'
+            times.standard_name = 'time'
+            times.calendar = 'gregorian'
+            datestrings = [f[-7:] for f in names]
+            dates = []
+            for d in datestrings:
+                year = dt.datetime(year=int(d[:4]), month=1, day=1)
+                date = year + dt.timedelta(int(d[4:]))
+                dates.append(date)
+            deltas = [d - dt.datetime(1970, 1, 1) for d in dates]
+            days = np.array([d.days for d in deltas])
+    
+            # Write dimension data
+            x[:] = xs
+            y[:] = ys
+            times[:] = days
+    
+            # One file a time, write the arrays
+            tidx = 0
+            for f in tqdm(files, position=0, file=sys.stdout):
+                ds = gdal.Open(f).GetSubDatasets()[0][0]
+                hdf = gdal.Open(ds)
+                data = hdf.GetRasterBand(1)
+                array = data.ReadAsArray()
+                year = int(f[44:48])
+                array = convertDates(array, year)
+                try:
+                    variable[tidx, :, :] = array
+                except:
+                    print(f + ": failed, probably had wrong dimensions, " +
+                          "inserting a blank array in its place.")
+                    blank = np.zeros((ny, nx))
+                    variable[tidx, :, :] = blank
+                tidx += 1
+    
+            # Done
+            nco.close()
 
     def buildTiffs(self):
         '''
@@ -658,7 +800,7 @@ class Data_Getter():
         tiles = self.tiles
         tile_files = glob(os.path.join(self.hdf_path, '*'))
         tile_files.sort()
-        
+
         # Loop through everything, convert dates, and save to tiff
         for t in tile_files:
             files = glob(os.path.join(t, '*hdf'))
@@ -675,9 +817,9 @@ class Data_Getter():
                     data = hdf.GetRasterBand(1)
                     array = data.ReadAsArray()
 
-                   # Convert dates in array
+                    # Convert dates in array
                     array = convertDates(array, year)
-            
+
                     # Save as a geotiff...see if we get the same output
                     tile = os.path.basename(t)
                     tfolder = os.path.join('data/rasters/burn_area/geotiffs/',
@@ -707,57 +849,57 @@ class Data_Getter():
                 dest.write(mosaic)      
 
 
-class calculateStatistics:
-    def __init__(self, ecoregion_level=1):
-        self.tiles = ["h08v04", "h09v04", "h10v04", "h11v04", "h12v04",
-                      "h13v04", "h08v05", "h09v05", "h10v05", "h11v05",
-                      "h12v05", "h08v06", "h09v06", "h10v06", "h11v06"]
-        self.event_file = 'data/modis_event_polygons.gpkg'
-        self.template_path = 'data/rasters/mosaic_template.tif'
-        self.lc_path = 'data/landcover'
-        self.ecoregion_level = ecoregion_level
-        self.ecoregion_dict = {1: {'code': 'NA_L1CODE',
-                                   'name': 'NA_L1NAME'},
-                               2: {'code': 'NA_L2CODE',
-                                   'name': 'NA_L2NAME'},
-                               3: {'code': 'NA_L3CODE',
-                                   'name': 'NA_L3NAME'}}
-
-    def calculateEcoregions(self):
-        template_path = self.template_path
-        ecoregion_level = self.ecoregion_level
-        ecoregion_dict = self.ecoregion_dict
-        code = ecoregion_dict[ecoregion_level]['code']
-        lc_path = self.lc_path
-
-        # Get the template modis mosaic 
-        if not os.path.exists(self.template_path):
-            files = glob('data/bd_numeric_tiles/*tif')
-            files = [f for f in files if '2001_001' in f]
-            tiles = [rasterio.open(f) for f in files]
-            mosaic, transform = merge(tiles)
-            crs = tiles[0].meta.copy()
-            crs.update({'driver': 'GTIFF',
-                        'height': mosaic.shape[1],
-                        'width': mosaic.shape[2],
-                        'transform': transform})
-            with rasterio.open(template_path, 'w', **crs) as dest:
-                dest.write(mosaic)
-        template = gdal.Open(template_path)
-
-        # Rasterize Ecoregion according to the template crs and geometry
-        src = 'data/shapefiles/us_eco_l3_modis.shp'
-        dst = 'data/rasters/landcover.tif'
-        transform = template.GetGeoTransform()
-        crs = template.GetProjection()
-        if not os.path.exists(dst):
-            rasterize(src, dst, code, transform, crs)
-        eco_raster = gdal.Open(dst)
-
-        # Now read in the event file
-        event_df = gpd.read_file(self.event_file)
-
-        # Now I need landcover raster mosaics  # <----------------------------- Left off here
+#class calculateStatistics:
+#    def __init__(self, ecoregion_level=1):
+#        self.tiles = ["h08v04", "h09v04", "h10v04", "h11v04", "h12v04",
+#                      "h13v04", "h08v05", "h09v05", "h10v05", "h11v05",
+#                      "h12v05", "h08v06", "h09v06", "h10v06", "h11v06"]
+#        self.event_file = 'data/modis_event_polygons.gpkg'
+#        self.template_path = 'data/rasters/mosaic_template.tif'
+#        self.lc_path = 'data/landcover'
+#        self.ecoregion_level = ecoregion_level
+#        self.ecoregion_dict = {1: {'code': 'NA_L1CODE',
+#                                   'name': 'NA_L1NAME'},
+#                               2: {'code': 'NA_L2CODE',
+#                                   'name': 'NA_L2NAME'},
+#                               3: {'code': 'NA_L3CODE',
+#                                   'name': 'NA_L3NAME'}}
+#
+#    def calculateEcoregions(self):
+#        template_path = self.template_path
+#        ecoregion_level = self.ecoregion_level
+#        ecoregion_dict = self.ecoregion_dict
+#        code = ecoregion_dict[ecoregion_level]['code']
+#        lc_path = self.lc_path
+#
+#        # Get the template modis mosaic 
+#        if not os.path.exists(self.template_path):
+#            files = glob('data/bd_numeric_tiles/*tif')
+#            files = [f for f in files if '2001_001' in f]
+#            tiles = [rasterio.open(f) for f in files]
+#            mosaic, transform = merge(tiles)
+#            crs = tiles[0].meta.copy()
+#            crs.update({'driver': 'GTIFF',
+#                        'height': mosaic.shape[1],
+#                        'width': mosaic.shape[2],
+#                        'transform': transform})
+#            with rasterio.open(template_path, 'w', **crs) as dest:
+#                dest.write(mosaic)
+#        template = gdal.Open(template_path)
+#
+#        # Rasterize Ecoregion according to the template crs and geometry
+#        src = 'data/shapefiles/us_eco_l3_modis.shp'
+#        dst = 'data/rasters/landcover.tif'
+#        transform = template.GetGeoTransform()
+#        crs = template.GetProjection()
+#        if not os.path.exists(dst):
+#            rasterize(src, dst, code, transform, crs)
+#        eco_raster = gdal.Open(dst)
+#
+#        # Now read in the event file
+#        event_df = gpd.read_file(self.event_file)
+#
+#        # Now I need landcover raster mosaics  # <----------------------------- Left off here
 
 
 class EventPerimeter:
@@ -948,7 +1090,7 @@ class EventGrid:
         '''
         burns = xr.open_dataset(self.nc_path, chunks=1000)
         array = burns.value
-        mask = array.max(dim='time').compute().values  # <--------------------- See if mean would be faster next time
+        mask = array.max(dim='time').compute().values
         burns.close()
         locs = np.where(mask > 0)
         available_pairs = []
@@ -962,7 +1104,7 @@ class EventGrid:
         Iterate through each cell in the 3D MODIS Burn Date tile and group it
         into fire events using the space-time window.        
         '''
-        print("\nFiltering out cells with no events...")
+        print("Filtering out cells with no events...")
         if self.low_memory:
             available_pairs = self.get_availables()
             arr = self.input_array
@@ -980,7 +1122,7 @@ class EventGrid:
         perimeters = []
 
         # traverse spatially, processing each burn day
-        print("Building event perimeters...\n")
+        print("Building event perimeters...")
         for pair in tqdm(available_pairs, position=0):
             # Separate coordinates
             y, x = pair

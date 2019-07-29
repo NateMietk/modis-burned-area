@@ -24,19 +24,26 @@ libs <- c("tidyverse", "raster", "sf","fasterize", "cowplot", "ggpubr",
 lapply(libs, library, character.only = TRUE, verbose = FALSE)
 
 # paths ========================================================================
-local_data <- "/home/a/data"
-template_path <- "/home/a/data/MCD12Q1_mosaics/usa_lc_mosaic_2001.tif"
-ecoregion_path <- "home/a/data/background_ecoregions"
+# local_data <- "/home/a/data"
+# template_path <- "/home/a/data/MCD12Q1_mosaics/usa_lc_mosaic_2001.tif"
+# ecoregion_path <- "home/a/data/background_ecoregions"
+# s3_path <- "s3://earthlab-natem/modis-burned-area/MCD64A1/C6/delineated_events"
+# cus_path <- "/home/a/data/background/CUS"
+# cus_path <- 'data/shapefiles/conus.shp'
+# raw_events_file <- "data/modis_burn_events_00_19.csv"
+# landcover_eco_file <- "data/lc_eco_events.csv"
+# lat_longs_file <- "data/ignition_lat_longs.csv"
+template_path <- "data/rasters/landcover/mosaics/us_lc_mosaic_2001.tif"
+ecoregion_path <- "data/shapefiles/ecoregion/us_eco_l3_modis.shp"
 s3_path <- "s3://earthlab-natem/modis-burned-area/MCD64A1/C6/delineated_events"
-cus_path <- "/home/a/data/background/CUS"
-raw_events_file <- "data/modis_burn_events_00_19.csv"
-landcover_eco_file <- "data/lc_eco_events.csv"
-lat_longs_file <- "data/ignition_lat_longs.csv"
+cus_path <- 'data/shapefiles/conus.shp'
+raw_events_file <- "data/tables/modis_burn_events_00_19.csv"
+landcover_eco_file <- "data/tables/lc_eco_events.csv"
+lat_longs_file <- "data/tables/ignition_lat_longs.csv"
 
 # only requirement here is native modis projection (sinusiodal, 463.something resolution)
 # this is for changing everything into the same projection
 template <- raster(template_path)
-
 
 # loading in fire event data frame
 df <- read_csv(raw_events_file) %>%
@@ -84,7 +91,7 @@ ll <- read_csv(lat_longs_file) %>%
                 ignition_longitude = longitude)
 event_attributes <- df %>%
   dplyr::select(-year) %>%
-  group_by(id, date) %>%
+    group_by(id, date) %>%
   summarise(pixels = n()) %>%
   ungroup() %>%
   group_by(id) %>%
