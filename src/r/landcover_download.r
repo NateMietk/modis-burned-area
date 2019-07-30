@@ -36,9 +36,9 @@ years = 2001:2016 #2017 disappeared!!
 local_data <- "data/MCD12Q1"
 
 
-corz <- detectCores()-1
-registerDoParallel(corz)
-foreach (y = 1:length(years))%dopar%{
+# corz <- detectCores()-1
+# registerDoParallel(corz)
+foreach (y = 1:length(years))%do%{
   dir.create(file.path(local_data, years[y]), showWarnings = F, recursive = T)
   
   url1 <-paste0("https://e4ftl01.cr.usgs.gov/MOTA/MCD12Q1.006/", years[y], ".01.01/")
@@ -67,6 +67,12 @@ foreach (y = 1:length(years))%dopar%{
       #               output_file_name, method = "wget", quiet = TRUE)
       }
   }
+  system(paste(
+    "aws s3 sync",
+    file.path(local_data,years[y]),
+    file.path("s3://earthlab-natem/modis-burned-area/input/landcover",years[y])
+  ))
+  unlink(file.path(local_data, years[y]))
 }
 
 
