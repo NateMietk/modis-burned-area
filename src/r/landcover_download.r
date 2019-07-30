@@ -72,17 +72,6 @@ foreach (y = 1:length(years))%do%{
     file.path(local_data,years[y]),
     file.path("s3://earthlab-natem/modis-burned-area/input/landcover",years[y])
   ))
-  unlink(file.path(local_data, years[y]))
+  unlink(file.path(local_data, years[y]), recursive = TRUE)
 }
 
-
-# checking to make sure they're all there then writing to s3
-for(y in years){
-  print(y)
-print(length(list.files(file.path(local_data,y))))
-system(paste(
-  "aws s3 sync",
-  file.path(local_data,years[y]),
-  file.path("s3://earthlab-natem/modis-burned-area/input/landcover",years[y])
-))
-}
