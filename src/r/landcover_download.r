@@ -12,6 +12,7 @@ pp <- "Ulmac323"
 u_p <- paste0(uu,":",pp)
 # define tiles
 url1 <-paste0("https://e4ftl01.cr.usgs.gov/MOTA/MCD12Q1.006/2001.01.01/")
+u_p_url <- paste0("https://", u_p, "@https://e4ftl01.cr.usgs.gov/MOTA/MCD12Q1.006/2001.01.01/")
 
 filenames <- RCurl::getURL(url1, userpwd = u_p)
 # write to a temporary file
@@ -38,7 +39,7 @@ local_data <- "data/MCD12Q1"
 corz <- detectCores()-1
 registerDoParallel(corz)
 foreach (y = 1:length(years))%dopar%{
-  dir.create(file.path(local_data, years[y]), showWarnings = F)
+  dir.create(file.path(local_data, years[y]), showWarnings = F, recursive = T)
   
   url1 <-paste0("https://e4ftl01.cr.usgs.gov/MOTA/MCD12Q1.006/", years[y], ".01.01/")
   
@@ -62,6 +63,8 @@ foreach (y = 1:length(years))%dopar%{
       httr::GET(paste0(url1,i),
                 authenticate(uu,pp),
                 write_disk(path = output_file_name))
+      # download.file(paste0(u_p_url, "/",years[y], "/", output_file_name),
+      #               output_file_name, method = "wget", quiet = TRUE)
       }
   }
 }
