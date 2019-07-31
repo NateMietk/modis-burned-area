@@ -38,7 +38,7 @@ s3_path <- "s3://earthlab-natem/modis-burned-area/input/landcover"
 # corz <- detectCores()-1
 # registerDoParallel(corz)
 for (y in 1:length(years)) {
-  dir.create(file.path(local_data, years[y]), showWarnings = F, recursive = T)
+  
   
   url1 <-paste0("https://e4ftl01.cr.usgs.gov/MOTA/MCD12Q1.006/", years[y], ".01.01/")
   
@@ -64,7 +64,7 @@ for (y in 1:length(years)) {
     mutate(file_name = as.character(file_name))
 
   if(nrow(existing_files) != length(tiles)){
-    
+    dir.create(file.path(local_data, years[y]), showWarnings = F, recursive = T)
     for(i in fdf$file_name){
       t0<-Sys.time()
       output_file_name <- file.path(local_data,years[y],i)
