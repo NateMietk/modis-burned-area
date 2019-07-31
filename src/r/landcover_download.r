@@ -2,8 +2,7 @@
 library(httr)
 library(tidyverse)
 library(RCurl)
-library(foreach)
-library(doParallel)
+
 
 # input your username and password here as character strings
 uu <- "admahood" 
@@ -38,7 +37,7 @@ s3_path <- "s3://earthlab-natem/modis-burned-area/input/landcover"
 
 # corz <- detectCores()-1
 # registerDoParallel(corz)
-foreach (y = 1:length(years))%do%{
+for (y in 1:length(years)) {
   dir.create(file.path(local_data, years[y]), showWarnings = F, recursive = T)
   
   url1 <-paste0("https://e4ftl01.cr.usgs.gov/MOTA/MCD12Q1.006/", years[y], ".01.01/")
@@ -59,22 +58,14 @@ foreach (y = 1:length(years))%do%{
   ff <- fl[[1]][str_detect(fl[[1]], "\\S{41}.hdf<")]
   fdf <- data.frame(file_name = str_extract(ff, "\\S{41}.hdf"),
                     file_size_megabytes = str_extract(ff, "\\d{2}M")) %>%
-    mutate(file_size_megabytes = substr(file_size_megabytes,1,2))
-    
-  
-  # read the temporary file as a fixed width text file
-  dir_listing1 <- read_fwf('tmp.txt', fwf_empty('tmp.txt'),skip = 37) %>%
-    dplyr::select(X1) %>%
-    filter(str_detect(X1, "\\S{41}.hdf.xml"))%>%
-    mutate(X1 = str_extract(X1, "\\S{41}.hdf")) %>%
-    filter(substr(X1,18,23) %in% tiles) %>%
-    filter(!X1 %in% existing_files$file_name)
-  
-  
-  
+    mutate(file_size_bytes = substr(file_size_megabytes,1,2)%>%as.numeric()*1000000) %>%
+    filter(str_extract(file_name, "h\\d{2}v\\d{2}") %in% tiles,
+           !file_name %in% existing_files$file_name) %>%
+    mutate(file_name = as.character(file_name))
+
   if(nrow(existing_files) != length(tiles)){
     
-    for(i in dir_listing1$X1){
+    for(i in fdf$file_name){
       output_file_name <- file.path(local_data,years[y],i)
       
       if(!file.exists(output_file_name)){
@@ -83,7 +74,13 @@ foreach (y = 1:length(years))%do%{
                   write_disk(path = output_file_name))
         # download.file(paste0(u_p_url, "/",years[y], "/", output_file_name),
         #               output_file_name, method = "wget", quiet = TRUE)
-        }
+      }
+
+      if(file.info(output_file_name)$size <= 6000000){
+        httr::GET(paste0(url1,i),
+                  authenticate(uu,pp),
+                  write_disk(path = output_file_name))
+      }
     }
     
     system(paste(
