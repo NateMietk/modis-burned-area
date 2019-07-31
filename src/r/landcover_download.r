@@ -66,6 +66,7 @@ for (y in 1:length(years)) {
   if(nrow(existing_files) != length(tiles)){
     
     for(i in fdf$file_name){
+      t0<-Sys.time()
       output_file_name <- file.path(local_data,years[y],i)
       
       if(!file.exists(output_file_name)){
@@ -89,6 +90,8 @@ for (y in 1:length(years)) {
       file.path("s3://earthlab-natem/modis-burned-area/input/landcover",years[y])
     ))
     unlink(file.path(local_data, years[y]), recursive = TRUE)
+    print(Sys.time() - t0)
+    print(years[y])
   }
 }
 
