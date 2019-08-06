@@ -56,12 +56,12 @@ df = pd.DataFrame(columns=['id', 'date', 'x', 'y', 'duration', 'edge', 'tile'])
 base = dt.datetime(1970, 1, 1)
 files.sort()
 for file in files:
-    tile_id = file[-9:-3]
+    tile_id = file[-9:-3] 
     print('\n' + tile_id)
 
     # Create event object
     builder = EventGrid(nc_path=file, spatial_param=5, temporal_param=11,
-                        low_memory=False)
+                        low_memory=low_memory)
 
     # Classify event perimeters
     perimeters = builder.get_event_perimeters_3d()
@@ -217,5 +217,3 @@ df = df[['id', 'tile', 'date', 'x', 'y', 'duration', 'detections']]
 
 # Finally save
 df.to_csv('data/tables/modis_events.csv', index=False)
-
-
