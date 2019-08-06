@@ -15,6 +15,7 @@ Created on Thu June 20 2019
 
 @author: travis
 """
+import ast
 from collections import OrderedDict
 import datetime as dt
 from glob import glob
@@ -38,7 +39,12 @@ except CalledProcessError:
     raise IOError('This is not a git repository, using current directory.')
 
 # Import functions
-from functions import dateRange, edgeCheck, EventGrid, flttn
+from functions import dateRange, edgeCheck, EventGrid, flttn, spCheck
+
+try:
+    low_memory = ast.literal_eval(sys.argv[1])
+except:
+    low_memory = False
 
 # Start the timer (seconds)
 start = time.perf_counter()
@@ -136,10 +142,8 @@ print('Job completed in {} minutes'.format(round(minutes, 2)))
   
 # Step #2: Clear memory, read saved dataframes and concatenate
 # ...
-
-
-# save in case of failure
-df.to_csv('data/modis_burn_events_interem.csv', index=False)
+## save in case of failure
+#df.to_csv('data/tables/modis_burn_events_interem.csv', index=False)
 
 # Recreate unique ids (id + tile perhaps)
 def toDays(date, base):
@@ -212,6 +216,6 @@ df['duration'] = df['id'].map(durmap)
 df = df[['id', 'tile', 'date', 'x', 'y', 'duration', 'detections']]
 
 # Finally save
-df.to_csv(savepath, index=False)
+df.to_csv('data/tables/modis_events.csv', index=False)
 
 

@@ -401,7 +401,9 @@ class Data_Getter():
                     os.remove(trgt)
 
         # Now try again for the missed files
-        print('Missed Files: \n' + str(missings) + ", trying again...")
+        print('Missed Files: \n' + str(missings))
+        if len(missing) > 0:
+            print("trying one more time...")
         for file in missings:
             tile = file[17:23]
             ftp_folder =  '/MCD64A1/C6/' + tile
