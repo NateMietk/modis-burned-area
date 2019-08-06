@@ -315,7 +315,9 @@ class Data_Getter():
                       "h12v05", "h08v06", "h09v06", "h10v06", "h11v06"]
 
     def createPaths(self):
-        folders = ['data', 'data/rasters', 'data/shapefiles', 'data/tables',   # Set these to the path attributes?
+        folders = ['data', 'data/rasters', 'data/shapefiles', 
+                   'data/shapefiles/ecoregion', 'data/shapefiles/landcover',
+                   'data/tables',   # Set these to the path attributes?
                    'data/rasters/burn_area', 'data/rasters/burn_area/hdfs',
                    'data/rasters/landcover', 'data/rasters/ecoregion']
         for f in folders:
