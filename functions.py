@@ -380,10 +380,12 @@ class Data_Getter():
                 trgt = os.path.join(self.hdf_path, tile, h)
 
                 # Check if the file already exists and works
-                try:
-                    gdal.Open(trgt).GetSubDatasets()[0][0]
+                if os.path.exists(trgt):
+#                    gdal.Open(trgt).GetSubDatasets()[0][0]
+                    print(h + " exists...moving on.")
                     missing = []
-                except:
+                else:
+                    print(("Downloading " + h))
                     missing = downloadBA(h)
 
                 # If the downla failed, add to missing
@@ -393,6 +395,7 @@ class Data_Getter():
                 # Even if it didn't fail, make sure it works or add to missing
                 try:
                     gdal.Open(trgt).GetSubDatasets()[0][0]
+                    print(h + " reattempt downloaded successfully")
                 except:
                     missings = missings + [h]
                     os.remove(trgt)
