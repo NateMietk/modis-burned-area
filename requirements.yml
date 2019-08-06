@@ -1,4 +1,4 @@
-name: env
+name: fired
 channels:
   - conda-forge
 dependencies:
@@ -19,5 +19,3 @@ dependencies:
   - toolz
   - tqdm
   - xarray==0.11.3
-  - pip:
-    -tabula-py

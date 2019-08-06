@@ -31,6 +31,7 @@ try:
 except CalledProcessError:
     raise IOError('This is not a git repository, using current directory.')
 
+
 # Variables and objects
 cmaps = {'Perceptually Uniform Sequential': ['viridis', 'plasma', 'inferno',
                                              'magma', 'cividis'],
