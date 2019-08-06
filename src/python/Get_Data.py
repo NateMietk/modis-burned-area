@@ -38,12 +38,12 @@ data = Data_Getter()
 data.tiles = tiles
 print(data.tiles)
 
-## Get various shapefiles for attributes
-#data.getShapes()
-#
-## Get Landcover hdfs - register at https://urs.earthdata.nasa.gov/users/new
-#data.landcover_file_root = 'us_lc_mosaic_'
-#data.getLandcover()
-#
-## Get all of the MODIS burn area hdfs
-#data.getBurns()
+# Get various shapefiles for attributes
+data.getShapes()
+
+# Get Landcover hdfs - register at https://urs.earthdata.nasa.gov/users/new
+data.landcover_file_root = 'us_lc_mosaic_'
+data.getLandcover()
+
+# Get all of the MODIS burn area hdfs
+data.getBurns()
