@@ -14,13 +14,13 @@ from subprocess import check_output, CalledProcessError
 import sys
 
 ## Experimenting wit different ways of doing this (temporary)
-#try:
-#    gitroot = check_output('git rev-parse --show-toplevel', shell=True)
-#    gitroot = gitroot.decode('utf-8').strip()
-#    os.chdir(gitroot)
-#    sys.path.insert(0, 'src/functions')
-#except CalledProcessError:
-#    raise IOError('This is not a git repository, using current directory.')
+try:
+    gitroot = check_output('git rev-parse --show-toplevel', shell=True)
+    gitroot = gitroot.decode('utf-8').strip()
+    os.chdir(gitroot)
+    sys.path.insert(0, 'src/functions')
+except CalledProcessError:
+    raise IOError('This is not a git repository, using current directory.')
 
 try:
     tiles = sys.argv[1]
