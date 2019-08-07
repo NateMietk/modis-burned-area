@@ -7,83 +7,30 @@ RUN conda update conda --yes \
     && conda config --set channel_priority strict \
     && conda install --yes \
     python=3.7 \
-    r-base=3.5 \
-    autopep8 \
-    basemap \
-    cartopy \
-    cenpy \
-    climata \
-    contextily \
-    earthpy \
-    elevation \
-    folium \
-    geocoder \
-    geojson \
-    geopandas \
-    geopy \
-    hydrofunctions \
-    mapboxgl \
-    mapclassify \
-    nano \
-    nbclean \
-    nltk \
-    papermill \
-    pyproj \
-    pyqt \
-    pysal \
-    r-codetools \
-    r-cowplot \
-    r-cyphr \
-    r-curl \
-    r-devtools \
-    r-dplyr \
-    r-dygraphs \
-    r-ff \
-    r-ggmap \
-    r-ggplot2 \
-    r-ggsn \
-    r-gridextra \
-    r-knitr \
-    r-lemon \
-    r-magick \
-    r-mapdata \ 
-    r-maps \
-    r-maptools \
-    r-microbenchmark \
-    r-plotly \
-    r-r.utils \
-    r-raster \
-    r-rastervis \
-    r-rgdal \
-    r-rgeos \
-    r-rjsonio \
-    r-rmarkdown \
-    r-rsaga \
-    r-rtweet \
-    r-sf \
-    r-stringr \
-    r-widyr \
-    r-tm \
-    r-igraph \
-    r-leaflet \
-    r-lubridate \
-    r-rcurl \
-    r-ggraph \
-    r-ggthemes \
-    r-gganimate \
-    r-webshot \
-    r-zoo \
+    beautifulsoup4 \
+    dask \
+    descartes \
+    geopandas \    
+    gdal \
+    lxml \
+    matplotlib \
+    netcdf4 \
+    numpy \
+    pandas \
+    pyyaml \
     rasterio \
-    rasterstats \
-    richdem \
-    scikit-image \
-    scikit-learn \
+    scipy \ 
     shapely \
-    textblob \
-    tweepy \
+    toolz \ 
+    tqdm \
+    xarray=0.11.3 \
     && conda clean --all --yes --force-pkgs-dirs \
     && find /opt/conda/ -follow -type f -name '*.a' -delete \
     && find /opt/conda/ -follow -type f -name '*.pyc' -delete \
     && find /opt/conda/ -follow -type f -name '*.js.map' -delete \
     && conda list
 
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    awscli \
+    htop 
