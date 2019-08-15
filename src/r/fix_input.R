@@ -22,7 +22,7 @@ template_crs <- "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181
 reso <- 463.3127
 pix_hectares <- function(p) p * 463.3127*463.3127 * 0.0001
 
-# the biz ===========
+# grabbing and splitting edge from noedge, writing out events ===========
 dir.create("data/scrap", recursive = TRUE)
 dir.create("data/scrap/edge")
 dir.create("data/scrap/notedge")
@@ -75,6 +75,26 @@ foreach(c = twf, .combine = rbind)%dopar%{
     write_csv(e, outpute)
     system(paste0("aws s3 cp ", outpute," ",
                   "s3://earthlab-natem/modis-burned-area/",
-                  "delineated_events/world/edge/", "edge_",c,".csv"))}  
+                  "delineated_events/world/edge/", "edge_",c,".csv"))
+    unlink(e)
+  }  
   unlink(csvfile)
+  unlink(n)
 }
+
+# get and combine edge tiles for eastern and western hemisphere ==================================
+system(paste0("aws s3 sync ", 
+              "s3://earthlab-natem/modis-burned-area/world/edge ",
+              "data/scrap/edge/"))
+
+wh <-list.files("data/scrap/edge", pattern = "*.csv") %>%
+  filter(substr(.,7,8) %>% as.numeric() < 15) %>%
+  lapply(read_csv) %>%
+  do.call(rbind, .)
+eh <-list.files("data/scrap/edge", pattern = "*.csv") %>%
+  filter(substr(.,7,8) %>% as.numeric() > 15) %>%
+  map_df(~read_csv(.))
+
+
+
+
