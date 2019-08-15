@@ -92,23 +92,25 @@ fl <- list.files("data/scrap/edge", full.names = TRUE, pattern = "*.csv")
 
 corz <- detectCores()-1
 registerDoParallel(corz)
-foreach(ff = fl) {
+foreach(ff = fl) %dopar% {
   tile <- str_extract(ff, "h\\S{5}")
   tilenum <- paste0("1",substr(tile, 2,3), substr(tile,5,6),"0000000") %>% as.numeric
   
   read_csv(ff) %>%
     mutate(id = id + tilenum) %>%
     write_csv(paste0("data/scrap/ef/edge_fixed_", tile, ".csv"))
-    
 }
+fl <- list.files("data/scrap/ef", full.names = TRUE, pattern = "*.csv")
 
-# wh <-fl[fl] %>%
-#   filter(substr(.,7,8) %>% as.numeric() < 15) %>%
-#   lapply(read_csv) %>%
-#   do.call(rbind, .)
-# eh <-list.files("data/scrap/edge", pattern = "*.csv") %>%
-#   filter(substr(.,7,8) %>% as.numeric() > 15) %>%
-#   map_df(~read_csv(.))
+fl[str_extract(fl, "\\d{2}") < 15] %>%
+  lapply(read_csv) %>%
+  do.call(rbind, .) %>%
+  write_csv("data/scrap/wh_edges.csv")
+
+fl[str_extract(fl, "\\d{2}") > 15] %>%
+  lapply(read_csv) %>%
+  do.call(rbind, .) %>%
+  write_csv("data/scrap/eh_edges.csv")
 
 
 
