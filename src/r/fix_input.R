@@ -84,16 +84,31 @@ foreach(c = twf, .combine = rbind)%dopar%{
 
 # get and combine edge tiles for eastern and western hemisphere ==================================
 system(paste0("aws s3 sync ", 
-              "s3://earthlab-natem/modis-burned-area/world/edge ",
-              "data/scrap/edge/"))
+              "s3://earthlab-natem/modis-burned-area/delineated_events/world/edge ",
+              "data/scrap/edge/ "
+              ))
 
-wh <-list.files("data/scrap/edge", pattern = "*.csv") %>%
-  filter(substr(.,7,8) %>% as.numeric() < 15) %>%
-  lapply(read_csv) %>%
-  do.call(rbind, .)
-eh <-list.files("data/scrap/edge", pattern = "*.csv") %>%
-  filter(substr(.,7,8) %>% as.numeric() > 15) %>%
-  map_df(~read_csv(.))
+fl <- list.files("data/scrap/edge", full.names = TRUE, pattern = "*.csv")
+
+corz <- detectCores()-1
+registerDoParallel(corz)
+foreach(ff = fl) {
+  tile <- str_extract(ff, "h\\S{5}")
+  tilenum <- paste0("1",substr(tile, 2,3), substr(tile,5,6),"0000000") %>% as.numeric
+  
+  read_csv(ff) %>%
+    mutate(id = id + tilenum) %>%
+    write_csv(paste0("data/scrap/ef/edge_fixed_", tile, ".csv"))
+    
+}
+
+# wh <-fl[fl] %>%
+#   filter(substr(.,7,8) %>% as.numeric() < 15) %>%
+#   lapply(read_csv) %>%
+#   do.call(rbind, .)
+# eh <-list.files("data/scrap/edge", pattern = "*.csv") %>%
+#   filter(substr(.,7,8) %>% as.numeric() > 15) %>%
+#   map_df(~read_csv(.))
 
 
 
