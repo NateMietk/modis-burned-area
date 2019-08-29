@@ -1,3 +1,4 @@
+library(ggpubr)
 
 classify_ba <-  function(x) {
   ifelse(x < 1, "< 1",
@@ -19,16 +20,22 @@ mtbs_fish <- fishnet_50k %>%
   st_intersection(., mtbs_fire) %>%
   mutate(areakm2 = as.numeric(st_area(.))/1000000) %>%
   group_by(fishid50k) %>%
+  st_buffer(dist=0)%>%
   summarise(freq = n(),
             burn_area = sum(areakm2)) %>%
   st_centroid() %>%
   mutate(class_size = classify_ba(burn_area),
          class_freq = classify_freq(freq))
 
+system("aws s3 cp s3://earthlab-natem/modis-burned-area/delineated_events/modis_event_polygons_cus.gpkg data/modis/modis_event_polygons_cus.gpkg")
+usa_fired <- st_read("data/modis/modis_event_polygons_cus.gpkg") %>%
+  st_transform(crs = st_crs(fishnet_50k))
+
 modis_fish <- fishnet_50k %>%
   st_intersection(., usa_fired) %>%
   mutate(areakm2 = as.numeric(st_area(.))/1000000) %>%
   group_by(fishid50k) %>%
+  st_buffer(dist=0)%>%
   summarise(freq = n(),
             burn_area = sum(areakm2)) %>%
   st_centroid() %>%
@@ -65,14 +72,22 @@ p1 <- modis_fish_ff %>%
   geom_polygon(data = st_df, aes(x = long,y = lat,group=group), color='black', fill = "gray97", size = .50)+
   geom_point(aes(x = long, y = lat, colour = class_freq, size = class_size)) +
   coord_equal() +
-  scale_colour_manual(values = rev(brewer.pal(5,"RdYlBu"))) +
-  scale_size_discrete(range = c(.25, 2), name="Total burned area (km2)") +
+  scale_colour_manual(values = rev(brewer.pal(5,"RdYlBu")), name = "Fire Frequency") +
+  scale_size_discrete(range = c(.25, 2.5), name="Total burned area (km2)") +
   theme_nothing(legend = TRUE) +
   theme(plot.title = element_text(hjust = 0, size = 12),
         strip.background = element_blank(),
         strip.text.x = element_blank(),
         strip.text.y = element_blank(),
-        legend.key = element_rect(fill = "white"))
+        legend.key = element_rect(fill = "white"),
+        legend.position = c(.04,0),
+        legend.justification = c(0,0),
+        legend.background = element_rect(fill ="transparent"),
+        legend.direction = "vertical",
+        legend.box = "horizontal",
+        legend.box.just = "bottom")+
+  guides(col = guide_legend(override.aes = list(shape = 15, size = 7)));p1
+  
 
 p2 <- mtbs_fish_ff %>%
   na.omit() %>%
@@ -84,20 +99,27 @@ p2 <- mtbs_fish_ff %>%
   geom_point(aes(x = long, y = lat, colour = class_freq, size = class_size)) +
   coord_equal() +
   scale_colour_manual(values = rev(brewer.pal(5,"RdYlBu"))) +
-  scale_size_discrete(range = c(.25, 2), name="Total burned area (km2)") +
+  scale_size_discrete(range = c(.25, 2.5), name="Total burned area (km2)") +
   theme_nothing(legend = TRUE) +
   theme(plot.title = element_text(hjust = 0, size = 12),
         strip.background = element_blank(),
         strip.text.x = element_blank(),
         strip.text.y = element_blank(),
-        legend.key = element_rect(fill = "white"))
+        legend.key = element_rect(fill = "white"),
+        legend.position = "none")
 
-p1l <- p1 + theme(legend.position="none")
-p2l <- p2 + theme(legend.position="none")
+# p1l <- p1 + theme(legend.position="none")
+# p2l <- p2 + theme(legend.position="none")
 
-grid.arrange(p1, p2, nrow = 2)
-g <- arrangeGrob(p1l, p2l, nrow = 2) #generates g
+g <- ggarrange(p2,p1, nrow = 2, ncol = 1, labels = c("A. MTBS", "B. FIRED"),
+               font.label = list(face = "plain", size = 16));g
 
-ggsave(file = file.path(draft_figs_dir, "fired_vs_mtbs.tiff"), g, width = 10, height = 9, dpi = 600, scale = 3, units = "cm") #saves g
+# grid.arrange(p1, p2, nrow = 2)
+# g <- arrangeGrob(p1l, p2l, nrow = 2) #generates g
 
+ggsave(file = file.path(draft_figs_dir, "fired_vs_mtbs.tiff"), 
+       g, width = 8.5, height = 11, dpi = 600, scale = 3, units = "cm") #saves g
+
+ggsave(file = file.path(draft_figs_dir, "fired_vs_mtbs.png"), 
+       g, width = 8.5, height = 11, dpi = 300, scale = 3, units = "cm") #saves g
 

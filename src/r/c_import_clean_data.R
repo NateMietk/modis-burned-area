@@ -1,5 +1,16 @@
 # Download and import the Level 4 Ecoregions data, which has Levels 4, 3, 2, 1
 # Download will only happen once as long as the file exists
+if (!exists("states")){
+  download_data(url = "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_state_20m.zip",
+                dir = raw_dir_us,
+                layer = "cb_2016_us_state_20m") 
+  
+  states <- st_read(file.path(raw_dir_us, "cb_2016_us_state_20m.shp")) %>%
+    sf::st_transform(p4string_ea) %>%
+    dplyr::filter(!STUSPS %in% c("HI", "AK", "PR"))
+  states$STUSPS <- droplevels(states$STUSPS)
+}
+
 if (!exists("ecoregions_l4321")){
   if(!file.exists(file.path(raw_dir_ecoregionl4, 'us_eco_l4_no_st.shp'))) {
     # Download ecoregion level 4
@@ -54,12 +65,12 @@ if (!exists("fishnet_50k")) {
 # Import and clean the MTBS polygons
 if (!exists('mtbs_fire')) {
   
-  mtbs_shp <- file.path(raw_dir_mtbs, 'mtbs_perimeter_data')
+  mtbs_shp <- file.path(raw_dir_mtbs)
   if (!file.exists(mtbs_shp)) {
-    file_download(file.path(raw_dir_mtbs, 'mtbs_perimeter_data','mtbs_perims_DD.shp'),
+    file_download(file.path(raw_dir_mtbs, 'mtbs_perims_DD.shp'),
                   raw_dir_mtbs, "https://edcintl.cr.usgs.gov/downloads/sciweb1/shared/MTBS_Fire/data/composite_data/burned_area_extent_shapefile/mtbs_perimeter_data.zip")}
   
-  mtbs_fire <- st_read(dsn = file.path(raw_dir_mtbs, 'mtbs_perimeter_data'),
+  mtbs_fire <- st_read(dsn = file.path(raw_dir_mtbs),
                        layer = 'mtbs_perims_DD', quiet= TRUE) %>%
     filter(Year >= '2001') %>%
     st_transform(st_crs(states)) %>%
