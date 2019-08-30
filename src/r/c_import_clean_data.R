@@ -11,40 +11,40 @@ if (!exists("states")){
   states$STUSPS <- droplevels(states$STUSPS)
 }
 
-if (!exists("ecoregions_l4321")){
-  if(!file.exists(file.path(raw_dir_ecoregionl4, 'us_eco_l4_no_st.shp'))) {
-    # Download ecoregion level 4
-    ecol4_shp <- file.path(raw_dir_ecoregionl4, 'us_eco_l4_no_st.shp')
-    download_data("ftp://newftp.epa.gov/EPADataCommons/ORD/Ecoregions/us/us_eco_l4.zip",
-                  raw_dir_ecoregionl4,
-                  ecol4_shp,
-                  'us_eco_l4_no_st',
-                  raw_dir_ecoregionl4)
-    }
-  
-  ecoregions_l4321 <- st_read(file.path(raw_dir_ecoregionl4, 'us_eco_l4_no_st.shp')) %>%
-    sf::st_transform(st_crs(usa)) %>%
-    st_make_valid() %>%
-    group_by(US_L4NAME, US_L3NAME, NA_L2NAME, NA_L1NAME) %>%
-    summarise() %>%
-    sf::st_simplify(., preserveTopology = TRUE, dTolerance = 100) %>%
-    mutate(region = if_else(NA_L1NAME %in% c("EASTERN TEMPERATE FORESTS",
-                                                       "TROPICAL WET FORESTS",
-                                                       "NORTHERN FORESTS"), "East",
-                                      if_else(NA_L1NAME %in% c("NORTH AMERICAN DESERTS",
-                                                               "SOUTHERN SEMI-ARID HIGHLANDS",
-                                                               "TEMPERATE SIERRAS",
-                                                               "MEDITERRANEAN CALIFORNIA",
-                                                               "NORTHWESTERN FORESTED MOUNTAINS",
-                                                               "MARINE WEST COAST FOREST"), "West", "Central"))) %>%
-    setNames(tolower(names(.)))
-  
-  ecoregions_l4321 %>%
-    st_write(., file.path(ecoregion_dir, 'us_eco_l4321.gpkg'),
-             driver = 'GPKG', delete_layer = TRUE)
-} else {
-  ecoregions_l4321 <- st_read(file.path(ecoregion_dir, 'us_eco_l4321.gpkg'))
-  }
+# if (!exists("ecoregions_l4321")){
+#   if(!file.exists(file.path(raw_dir_ecoregionl4, 'us_eco_l4_no_st.shp'))) {
+#     # Download ecoregion level 4
+#     ecol4_shp <- file.path(raw_dir_ecoregionl4, 'us_eco_l4_no_st.shp')
+#     download_data("ftp://newftp.epa.gov/EPADataCommons/ORD/Ecoregions/us/us_eco_l4.zip",
+#                   raw_dir_ecoregionl4,
+#                   ecol4_shp,
+#                   'us_eco_l4_no_st',
+#                   raw_dir_ecoregionl4)
+#     }
+#   
+#   ecoregions_l4321 <- st_read(file.path(raw_dir_ecoregionl4, 'us_eco_l4_no_st.shp')) %>%
+#     sf::st_transform(st_crs(usa)) %>%
+#     st_make_valid() %>%
+#     group_by(US_L4NAME, US_L3NAME, NA_L2NAME, NA_L1NAME) %>%
+#     summarise() %>%
+#     sf::st_simplify(., preserveTopology = TRUE, dTolerance = 100) %>%
+#     mutate(region = if_else(NA_L1NAME %in% c("EASTERN TEMPERATE FORESTS",
+#                                                        "TROPICAL WET FORESTS",
+#                                                        "NORTHERN FORESTS"), "East",
+#                                       if_else(NA_L1NAME %in% c("NORTH AMERICAN DESERTS",
+#                                                                "SOUTHERN SEMI-ARID HIGHLANDS",
+#                                                                "TEMPERATE SIERRAS",
+#                                                                "MEDITERRANEAN CALIFORNIA",
+#                                                                "NORTHWESTERN FORESTED MOUNTAINS",
+#                                                                "MARINE WEST COAST FOREST"), "West", "Central"))) %>%
+#     setNames(tolower(names(.)))
+#   
+#   ecoregions_l4321 %>%
+#     st_write(., file.path(ecoregion_dir, 'us_eco_l4321.gpkg'),
+#              driver = 'GPKG', delete_layer = TRUE)
+# } else {
+#   ecoregions_l4321 <- st_read(file.path(ecoregion_dir, 'us_eco_l4321.gpkg'))
+#   }
 
 # 50k Fishnet
 if (!exists("fishnet_50k")) {
@@ -67,13 +67,12 @@ if (!exists('mtbs_fire')) {
   mtbs_shp <- file.path(raw_dir_mtbs)
   if (!file.exists(mtbs_shp)) {
     file_download(file.path(raw_dir_mtbs, 'mtbs_perims_DD.shp'),
-                  raw_dir_mtbs, "https://edcintl.cr.usgs.gov/downloads/sciweb1/shared/MTBS_Fire/data/composite_data/burned_area_extent_shapefile/mtbs_perimeter_data.zip")}
+                  raw_dir_mtbs, 
+                  "https://edcintl.cr.usgs.gov/downloads/sciweb1/shared/MTBS_Fire/data/composite_data/burned_area_extent_shapefile/mtbs_perimeter_data.zip")
+    }
   
   mtbs_fire <- st_read(dsn = file.path(raw_dir_mtbs))
-  mtbs_shp <- file.path(raw_dir_mtbs, 'mtbs_perimeter_data')
-  if (!file.exists(mtbs_shp)) {
-    file_download(file.path(raw_dir_mtbs, 'mtbs_perimeter_data','mtbs_perims_DD.shp'),
-                  raw_dir_mtbs, "https://edcintl.cr.usgs.gov/downloads/sciweb1/shared/MTBS_Fire/data/composite_data/burned_area_extent_shapefile/mtbs_perimeter_data.zip")}
+ 
   
   mtbs_fire <- st_read(dsn = file.path(raw_dir_mtbs, 'mtbs_perimeter_data'),
                        layer = 'mtbs_perims_DD', quiet= TRUE) %>%
@@ -94,19 +93,19 @@ if (!exists('mtbs_fire')) {
     dplyr::select(-x, -y) %>%
     st_transform(st_crs(states))}
 
-if(!file.exists(file.path(mtbs_dir, 'lvl4321_eco_mtbs.gpkg'))) {
-  mtbs_ecoregion <- mtbs_fire %>%
-    st_intersection(., ecoregions_l4321) %>%
-    mutate(mtbs_burn_area = as.numeric(st_area(.))/1000000) 
-  
-  mtbs_ecoregion %>%
-    st_write(., file.path(mtbs_dir, 'lvl4321_eco_mtbs.gpkg'), delete_layer = TRUE)
-  
-  system(paste0('aws s3 sync data' , ' ', s3_base))
-  
-} else {
-  mtbs_ecoregion <- st_read(file.path(mtbs_dir, 'lvl4321_eco_mtbs.gpkg'))
-}
+# if(!file.exists(file.path(mtbs_dir, 'lvl4321_eco_mtbs.gpkg'))) {
+#   mtbs_ecoregion <- mtbs_fire %>%
+#     st_intersection(., ecoregions_l4321) %>%
+#     mutate(mtbs_burn_area = as.numeric(st_area(.))/1000000) 
+#   
+#   mtbs_ecoregion %>%
+#     st_write(., file.path(mtbs_dir, 'lvl4321_eco_mtbs.gpkg'), delete_layer = TRUE)
+#   
+#   system(paste0('aws s3 sync data' , ' ', s3_base))
+#   
+# } else {
+#   mtbs_ecoregion <- st_read(file.path(mtbs_dir, 'lvl4321_eco_mtbs.gpkg'))
+# }
 
 # Import Landfire to class out agriculture
 if(!file.exists(file.path(evt_dir, 'us_agriculture_1km.tif'))) {
