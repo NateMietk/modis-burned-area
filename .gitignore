@@ -8,6 +8,7 @@ hdfs/*
 DS_Store
 # tif files
 *.tif
+results/draft_figures/*.tiff
 # data dir
 data/*
 scrap/*
