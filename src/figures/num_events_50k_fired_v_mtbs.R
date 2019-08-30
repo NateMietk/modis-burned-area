@@ -74,6 +74,9 @@ p1 <- modis_fish_ff %>%
   coord_equal() +
   scale_colour_manual(values = rev(brewer.pal(5,"RdYlBu")), name = "Fire Frequency") +
   scale_size_discrete(range = c(.25, 2.5), name="Total burned area (km2)") +
+
+  scale_colour_manual(values = rev(brewer.pal(5,"RdYlBu"))) +
+  scale_size_discrete(range = c(.25, 2), name="Total burned area (km2)") +
   theme_nothing(legend = TRUE) +
   theme(plot.title = element_text(hjust = 0, size = 12),
         strip.background = element_blank(),
@@ -88,6 +91,7 @@ p1 <- modis_fish_ff %>%
         legend.box.just = "bottom")+
   guides(col = guide_legend(override.aes = list(shape = 15, size = 7)));p1
   
+        legend.key = element_rect(fill = "white"))
 
 p2 <- mtbs_fish_ff %>%
   na.omit() %>%
@@ -100,6 +104,8 @@ p2 <- mtbs_fish_ff %>%
   coord_equal() +
   scale_colour_manual(values = rev(brewer.pal(5,"RdYlBu"))) +
   scale_size_discrete(range = c(.25, 2.5), name="Total burned area (km2)") +
+
+  scale_size_discrete(range = c(.25, 2), name="Total burned area (km2)") +
   theme_nothing(legend = TRUE) +
   theme(plot.title = element_text(hjust = 0, size = 12),
         strip.background = element_blank(),
@@ -122,4 +128,14 @@ ggsave(file = file.path(draft_figs_dir, "fired_vs_mtbs.tiff"),
 
 ggsave(file = file.path(draft_figs_dir, "fired_vs_mtbs.png"), 
        g, width = 8.5, height = 11, dpi = 300, scale = 3, units = "cm") #saves g
+        # legend.key = element_rect(fill = "white"))
+
+# p1l <- p1 + theme(legend.position="none")
+# p2l <- p2 + theme(legend.position="none")
+# 
+# grid.arrange(p1, p2, nrow = 2)
+# g <- arrangeGrob(p1l, p2l, nrow = 2) #generates g
+# 
+# ggsave(file = file.path(draft_figs_dir, "fired_vs_mtbs.tiff"), g, width = 10, height = 9, dpi = 600, scale = 3, units = "cm") #saves g
+
 

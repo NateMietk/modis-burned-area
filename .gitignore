@@ -8,7 +8,10 @@ hdfs/*
 DS_Store
 # tif files
 *.tif
+<<<<<<< HEAD
 *.tiff
+=======
+>>>>>>> cf223c04c0766e25f2a2b0619a4a95e3656f9970
 # data dir
 data/*
 scrap/*
