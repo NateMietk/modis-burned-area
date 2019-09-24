@@ -25,7 +25,7 @@ file_sources <- list.files(file.path('src', 'functions'), pattern="*.R",
 invisible(sapply(file_sources, source, .GlobalEnv))
 
 p4string_ea <- "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs"
-
+proj_modis <- "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
 # Raw data folders
 data_dir <- "data"
 raw_dir <- file.path(data_dir, "raw")
