@@ -87,11 +87,11 @@ for(i in 1:length(edge_tile_files)){
     
     for(c in 1:length(conts)){
       dd <- filter(etdf, continent_num == conts[c])
-      fn <- paste0("data/wb_extracts/", tile, "_", conts[c],".gpkg")
-      st_write(etdf, fn, delete_dsn = TRUE)
+      fn <- paste0(tile, "_", conts[c],".gpkg")
+      st_write(etdf, file.path("data/wb_extracts",fn), delete_dsn = TRUE)
       system(paste0("aws s3 cp", " ",
-                    "data/wb_extracts/", fn, " ", "
-                  s3://earthlab-natem/modis-burned-area/delineated_events/world/wb_extracts/", fn ))
+                    "data/wb_extracts/", fn, " ",
+                    "s3://earthlab-natem/modis-burned-area/delineated_events/world/wb_extracts/", fn ))
     }
     
     
