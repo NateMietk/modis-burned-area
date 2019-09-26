@@ -41,13 +41,10 @@ wb <- st_read("data/wb") %>%
                 continent = CONTINENT) %>%
   mutate(cont_num = as.numeric(continent),
          country_num = as.numeric(name)) %>%
+  dplyr::select(cont_num, country_num) %>%
   st_transform(crs=st_crs(proj_modis))
 
 edge_tile_files <- list.files("data/edge_tiles", pattern = "csv", full.names = TRUE)[57:169]
-
-cnames <- unique(wb$continent)
-cnums <- unique(wb$cont_num)
-names(cnames) <- cnums
 
 tiles_done <- list.files("data/wb_extracts/") %>% str_extract("h\\d{2}v\\d{2}")
 
@@ -79,7 +76,7 @@ for(i in 1:length(edge_tile_files)){
         summarize(start_date = first(date),
                   last_date = last(date),
                   country_num = get_mode(country_num),
-                  n_countries = length(unique(name)),
+                  n_countries = length(unique(country_num)),
                   continent_num = get_mode(cont_num))
       
       return(xx)
