@@ -39,11 +39,15 @@ dir.create("data/wb_extracts")
 wb <- st_read("data/wb") %>%
   dplyr::select(name = NAME,
                 continent = CONTINENT) %>%
+  mutate(cont_num = as.numeric(continent),
+         country_num = as.numeric(name)) %>%
   st_transform(crs=st_crs(proj_modis))
 
 edge_tile_files <- list.files("data/edge_tiles", pattern = "csv", full.names = TRUE)[57:169]
 
-
+cnames <- unique(wb$continent)
+cnums <- unique(wb$cont_num)
+names(cnames) <- cnums
 
 tiles_done <- list.files("data/wb_extracts/") %>% str_extract("h\\d{2}v\\d{2}")
 
@@ -71,21 +75,21 @@ for(i in 1:length(edge_tile_files)){
         st_as_sf(coords = c("x","y"),crs = proj_modis) %>%
         st_intersection(wb)%>%
         group_by(id) %>%
-        st_buffer(dist = 1+(resolution/2), endCapStyle = "SQUARE")%>%
+        st_buffer(dist = 1+(resolution/2), endCapStyle = "SQUARE") %>%
         summarize(start_date = first(date),
                   last_date = last(date),
-                  country_name = get_mode(name),
+                  country_num = get_mode(country_num),
                   n_countries = length(unique(name)),
-                  continent = get_mode(continent))
+                  continent_num = get_mode(cont_num))
       
       return(xx)
     
     }
 
-    conts <- unique(etdf$continent) %>% str_sub(1,2) 
+    conts <- unique(etdf$continent_num)
     
     for(c in 1:length(conts)){
-      dd <- filter(etdf, str_sub(continent,1,2) == conts[c])
+      dd <- filter(etdf, continent_num == conts[c])
       fn <- paste0("data/wb_extracts/", tile, "_", conts[c],".gpkg")
       st_write(etdf, fn, delete_dsn = TRUE)
       system(paste0("aws s3 sync", " ",
