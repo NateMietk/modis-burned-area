@@ -283,16 +283,24 @@ for(c in conts){
     
     gg <- st_read(paste0("data/continent_files/polys_cont_", c, ".gpkg")) %>%
       tibble::rownames_to_column("row")%>%
-      dplyr::select(-id, -last_date,-start_date) %>%
+      dplyr::select(-id, -last_date,-start_date, -country_num, -continent_num, -n_countries) %>%
       left_join(dd, by = "row") %>%
+      dplyr::select(-row) %>%
       group_by(id) %>%
-      # partition(cluster) %>%
+      mutate(n = n()) %>%
+      ungroup()
+    
+    ff <- filter(gg, n==1) %>%
+      dplyr::select(-n) %>%
+      mutate(area_burned_ha = drop_units(st_area(.)*0.0001)) 
+    
+    ee <- filter(gg, n>1)%>%
+      group_by(id) %>%
       summarise(start_date = min(start_date),
                 last_date = max(last_date)) %>%
       mutate(area_burned_ha = drop_units(st_area(.)*0.0001)) 
     
-   # fn <- paste0("cont_",c,"_edges_stitched.gpkg")
-    
+    gg<- rbind(ff, ee)
     st_write(gg,paste0("data/", fn)) 
     system(str_c("aws s3 cp ",
                  "data/", fn, " ",
