@@ -103,7 +103,22 @@ for(i in 1:length(edge_tile_files)){
 ######------ progress thus far
 
 # creating the buff # 1 min wh
-t0 <- Sys.time()
+dir.create("data/eh_buffers")
+tile_polys<-list.files("data/wb_extracts", full.names = TRUE, pattern="gpkg")
+
+for(i in 1:length(tile_polys)) {
+  ddb <- st_read(tile_polys[i])
+  
+  corz<- detectCores()-1
+  registerDoParallel(corz)
+  xx <- foreach(j=1:nrow(ddb), .combine = rbind) %dopar%{
+    return(st_buffer(ddb[j,], dist = (ss/2)+1))
+   
+    }
+  st_write(xx, paste0(
+      "data/eh_buffers/",tile_polys[i]%>% str_sub(18,25), "_", "buff.gpkg"
+    ))
+}
 ddb <- st_buffer(dd, dist = (ss/2)+1)
 st_write(ddb, "data/eh_edge_buffers.gpkg", delete_dsn = TRUE)
 print(Sys.time() - t0)
