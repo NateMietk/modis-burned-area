@@ -13,7 +13,7 @@ get_mode <- function(v) {
 ## install funique from github
 remotes::install_github("mkearney/funique")
 
-libs <- c("tidyverse", "raster", "foreach", "doParallel","sf","funique")
+libs <- c("tidyverse", "raster", "foreach", "doParallel","sf","funique", "units")
 lapply(libs, library, character.only = TRUE, verbose = FALSE)
 
 
@@ -250,12 +250,16 @@ for(c in conts){
         if(length(unique(str_sub(orig_ids,1,5)))>1){
           for(j in 1:nrow(dd_subset)){
             if(orig_ids[j] == dd_subset$id[j]){
+              
+              # determining the temporal overlap in a rough but efficient way
               start_range <- dd_subset$start_date[j] - ttime
               end_range <- dd_subset$last_date[j] + ttime
               range <- start_range:end_range
               ww <- which(as.numeric(dd_subset$start_date) %in% range)
               ww <- c(ww, which(as.numeric(dd_subset$last_date) %in% range)) %>% funique
               
+              # this is doing the same thing over and over and over but whatever who cares it doesn't add time
+              # .... or we should fix it 
               if(length(ww) > 1){
                 dat_rows <- dd_subset[ww,]$row %>% as.numeric()
                 new_id <- dd_subset[ww,]$id %>% min()
@@ -273,20 +277,23 @@ for(c in conts){
         #counter <- counter + 1
       }else{print(paste("echo",i,"skipin' it", round(i/nrow(dd) * 100, 3), "%"))}
     }
-    done <- do.call('rbind', res)
+    # done <- do.call('rbind', res)
+    # devtools::install_github("tidyverse/multidplyr")
+    #cluster <- new_cluster(detectCores()-1)
     
     gg <- st_read(paste0("data/continent_files/polys_cont_", c, ".gpkg")) %>%
       tibble::rownames_to_column("row")%>%
       dplyr::select(-id, -last_date,-start_date) %>%
-      left_join(done) %>%
+      left_join(dd, by = "row") %>%
       group_by(id) %>%
+      # partition(cluster) %>%
       summarise(start_date = min(start_date),
-                last_date = max(last_date))  %>%
-      mutate(area_burned_ha = drop_units(st_area(.)*0.0001))
+                last_date = max(last_date)) %>%
+      mutate(area_burned_ha = drop_units(st_area(.)*0.0001)) 
     
    # fn <- paste0("cont_",c,"_edges_stitched.gpkg")
     
-    st_write(done,paste0("data/", fn)) 
+    st_write(gg,paste0("data/", fn)) 
     system(str_c("aws s3 cp ",
                  "data/", fn, " ",
                  "s3://earthlab-natem/modis-burned-area/delineated_events/world/eh_stitched_edges/", fn))
