@@ -100,7 +100,6 @@ for(i in 1:length(edge_tile_files)){
 }
 
 
-######------ progress thus far
 
 # creating the buff # 1 min wh
 dir.create("data/eh_buffers")
@@ -123,20 +122,22 @@ for(i in 1:length(tile_polys)) {
                 "data/eh_buffers/", fn, " ",
                 "s3://earthlab-natem/modis-burned-area/delineated_events/world/eh_buffers/", fn))
 }
-ddb <- st_buffer(dd, dist = (ss/2)+1)
-st_write(ddb, "data/eh_edge_buffers.gpkg", delete_dsn = TRUE)
-print(Sys.time() - t0)
 
+######------ progress thus far
+
+# rbind continents for buffers and regular polygons
+
+# then do this overlay
 t0 <- Sys.time()
 st_overlaps(ddb, sparse = TRUE) -> x # 5 min-ish wh
 print(Sys.time() - t0)
 
 
-dd$overlap <- NA
+xx <- vector(mode = "logical", length = lenth(x))
 for(i in 1:nrow(dd)){
-  dd[i,5] <- ifelse(length(x[[i]]) > 0, TRUE, FALSE)
+  xx <- ifelse(length(x[[i]]) > 0, TRUE, FALSE)
 }
-st_write(dd, "data/eh_edge_polys.gpkg", delete_dsn = TRUE)
+
 # table(dd$overlap)
 
 # st_write(filter(dd, overlap == FALSE), "data/wh_edges_no_overlaps.gpkg", delete_dsn = TRUE)
