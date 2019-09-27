@@ -1,5 +1,6 @@
 # tmp file
 tmp.txt
+core*
 # scrap directory
 scrap/*
 hdfs/*

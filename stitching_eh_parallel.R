@@ -222,11 +222,11 @@ for(c in conts){
     
     dd <- st_read(paste0("data/continent_files/polys_cont_", c, ".gpkg"))
     
-    res <- list()
-    counter <- 1
+    #res <- list()
+    #counter <- 1
     
     registerDoParallel(detectCores()-1)
-    res<- foreach(i = 1:nrow(dd), .combine = rbind){
+    res <- foreach(i = 1:nrow(dd), .combine = rbind)%dopar%{
       if(xx[i] == TRUE){
         system(paste("echo", i,"doin' it", i/nrow(dd) * 100, "%"))
         rows <- x[[i]]
@@ -250,17 +250,17 @@ for(c in conts){
             }
           }
         }
-        xx[rows1] <- FALSE
+        #xx[rows1] <- FALSE
         return(dd_subset)
         #res[[counter]] <- dd_subset
         #counter <- counter + 1
-      }else{system(paste("echo",i,"skipin' it", round(i/nrow(dd) * 100, 3), "%"))}
+      }#else{system(paste("echo",i,"skipin' it", round(i/nrow(dd) * 100, 3), "%"))}
     }
     #done <- do.call('rbind', res) %>%
     done <- res %>%
       group_by(id) %>%
       summarise(start_date = min(start_date),
-                last_date = max(end_date))  %>%
+                last_date = max(last_date))  %>%
       mutate(area_burned_ha = drop_units(st_area(.)*0.0001))
     
     fn <- paste0("cont_",c,"_edges_stitched.gpkg")
