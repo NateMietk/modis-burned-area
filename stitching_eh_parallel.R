@@ -123,7 +123,6 @@ for(i in 1:length(tile_polys)) {
                 "s3://earthlab-natem/modis-burned-area/delineated_events/world/eh_buffers/", fn))
 }
 
-######------ progress thus far
 
 # rbind continents for buffers and regular polygons
 
@@ -164,67 +163,121 @@ for(i in 1:length(conts)){
                  "s3://earthlab-natem/modis-burned-area/delineated_events/world/eh_continent_files/",fn))
   }
 }
-# then do this overlay
-t0 <- Sys.time()
-st_overlaps(ddb, sparse = TRUE) -> x # 5 min-ish wh
-print(Sys.time() - t0)
 
 
-xx <- vector(mode = "logical", length = lenth(x))
-for(i in 1:nrow(dd)){
-  xx <- ifelse(length(x[[i]]) > 0, TRUE, FALSE)
+######------ progress thus far
+
+# Paralise any simple features analysis.
+st_parallel <- function(sf_df, sf_func, n_cores, ...){
+  
+  # Create a vector to split the data set up by.
+  split_vector <- rep(1:n_cores, each = nrow(sf_df) / n_cores, length.out = nrow(sf_df))
+  
+  # Perform GIS analysis
+  split_results <- split(sf_df, split_vector) %>%
+    parallel::mclapply(function(x) sf_func(x, ...), mc.cores = n_cores)
+  
+  
+  # Define the output_class. If length is greater than two, then grab the second variable.
+  output_class <- class(split_results[[1]])
+  if (length(output_class) == 2){
+    output_class <- output_class[2]
+  }
+  
+  # Combine results back together. Method of combining depends on the output from the function.
+  if (output_class == "matrix"){
+    result <- do.call("rbind", split_results)
+    names(result) <- NULL
+  } else if (output_class == "sfc") {
+    result <- do.call("c", split_results)
+    result <- sf_func(result) # do.call combines the list but there are still n_cores of the geometry which had been split up. Running st_union or st_collect gathers them up into one, as is the expected output of these two functions. 
+  } else if (output_class %in% c('list', 'sgbp') ){
+    result <- do.call("c", split_results)
+    names(result) <- NULL
+  } else if (output_class == "data.frame" ){
+    result <- do.call("rbind", split_results)
+  } else {
+    stop("Unknown class. st_parallel only accepts the following outputs at present: sfc, list, sf, matrix, sgbp.")
+  }
+  
+  # Return result
+  return(result)
 }
 
-# table(dd$overlap)
+conts <- c(3,4,5,6,7,1)
 
-# st_write(filter(dd, overlap == FALSE), "data/wh_edges_no_overlaps.gpkg", delete_dsn = TRUE)
-# st_write(filter(dd, overlap == TRUE), "data/wh_edges_yes_overlaps.gpkg", delete_dsn = TRUE)
-
-# ll <- vector(length = nrow(dd))
-# for(i in 1:nrow(x)){
-#   ll[i] <- length(x[[i]])
-# }
-# max(ll)
-
-t0 <- Sys.time()
-res <- list()
-counter <- 1
-xx <- dd$overlap
-for(i in 1:nrow(dd)){
-  if(xx[i] == TRUE){
-    print(paste(i,"doin' it", i/nrow(dd) * 100, "%"))
-    rows <- x[[i]]
-    rows1 <- c(rows, x[rows]) %>% unlist() %>% funique()
-    while(length(rows1) != length(rows)){
-      rows <- c(rows1, x[rows1]) %>% unlist() %>% funique()
-      rows1 <- c(rows, x[rows]) %>% unlist() %>% funique()
+for(c in conts){
+  fn <- paste0("cont_",c,"_edges_stitched.gpkg")
+  if(!file.exists(fn)){
+    ff <- st_read(paste0("data/continent_files/buffs_cont_", c, ".gpkg")) %>%
+      dplyr::select(geom)
+    
+    x <- st_parallel(ff, st_overlaps, detectCores()-1)
+    #x <- st_overlaps(ff, sparse = TRUE) 
+    
+    xx <- vector(mode = "logical", length = length(x))
+    for(i in 1:nrow(ff)){
+      xx[i] <- ifelse(length(x[[i]]) > 0, TRUE, FALSE)
     }
     
-    dd_subset <- dd[rows1,]
-    orig_ids <- dd_subset$id
-    for(j in 1:nrow(dd_subset)){
-      if(orig_ids[j] == dd_subset$id[j]){
-        start_range <- dd_subset$start_date[j] - ttime
-        end_range <- dd_subset$end_date[j] + ttime
-        range <- start_range:end_range
-        ww <- which(as.numeric(dd_subset$start_date) %in% range)
-        ww <- c(ww, which(as.numeric(dd_subset$end_date) %in% range)) %>% funique
-        if(length(ww) > 1){
-          dd_subset[ww,]$id <- dd_subset[ww,]$id %>% min()
+    dd <- st_read(paste0("data/continent_files/polys_cont_", c, ".gpkg"))
+    
+    res <- list()
+    counter <- 1
+    
+    registerDoParallel(detectCores()-1)
+    res<- foreach(i = 1:nrow(dd), .combine = rbind){
+      if(xx[i] == TRUE){
+        system(paste("echo", i,"doin' it", i/nrow(dd) * 100, "%"))
+        rows <- x[[i]]
+        rows1 <- c(rows, x[rows]) %>% unlist() %>% funique()
+        while(length(rows1) != length(rows)){
+          rows <- c(rows1, x[rows1]) %>% unlist() %>% funique()
+          rows1 <- c(rows, x[rows]) %>% unlist() %>% funique()
         }
-      }
+        
+        dd_subset <- dd[rows1,]
+        orig_ids <- dd_subset$id
+        for(j in 1:nrow(dd_subset)){
+          if(orig_ids[j] == dd_subset$id[j]){
+            start_range <- dd_subset$start_date[j] - ttime
+            end_range <- dd_subset$last_date[j] + ttime
+            range <- start_range:end_range
+            ww <- which(as.numeric(dd_subset$start_date) %in% range)
+            ww <- c(ww, which(as.numeric(dd_subset$last_date) %in% range)) %>% funique
+            if(length(ww) > 1){
+              dd_subset[ww,]$id <- dd_subset[ww,]$id %>% min()
+            }
+          }
+        }
+        xx[rows1] <- FALSE
+        return(dd_subset)
+        #res[[counter]] <- dd_subset
+        #counter <- counter + 1
+      }else{system(paste("echo",i,"skipin' it", round(i/nrow(dd) * 100, 3), "%"))}
     }
-    xx[rows1] <- FALSE
-    res[[counter]] <- dd_subset
-    counter <- counter + 1
-  }else{print(paste(i,"skipin' it", i/nrow(dd) * 100, "%"))}
+    #done <- do.call('rbind', res) %>%
+    done <- res %>%
+      group_by(id) %>%
+      summarise(start_date = min(start_date),
+                last_date = max(end_date))  %>%
+      mutate(area_burned_ha = drop_units(st_area(.)*0.0001))
+    
+    fn <- paste0("cont_",c,"_edges_stitched.gpkg")
+    
+    st_write(done,paste0("data/", fn)) 
+    system(str_c("aws s3 cp ",
+                 "data/", fn, " ",
+                 "s3://earthlab-natem/modis-burned-area/delineated_events/world/eh_stitched_edges/", fn))
+  }
 }
+
+
+
+
+t0 <- Sys.time()
+
 
 print(Sys.time()-t0)
 
-done <- do.call('rbind', res) %>%
-  group_by(id) %>%
-  summarise(start_date = min(start_date),
-            end_date = max(end_date))
 
-st_write(done,"eh_edges_stitched.gpkg")
