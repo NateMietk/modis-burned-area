@@ -208,7 +208,7 @@ conts <- c(3,4,5,6,7,1)
 
 for(c in conts){
   fn <- paste0("cont_",c,"_edges_stitched.gpkg")
-  if(!file.exists(fn)){
+  if(!file.exists(str_c("data/",fn))){
     ff <- st_read(paste0("data/continent_files/buffs_cont_", c, ".gpkg")) %>%
       dplyr::select(geom)
     
@@ -220,15 +220,22 @@ for(c in conts){
       xx[i] <- ifelse(length(x[[i]]) > 0, TRUE, FALSE)
     }
     
-    dd <- st_read(paste0("data/continent_files/polys_cont_", c, ".gpkg"))
+    dd <- st_read(paste0("data/continent_files/polys_cont_", c, ".gpkg")) %>%
+      st_set_geometry(NULL) %>%
+      dplyr::select(-country_num, -n_countries, -continent_num) %>%
+      tibble::rownames_to_column("row")
     
-    #res <- list()
-    #counter <- 1
+    # res <- list()
+    counter <- 0 # counting changes
     
-    registerDoParallel(detectCores()-1)
-    res <- foreach(i = 1:nrow(dd), .combine = rbind)%dopar%{
+    orig_dd_ids <- dd$id
+    # registerDoParallel(detectCores()-1)
+    #res <- foreach(i = 1:nrow(dd), .combine = rbind)%dopar%{
+    for(i in 1:nrow(dd)){
       if(xx[i] == TRUE){
-        system(paste("echo", i,"doin' it", i/nrow(dd) * 100, "%"))
+        print(paste("echo", i,"doin' it", round(i/nrow(dd) * 100,3), "%"))
+        
+        # figureing out which rows to select
         rows <- x[[i]]
         rows1 <- c(rows, x[rows]) %>% unlist() %>% funique()
         while(length(rows1) != length(rows)){
@@ -236,34 +243,48 @@ for(c in conts){
           rows1 <- c(rows, x[rows]) %>% unlist() %>% funique()
         }
         
+        # selecting the rows
         dd_subset <- dd[rows1,]
         orig_ids <- dd_subset$id
-        for(j in 1:nrow(dd_subset)){
-          if(orig_ids[j] == dd_subset$id[j]){
-            start_range <- dd_subset$start_date[j] - ttime
-            end_range <- dd_subset$last_date[j] + ttime
-            range <- start_range:end_range
-            ww <- which(as.numeric(dd_subset$start_date) %in% range)
-            ww <- c(ww, which(as.numeric(dd_subset$last_date) %in% range)) %>% funique
-            if(length(ww) > 1){
-              dd_subset[ww,]$id <- dd_subset[ww,]$id %>% min()
+        
+        if(length(unique(str_sub(orig_ids,1,5)))>1){
+          for(j in 1:nrow(dd_subset)){
+            if(orig_ids[j] == dd_subset$id[j]){
+              start_range <- dd_subset$start_date[j] - ttime
+              end_range <- dd_subset$last_date[j] + ttime
+              range <- start_range:end_range
+              ww <- which(as.numeric(dd_subset$start_date) %in% range)
+              ww <- c(ww, which(as.numeric(dd_subset$last_date) %in% range)) %>% funique
+              
+              if(length(ww) > 1){
+                dat_rows <- dd_subset[ww,]$row %>% as.numeric()
+                new_id <- dd_subset[ww,]$id %>% min()
+                dd[dat_rows,]$id <- new_id
+                print(paste("something happened at", i))
+                counter = counter +1
+              }
             }
           }
         }
-        #xx[rows1] <- FALSE
-        return(dd_subset)
+        # making sure we dont repeat things
+        xx[rows1] <- FALSE
+        #return(dd_subset)
         #res[[counter]] <- dd_subset
         #counter <- counter + 1
-      }#else{system(paste("echo",i,"skipin' it", round(i/nrow(dd) * 100, 3), "%"))}
+      }else{print(paste("echo",i,"skipin' it", round(i/nrow(dd) * 100, 3), "%"))}
     }
-    #done <- do.call('rbind', res) %>%
-    done <- res %>%
+    done <- do.call('rbind', res)
+    
+    gg <- st_read(paste0("data/continent_files/polys_cont_", c, ".gpkg")) %>%
+      tibble::rownames_to_column("row")%>%
+      dplyr::select(-id, -last_date,-start_date) %>%
+      left_join(done) %>%
       group_by(id) %>%
       summarise(start_date = min(start_date),
                 last_date = max(last_date))  %>%
       mutate(area_burned_ha = drop_units(st_area(.)*0.0001))
     
-    fn <- paste0("cont_",c,"_edges_stitched.gpkg")
+   # fn <- paste0("cont_",c,"_edges_stitched.gpkg")
     
     st_write(done,paste0("data/", fn)) 
     system(str_c("aws s3 cp ",
