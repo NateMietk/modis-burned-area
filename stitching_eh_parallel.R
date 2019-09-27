@@ -107,17 +107,21 @@ dir.create("data/eh_buffers")
 tile_polys<-list.files("data/wb_extracts", full.names = TRUE, pattern="gpkg")
 
 for(i in 1:length(tile_polys)) {
-  ddb <- st_read(tile_polys[i])
+  ddb <- st_read(tile_polys[i], quiet = TRUE)
   
   corz<- detectCores()-1
   registerDoParallel(corz)
   xx <- foreach(j=1:nrow(ddb), .combine = rbind) %dopar%{
     return(st_buffer(ddb[j,], dist = (ss/2)+1))
    
-    }
+  }
+  fn <- str_c(tile_polys[i]%>% str_sub(18,25), "_", "buff.gpkg")
   st_write(xx, paste0(
-      "data/eh_buffers/",tile_polys[i]%>% str_sub(18,25), "_", "buff.gpkg"
-    ))
+      "data/eh_buffers/", fn
+    ), quiet = TRUE)
+  system(paste0("aws s3 cp ",
+                "data/eh_buffers/", fn, " ",
+                "s3://earthlab-natem/modis-burned-area/delineated_events/world/eh_buffers/", fn))
 }
 ddb <- st_buffer(dd, dist = (ss/2)+1)
 st_write(ddb, "data/eh_edge_buffers.gpkg", delete_dsn = TRUE)
