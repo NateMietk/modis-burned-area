@@ -127,6 +127,43 @@ for(i in 1:length(tile_polys)) {
 
 # rbind continents for buffers and regular polygons
 
+buff_files <- list.files("data/eh_buffers", pattern = "gpkg", full.names = TRUE)
+
+dir.create("data/continent_files")
+conts <- wb$cont_num %>% unique()
+buff_list<-list()
+for(i in 1:length(conts)){
+  files <- buff_files[str_detect(buff_files, str_c("_", i, "_"))]
+  if(length(files>0)){
+  for(j in 1:length(files)){
+    buff_list[[j]] <- st_read(files[j])
+  }
+  full_thing<-do.call("rbind", buff_list)
+  fn <- str_c("buffs_cont_", i, ".gpkg")
+  st_write(full_thing, file.path(str_c("data/continent_files/", fn)))
+  system(str_c("aws s3 cp ",
+               "data/continent_files/", fn, " ",
+               "s3://earthlab-natem/modis-burned-area/delineated_events/world/eh_continent_files/",fn))
+  }
+}
+
+poly_files <- list.files("data/wb_extracts", pattern = "gpkg", full.names = TRUE)
+
+poly_list<-list()
+for(i in 1:length(conts)){
+  files <- poly_files[str_detect(poly_files, str_c("_", i, "."))]
+  if(length(files>0)){
+    for(j in 1:length(files)){
+      poly_list[[j]] <- st_read(files[j])
+    }
+    full_thing<-do.call("rbind", poly_list)
+    fn <- str_c("polys_cont_", i, ".gpkg")
+    st_write(full_thing, file.path(str_c("data/continent_files/", fn)))
+    system(str_c("aws s3 cp ",
+                 "data/continent_files/", fn, " ",
+                 "s3://earthlab-natem/modis-burned-area/delineated_events/world/eh_continent_files/",fn))
+  }
+}
 # then do this overlay
 t0 <- Sys.time()
 st_overlaps(ddb, sparse = TRUE) -> x # 5 min-ish wh
