@@ -1,8 +1,8 @@
 #rbind eh
 
 library(tidyverse)
-install.packages("snowfall")
-library(snowfall)
+# install.packages("snowfall")
+# library(snowfall)
 library(sf)
 
 system("aws s3 sync s3://earthlab-natem/modis-burned-area/delineated_events/world/noedge data/noedge")
@@ -33,7 +33,7 @@ rbinder <- function(..., cores=NULL){
   }
 }
 
-eh <- rbinder(file_list, cores = detectCores()-1)
-eh<- do.call("rbind", file_list)
+# eh <- rbinder(file_list, cores = detectCores()-1) #didnt work
+eh<- do.call("rbind", file_list) # takes about an hour
 st_write(eh, "eastern_hemisphere_tomay2019.gpkg", delete_dsn = TRUE)
-system("aws s3 cp eastern_hemisphere_tomap2019.gpkg s3://earthlab-natem/modis-burned-area/delineated_events/eastern_hemisphere_tomay2019.gpkg")
+system("aws s3 cp eastern_hemisphere_tomay2019.gpkg s3://earthlab-natem/modis-burned-area/delineated_events/eastern_hemisphere_to_may2019.gpkg")
