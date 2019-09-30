@@ -294,7 +294,7 @@ for(c in conts){
     done <- do.call('rbind', res) %>%
       group_by(id) %>%
       summarise(start_date = min(start_date),
-                end_date = max(end_date)) %>%
+                last_date = max(last_date)) %>%
       mutate(area_burned_ha = drop_units(st_area(.)*0.0001)) 
     
     st_write(done,paste0("data/", fn)) 
@@ -328,11 +328,6 @@ for(c in conts){
     #              "s3://earthlab-natem/modis-burned-area/delineated_events/world/eh_stitched_edges/", fn))
   }
 }
-
-
-
-
-
 
 print(Sys.time()-t0)
 
