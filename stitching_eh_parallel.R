@@ -301,26 +301,44 @@ for(c in conts){
     #cluster <- new_cluster(detectCores()-1)
     
     print(Sys.time()-t0)
+    
+    
+    # registerDoParallel(detectCores()-1)
+    # gg<- foreach(i = 1:length(res))%dopar%{
+    #   return(res[[i]] %>%
+    #     group_by(id) %>%
+    #     summarise(start_date = min(start_date),
+    #               last_date = max(last_date)) %>%
+    #     mutate(area_burned_ha = drop_units(st_area(.)*0.0001)) %>%
+    #       st_as_sf() %>%
+    #       st_cast("MULTIPOLYGON")
+    #   )
+    # }
+    
+    gg <- do.call("rbind", res) %>%
+      group_by(id) %>%
+      mutate(n = n()) %>%
+      ungroup()
+    
     hh <- dd[which(xx == FALSE),] %>%
       mutate(area_burned_ha = drop_units(st_area(.)*0.0001)) 
     
-    registerDoParallel(detectCores()-1)
-    gg<- foreach(i = 1:length(res))%dopar%{
-      return(res[[i]] %>%
-        group_by(id) %>%
-        summarise(start_date = min(start_date),
-                  last_date = max(last_date)) %>%
-        mutate(area_burned_ha = drop_units(st_area(.)*0.0001))
-      )
-    }
-    ii <- sf::st_as_sf(data.table::rbindlist(gg)) %>%
-      # group_by(id) %>%
-      # summarise(start_date = min(start_date),
-      #           last_date = max(last_date)) %>%
-      # mutate(area_burned_ha = drop_units(st_area(.)*0.0001)) %>%
-      rbind(hh)
+    ii<- gg %>%
+      filter(n ==1) %>%
+      dplyr::select(-n) %>%
+      mutate(area_burned_ha = drop_units(st_area(.)*0.0001)) 
+      
+    jj <- gg %>%
+      filter(n > 1) %>%
+      dplyr::select(-n) %>%
+      group_by(id) %>%
+      summarise(start_date = min(start_date),
+                last_date = max(last_date)) %>%
+      mutate(area_burned_ha = drop_units(st_area(.)*0.0001)) 
     
-    st_write(gg,paste0("data/", fn)) 
+    kk<- do.call("rbind", list(jj,ii,hh))
+    
+    st_write(kk,paste0("data/", fn), delete_dsn=TRUE) 
     system(str_c("aws s3 cp ",
                  "data/", fn, " ",
                  "s3://earthlab-natem/modis-burned-area/delineated_events/world/eh_stitched_edges/", fn))
