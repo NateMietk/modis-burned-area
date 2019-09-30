@@ -46,6 +46,7 @@ wb <- st_read("data/wb") %>%
 
 edge_tile_files <- list.files("data/edge_tiles", pattern = "csv", full.names = TRUE)[57:169]
 
+system("aws s3 sync s3://earthlab-natem/modis-burned-area/delineated_events/world/wb_extracts data/wb_extracts")
 tiles_done <- list.files("data/wb_extracts/") %>% str_extract("h\\d{2}v\\d{2}")
 
 for(i in 1:length(edge_tile_files)){
@@ -103,6 +104,7 @@ for(i in 1:length(edge_tile_files)){
 
 # creating the buff # 1 min wh
 dir.create("data/eh_buffers")
+system("aws s3 sync s3://earthlab-natem/modis-burned-area/delineated_events/world/eh_buffers data/eh_buffers")
 tile_polys<-list.files("data/wb_extracts", full.names = TRUE, pattern="gpkg")
 
 for(i in 1:length(tile_polys)) {
@@ -125,6 +127,8 @@ for(i in 1:length(tile_polys)) {
 
 
 # rbind continents for buffers and regular polygons
+
+system("aws s3 sync s3://earthlab-natem/modis-burned-area/delineated_events/world/eh_continent_files data/continent_files")
 
 buff_files <- list.files("data/eh_buffers", pattern = "gpkg", full.names = TRUE)
 
@@ -205,6 +209,7 @@ st_parallel <- function(sf_df, sf_func, n_cores, ...){
 }
 
 conts <- c(3,4,5,6,7,1)
+t0 <- Sys.time()
 
 for(c in conts){
   fn <- paste0("cont_",c,"_edges_stitched.gpkg")
@@ -225,8 +230,8 @@ for(c in conts){
       dplyr::select(-country_num, -n_countries, -continent_num) %>%
       tibble::rownames_to_column("row")
     
-    # res <- list()
-    counter <- 0 # counting changes
+    res <- list()
+    counter <- 1 # counting changes
     
     orig_dd_ids <- dd$id
     # registerDoParallel(detectCores()-1)
@@ -260,12 +265,15 @@ for(c in conts){
               
               # this is doing the same thing over and over and over but whatever who cares it doesn't add time
               # .... or we should fix it 
+              # if(length(ww) > 1){
+              #   dat_rows <- dd_subset[ww,]$row %>% as.numeric()
+              #   new_id <- dd_subset[ww,]$id %>% min()
+              #   dd[dat_rows,]$id <- new_id
+              #   print(paste("something happened at", i))
+              #   counter = counter +1
+              # }
               if(length(ww) > 1){
-                dat_rows <- dd_subset[ww,]$row %>% as.numeric()
-                new_id <- dd_subset[ww,]$id %>% min()
-                dd[dat_rows,]$id <- new_id
-                print(paste("something happened at", i))
-                counter = counter +1
+                dd_subset[ww,]$id <- dd_subset[ww,]$id %>% min()
               }
             }
           }
@@ -273,45 +281,57 @@ for(c in conts){
         # making sure we dont repeat things
         xx[rows1] <- FALSE
         #return(dd_subset)
-        #res[[counter]] <- dd_subset
-        #counter <- counter + 1
+        res[[counter]] <- dd_subset
+        counter <- counter + 1
       }else{print(paste("echo",i,"skipin' it", round(i/nrow(dd) * 100, 3), "%"))}
     }
     # done <- do.call('rbind', res)
     # devtools::install_github("tidyverse/multidplyr")
     #cluster <- new_cluster(detectCores()-1)
     
-    gg <- st_read(paste0("data/continent_files/polys_cont_", c, ".gpkg")) %>%
-      tibble::rownames_to_column("row")%>%
-      dplyr::select(-id, -last_date,-start_date, -country_num, -continent_num, -n_countries) %>%
-      left_join(dd, by = "row") %>%
-      dplyr::select(-row) %>%
-      group_by(id) %>%
-      mutate(n = n()) %>%
-      ungroup()
+    print(Sys.time()-t0)
     
-    ff <- filter(gg, n==1) %>%
-      dplyr::select(-n) %>%
-      mutate(area_burned_ha = drop_units(st_area(.)*0.0001)) 
-    
-    ee <- filter(gg, n>1)%>%
+    done <- do.call('rbind', res) %>%
       group_by(id) %>%
       summarise(start_date = min(start_date),
-                last_date = max(last_date)) %>%
+                end_date = max(end_date)) %>%
       mutate(area_burned_ha = drop_units(st_area(.)*0.0001)) 
     
-    gg<- rbind(ff, ee)
-    st_write(gg,paste0("data/", fn)) 
+    st_write(done,paste0("data/", fn)) 
     system(str_c("aws s3 cp ",
                  "data/", fn, " ",
                  "s3://earthlab-natem/modis-burned-area/delineated_events/world/eh_stitched_edges/", fn))
+    
+    # gg <- st_read(paste0("data/continent_files/polys_cont_", c, ".gpkg")) %>%
+    #   tibble::rownames_to_column("row")%>%
+    #   dplyr::select(-id, -last_date,-start_date, -country_num, -continent_num, -n_countries) %>%
+    #   left_join(dd, by = "row") %>%
+    #   dplyr::select(-row) %>%
+    #   group_by(id) %>%
+    #   mutate(n = n()) %>%
+    #   ungroup()
+    # 
+    # ff <- filter(gg, n==1) %>%
+    #   dplyr::select(-n) %>%
+    #   mutate(area_burned_ha = drop_units(st_area(.)*0.0001)) 
+    # 
+    # ee <- filter(gg, n>1)%>%
+    #   group_by(id) %>%
+    #   summarise(start_date = min(start_date),
+    #             last_date = max(last_date)) %>%
+    #   mutate(area_burned_ha = drop_units(st_area(.)*0.0001)) 
+    # 
+    # gg<- rbind(ff, ee)
+    # st_write(gg,paste0("data/", fn)) 
+    # system(str_c("aws s3 cp ",
+    #              "data/", fn, " ",
+    #              "s3://earthlab-natem/modis-burned-area/delineated_events/world/eh_stitched_edges/", fn))
   }
 }
 
 
 
 
-t0 <- Sys.time()
 
 
 print(Sys.time()-t0)
