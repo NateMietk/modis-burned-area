@@ -12,8 +12,8 @@ get_mode <- function(v) {
 }
 ## install funique from github
 remotes::install_github("mkearney/funique")
-
-libs <- c("tidyverse", "raster", "foreach", "doParallel","sf","funique", "units")
+install.packages("mapedit")
+libs <- c("tidyverse", "raster", "mapedit", "foreach", "doParallel","sf","funique", "units")
 lapply(libs, library, character.only = TRUE, verbose = FALSE)
 
 
@@ -217,8 +217,13 @@ for(c in conts){
     ff <- st_read(paste0("data/continent_files/buffs_cont_", c, ".gpkg")) %>%
       dplyr::select(geom)
     
-    x <- st_parallel(ff, st_overlaps, detectCores()-1)
-    #x <- st_overlaps(ff, sparse = TRUE) 
+    # parallel won't work for st_overlap!!!
+    # parallelize by continent first and save the matrix as an rds
+    # x <- st_parallel(ff, st_overlaps, detectCores()-1)
+    t0 <- Sys.time()
+    x <- st_overlaps(ff, sparse = TRUE) 
+    saveRDS(x, paste0("cont_",c,"overlaps.rds"))
+    print(Sys.time() - t0)
     
     xx <- vector(mode = "logical", length = length(x))
     for(i in 1:nrow(ff)){
@@ -226,9 +231,7 @@ for(c in conts){
     }
     
     dd <- st_read(paste0("data/continent_files/polys_cont_", c, ".gpkg")) %>%
-      st_set_geometry(NULL) %>%
-      dplyr::select(-country_num, -n_countries, -continent_num) %>%
-      tibble::rownames_to_column("row")
+      dplyr::select(-country_num, -n_countries, -continent_num)
     
     res <- list()
     counter <- 1 # counting changes
@@ -242,20 +245,24 @@ for(c in conts){
         
         # figureing out which rows to select
         rows <- x[[i]]
-        rows1 <- c(rows, x[rows]) %>% unlist() %>% funique()
+        rows1 <- c(i,rows, x[rows]) %>% unlist() %>% funique()
         while(length(rows1) != length(rows)){
-          rows <- c(rows1, x[rows1]) %>% unlist() %>% funique()
-          rows1 <- c(rows, x[rows]) %>% unlist() %>% funique()
+          rows <- c(i, rows1, x[rows1]) %>% unlist() %>% funique()
+          rows1 <- c(i,rows, x[rows]) %>% unlist() %>% funique()
         }
         
+        # making sure we dont repeat things
+        xx[rows1] <- FALSE
+        #xx[rows] <- FALSE
         # selecting the rows
-        dd_subset <- dd[rows1,]
+        dd_subset <- dd[rows1,] %>%
+          mutate(flag = FALSE)
         orig_ids <- dd_subset$id
         
         if(length(unique(str_sub(orig_ids,1,5)))>1){
           for(j in 1:nrow(dd_subset)){
             if(orig_ids[j] == dd_subset$id[j]){
-              
+              if(!dd_subset$flag[j])
               # determining the temporal overlap in a rough but efficient way
               start_range <- dd_subset$start_date[j] - ttime
               end_range <- dd_subset$last_date[j] + ttime
@@ -274,30 +281,46 @@ for(c in conts){
               # }
               if(length(ww) > 1){
                 dd_subset[ww,]$id <- dd_subset[ww,]$id %>% min()
+                dd_subset[ww,]$flag <- TRUE
+                print(paste("something happened at", i))
               }
             }
           }
         }
-        # making sure we dont repeat things
-        xx[rows1] <- FALSE
+    
         #return(dd_subset)
-        res[[counter]] <- dd_subset
+        res[[counter]] <- dd_subset %>% dplyr::select(-flag)
         counter <- counter + 1
-      }else{print(paste("echo",i,"skipin' it", round(i/nrow(dd) * 100, 3), "%"))}
+      }else{print(paste("echo",i,"skipin' it", round(i/nrow(dd) * 100, 3), "%"))
+        #res[[counter]] <- dd[i,]
+        #counter <- counter +1
+        }
     }
     # done <- do.call('rbind', res)
     # devtools::install_github("tidyverse/multidplyr")
     #cluster <- new_cluster(detectCores()-1)
     
     print(Sys.time()-t0)
-    
-    done <- do.call('rbind', res) %>%
-      group_by(id) %>%
-      summarise(start_date = min(start_date),
-                last_date = max(last_date)) %>%
+    hh <- dd[which(xx == FALSE),] %>%
       mutate(area_burned_ha = drop_units(st_area(.)*0.0001)) 
     
-    st_write(done,paste0("data/", fn)) 
+    registerDoParallel(detectCores()-1)
+    gg<- foreach(i = 1:length(res))%dopar%{
+      return(res[[i]] %>%
+        group_by(id) %>%
+        summarise(start_date = min(start_date),
+                  last_date = max(last_date)) %>%
+        mutate(area_burned_ha = drop_units(st_area(.)*0.0001))
+      )
+    }
+    ii <- sf::st_as_sf(data.table::rbindlist(gg)) %>%
+      # group_by(id) %>%
+      # summarise(start_date = min(start_date),
+      #           last_date = max(last_date)) %>%
+      # mutate(area_burned_ha = drop_units(st_area(.)*0.0001)) %>%
+      rbind(hh)
+    
+    st_write(gg,paste0("data/", fn)) 
     system(str_c("aws s3 cp ",
                  "data/", fn, " ",
                  "s3://earthlab-natem/modis-burned-area/delineated_events/world/eh_stitched_edges/", fn))
