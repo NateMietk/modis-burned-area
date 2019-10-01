@@ -12,7 +12,7 @@ get_mode <- function(v) {
 }
 ## install funique from github
 remotes::install_github("mkearney/funique")
-install.packages("mapedit")
+install.packages("mapedit") # this is supposed to have a rbind for sf objects
 libs <- c("tidyverse", "raster", "mapedit", "foreach", "doParallel","sf","funique", "units")
 lapply(libs, library, character.only = TRUE, verbose = FALSE)
 
@@ -33,7 +33,7 @@ ss <- sspace * resolution
 tt <- ttime
 
 #d<-read_csv("data/edges/wh_edges.csv")
-#first create points and overlay with continent
+# first create points and overlay with continent ===============================
 
 dir.create("data/wb_extracts")
 wb <- st_read("data/wb") %>%
@@ -208,7 +208,12 @@ st_parallel <- function(sf_df, sf_func, n_cores, ...){
   return(result)
 }
 
+system(str_c("aws s3 sync ",
+             "s3://earthlab-natem/modis-burned-area/delineated_events/world/eh_continent_files ",
+             "data/continent_files "
+             ))
 conts <- c(3,4,5,6,7,1)
+
 t0 <- Sys.time()
 
 for(c in conts){
@@ -221,15 +226,23 @@ for(c in conts){
     # parallelize by continent first and save the matrix as an rds
     # x <- st_parallel(ff, st_overlaps, detectCores()-1)
     t0 <- Sys.time()
-    x <- st_overlaps(ff, sparse = TRUE) 
-    saveRDS(x, paste0("cont_",c,"overlaps.rds"))
+    oo <- ff[1:500,]
+    #x <- st_overlaps(oo, sparse = TRUE) 
+    registerDoParallel(detectCores()-1)
+    x <- foreach(i = 1:nrow(oo))%dopar%{
+      zz<- st_overlaps(oo[i,], oo)
+      return(zz[[1]])
+    }
+    
+    
+    #saveRDS(x, paste0("cont_",c,"overlaps.rds"))
     print(Sys.time() - t0)
     
     xx <- vector(mode = "logical", length = length(x))
-    for(i in 1:nrow(ff)){
+    for(i in 1:length(x)){
       xx[i] <- ifelse(length(x[[i]]) > 0, TRUE, FALSE)
     }
-    
+    xxx<- xx
     dd <- st_read(paste0("data/continent_files/polys_cont_", c, ".gpkg")) %>%
       dplyr::select(-country_num, -n_countries, -continent_num)
     
@@ -239,7 +252,9 @@ for(c in conts){
     orig_dd_ids <- dd$id
     # registerDoParallel(detectCores()-1)
     #res <- foreach(i = 1:nrow(dd), .combine = rbind)%dopar%{
-    for(i in 1:nrow(dd)){
+    #for(i in 1:nrow(dd)){
+    for(i in 1:length(x)){
+        
       if(xx[i] == TRUE){
         print(paste("echo", i,"doin' it", round(i/nrow(dd) * 100,3), "%"))
         
@@ -320,23 +335,27 @@ for(c in conts){
       mutate(n = n()) %>%
       ungroup()
     
-    hh <- dd[which(xx == FALSE),] %>%
+    hh <- dd[which(xxx == FALSE),] %>%
       mutate(area_burned_ha = drop_units(st_area(.)*0.0001)) 
     
     ii<- gg %>%
       filter(n ==1) %>%
       dplyr::select(-n) %>%
       mutate(area_burned_ha = drop_units(st_area(.)*0.0001)) 
-      
-    jj <- gg %>%
-      filter(n > 1) %>%
-      dplyr::select(-n) %>%
-      group_by(id) %>%
-      summarise(start_date = min(start_date),
-                last_date = max(last_date)) %>%
-      mutate(area_burned_ha = drop_units(st_area(.)*0.0001)) 
     
-    kk<- do.call("rbind", list(jj,ii,hh))
+    if((nrow(hh) + nrow(ii)) == length(xxx)){
+      kk<- do.call("rbind", list(ii,hh))
+    }else{
+      jj <- gg %>%
+        filter(n > 1) %>%
+        dplyr::select(-n) %>%
+        group_by(id) %>%
+        summarise(start_date = min(start_date),
+                  last_date = max(last_date)) %>%
+        mutate(area_burned_ha = drop_units(st_area(.)*0.0001)) 
+      
+      kk<- do.call("rbind", list(jj,ii,hh))
+    }
     
     st_write(kk,paste0("data/", fn), delete_dsn=TRUE) 
     system(str_c("aws s3 cp ",
