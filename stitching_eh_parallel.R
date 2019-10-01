@@ -388,7 +388,7 @@ for(c in conts){
     #              "s3://earthlab-natem/modis-burned-area/delineated_events/world/eh_stitched_edges/", fn))
   }
 }
-
+source("src/r/rbind_eh.R")
 print(Sys.time()-t0)
 
 

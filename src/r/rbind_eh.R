@@ -19,19 +19,19 @@ for(i in 1:length(e_ne)){
   file_list[[i]]<- st_read(e_ne[i])
 }
 
-rbinder <- function(..., cores=NULL){
-  if(is.null(cores)){
-    do.call("rbind", ...)
-  }else{
-    sequ <- as.integer(seq(1, length(...), length.out=cores+1))
-    listOLists <- paste(paste("list", seq(cores), sep=""), " = ...[",  c(1, sequ[2:cores]+1), ":", sequ[2:(cores+1)], "]", sep="", collapse=", ") 
-    dfs <- eval(parse(text=paste("list(", listOLists, ")")))
-    suppressMessages(sfInit(parallel=TRUE, cores))
-    dfs <- sfLapply(dfs, function(x) do.call("rbind", x))
-    suppressMessages(sfStop())
-    do.call("rbind", dfs)   
-  }
-}
+# rbinder <- function(..., cores=NULL){
+#   if(is.null(cores)){
+#     do.call("rbind", ...)
+#   }else{
+#     sequ <- as.integer(seq(1, length(...), length.out=cores+1))
+#     listOLists <- paste(paste("list", seq(cores), sep=""), " = ...[",  c(1, sequ[2:cores]+1), ":", sequ[2:(cores+1)], "]", sep="", collapse=", ") 
+#     dfs <- eval(parse(text=paste("list(", listOLists, ")")))
+#     suppressMessages(sfInit(parallel=TRUE, cores))
+#     dfs <- sfLapply(dfs, function(x) do.call("rbind", x))
+#     suppressMessages(sfStop())
+#     do.call("rbind", dfs)   
+#   }
+# }
 
 # eh <- rbinder(file_list, cores = detectCores()-1) #didnt work
 eh<- do.call("rbind", file_list) # takes about an hour
