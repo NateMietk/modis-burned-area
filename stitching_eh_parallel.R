@@ -219,14 +219,13 @@ t0 <- Sys.time()
 for(c in conts){
   fn <- paste0("cont_",c,"_edges_stitched.gpkg")
   if(!file.exists(str_c("data/",fn))){
-    ff <- st_read(paste0("data/continent_files/buffs_cont_", c, ".gpkg")) %>%
+    oo <- st_read(paste0("data/continent_files/buffs_cont_", c, ".gpkg")) %>%
       dplyr::select(geom)
     
     # parallel won't work for st_overlap!!!
     # parallelize by continent first and save the matrix as an rds
     # x <- st_parallel(ff, st_overlaps, detectCores()-1)
     t0 <- Sys.time()
-    oo <- ff[1:500,]
     #x <- st_overlaps(oo, sparse = TRUE) 
     registerDoParallel(detectCores()-1)
     x <- foreach(i = 1:nrow(oo))%dopar%{
