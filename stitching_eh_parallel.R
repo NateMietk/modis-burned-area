@@ -232,11 +232,13 @@ for(c in conts){
     # oo <- oo
     registerDoParallel(detectCores()-1)
     x <- foreach(i = 1:nrow(oo))%dopar%{
-      zz<- st_overlaps(oo[i,], oo)[[1]];zz
+      current_tile <- str_sub(oo[i,]$id, 2,5)
+      zz<- st_overlaps(oo[i,], filter(oo, str_sub(id, 2,5) != current_tile))[[1]]#;zz
       zzz<-vector(length=length(zz), mode = "numeric")
       zzz<-NA
       if(length(zz)>0){
       for(j in 1:length(zz)){
+        # add in tiles being different? maybe the above is good
         if(oo[i,]$start_date %in%
            oo[zz[j],]$start_date:oo[zz[j],]$last_date |
            oo[i,]$last_date %in%
