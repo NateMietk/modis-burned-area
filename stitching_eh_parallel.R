@@ -227,33 +227,39 @@ for(c in conts){
   fn <- paste0("cont_",c,"_edges_stitched.gpkg")
   if(!file.exists(str_c("data/",fn))){
     oo <- st_read(paste0("data/continent_files/buffs_cont_", c, ".gpkg")) %>%
-      dplyr::select(geom, start_date, last_date)
+      dplyr::select(geom, start_date, last_date,id) %>%
+      mutate(tile = str_sub(id, 2,5))
+    
+    dd <- st_read(paste0("data/continent_files/polys_cont_", c, ".gpkg")) %>%
+      dplyr::select(-country_num, -n_countries, -continent_num)
     
     # parallel won't work for st_overlap!!!
     # parallelize by continent first and save the matrix as an rds
     # x <- st_parallel(ff, st_overlaps, detectCores()-1)
     t0 <- Sys.time()
     #x <- st_overlaps(oo, sparse = TRUE) 
-    # oo <- oo
+    oo <- oo[1:1000,]
     registerDoParallel(detectCores()-1)
     x <- foreach(i = 1:nrow(oo))%dopar%{
-      current_tile <- str_sub(oo[i,]$id, 2,5)
-      zz<- st_overlaps(oo[i,], filter(oo, str_sub(id, 2,5) != current_tile))[[1]]#;zz
+      current_tile <- oo[i,]$tile
+      zz<- st_overlaps(oo[i,], oo)[[1]]#;zz
       zzz<-vector(length=length(zz), mode = "numeric")
       zzz<-NA
       if(length(zz)>0){
       for(j in 1:length(zz)){
         # add in tiles being different? maybe the above is good
-        if(oo[i,]$start_date %in%
-           oo[zz[j],]$start_date:oo[zz[j],]$last_date |
-           oo[i,]$last_date %in%
-           oo[zz[j],]$start_date:oo[zz[j],]$last_date){
-          zzz[j] <- zz[j]
+          if(oo[i,]$start_date %in%
+             oo[zz[j],]$start_date:oo[zz[j],]$last_date |
+             oo[i,]$last_date %in%
+             oo[zz[j],]$start_date:oo[zz[j],]$last_date){
+            if(oo[i,]$tile != oo[zz[j],]$tile){zzz[j] <- zz[j]}
+          }
+        
         }
       }
-      
       return(funique(na.omit(zzz)))
-    }
+      # zzz<- na.omit(zzz)
+      # dd[zzz,]$id <- min(dd[zzz,]$id)
     }
     
     #saveRDS(x, paste0("cont_",c,"overlaps.rds"))
@@ -264,8 +270,7 @@ for(c in conts){
       xx[i] <- ifelse(length(na.omit(x[[i]])) > 0, TRUE, FALSE)
     }
     xxx<- xx
-    dd <- st_read(paste0("data/continent_files/polys_cont_", c, ".gpkg")) %>%
-      dplyr::select(-country_num, -n_countries, -continent_num)
+    
     
     res <- list()
     counter <- 1 # counting changes
@@ -313,25 +318,25 @@ for(c in conts){
               
               # this is doing the same thing over and over and over but whatever who cares it doesn't add time
               # .... or we should fix it 
-              # if(length(ww) > 1){
-              #   dat_rows <- dd_subset[ww,]$row %>% as.numeric()
-              #   new_id <- dd_subset[ww,]$id %>% min()
-              #   dd[dat_rows,]$id <- new_id
-              #   print(paste("something happened at", i))
-              #   counter = counter +1
-              # }
               if(length(ww) > 1){
-                dd_subset[ww,]$id <- dd_subset[ww,]$id %>% min()
-                dd_subset[ww,]$flag <- TRUE
+                new_id <- dd_subset[ww,]$id %>% min()
+                dd[rows1[ww],]$id <- new_id
                 print(paste("something happened at", i))
+                dd_subset[ww,]$flag <- TRUE
+                #counter = counter +1
               }
+              # if(length(ww) > 1){
+              #   dd_subset[ww,]$id <- dd_subset[ww,]$id %>% min()
+              #   dd_subset[ww,]$flag <- TRUE
+              #   print(paste("something happened at", i))
+              # }
             }
           }
         }
     
         #return(dd_subset)
-        res[[counter]] <- dd_subset %>% dplyr::select(-flag)
-        counter <- counter + 1
+        #res[[counter]] <- dd_subset %>% dplyr::select(-flag)
+        #counter <- counter + 1
       }else{print(paste("echo",i,"skipin' it", round(i/nrow(dd) * 100, 3), "%"))
         #res[[counter]] <- dd[i,]
         #counter <- counter +1
@@ -356,22 +361,20 @@ for(c in conts){
     #   )
     # }
     
-    gg <- do.call("rbind", res) %>%
+    gg <- dd %>%
       group_by(id) %>%
       mutate(n = n()) %>%
       ungroup()
-    
-    hh <- dd[which(xxx == FALSE),] %>%
-      mutate(area_burned_ha = drop_units(st_area(.)*0.0001)) 
+
+    # hh <- dd[which(xxx == FALSE),] %>%
+    #   mutate(area_burned_ha = drop_units(st_area(.)*0.0001)) 
     
     ii<- gg %>%
       filter(n ==1) %>%
       dplyr::select(-n) %>%
       mutate(area_burned_ha = drop_units(st_area(.)*0.0001)) 
     
-    if((nrow(hh) + nrow(ii)) == length(xxx)){
-      kk<- do.call("rbind", list(ii,hh))
-    }else{
+   
       jj <- gg %>%
         filter(n > 1) %>%
         dplyr::select(-n) %>%
@@ -381,7 +384,7 @@ for(c in conts){
         mutate(area_burned_ha = drop_units(st_area(.)*0.0001)) 
       
       kk<- do.call("rbind", list(jj,ii,hh))
-    }
+    
     
     st_write(kk,paste0("data/", fn), delete_dsn=TRUE) 
     system(str_c("aws s3 cp ",
