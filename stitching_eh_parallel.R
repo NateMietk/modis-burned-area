@@ -238,7 +238,7 @@ for(c in conts){
     # x <- st_parallel(ff, st_overlaps, detectCores()-1)
     t0 <- Sys.time()
     #x <- st_overlaps(oo, sparse = TRUE) 
-    # oo <- oo[1:1000,]
+    #oo <- oo[1:2000,]
     registerDoParallel(detectCores()-1)
     x <- foreach(i = 1:nrow(oo))%dopar%{
       current_tile <- oo[i,]$tile
@@ -275,7 +275,7 @@ for(c in conts){
     res <- list()
     counter <- 1 # counting changes
     
-    orig_dd_ids <- dd$id
+    #orig_dd_ids <- dd$id
     # registerDoParallel(detectCores()-1)
     #res <- foreach(i = 1:nrow(dd), .combine = rbind)%dopar%{
     #for(i in 1:nrow(dd)){
@@ -311,32 +311,33 @@ for(c in conts){
               ww <- which(as.numeric(dd_subset[dd_subset$id != 
                                                  dd_subset$id[j],]$start_date)
                           %in% range)
-              ww <- c(ww, 
+              ww <- c(j, ww, 
                       which(as.numeric(dd_subset[dd_subset$id != 
                                                    dd_subset$id[j],]$last_date) 
                             %in% range)) %>% funique
               
               # this is doing the same thing over and over and over but whatever who cares it doesn't add time
               # .... or we should fix it 
-              if(length(ww) > 1){
-                new_id <- dd_subset[ww,]$id %>% min()
-                dd[rows1[ww],]$id <- new_id
-                print(paste("something happened at", i))
-                dd_subset[ww,]$flag <- TRUE
-                #counter = counter +1
-              }
               # if(length(ww) > 1){
-              #   dd_subset[ww,]$id <- dd_subset[ww,]$id %>% min()
-              #   dd_subset[ww,]$flag <- TRUE
+              #   new_id <- dd_subset[ww,]$id %>% min()
+              #   dd[rows1[ww],]$id <- new_id
               #   print(paste("something happened at", i))
+              #   dd_subset[ww,]$flag <- TRUE
+              #   #counter = counter +1
               # }
+              if(length(ww) > 1){
+                dd_subset[ww,]$id <- dd_subset[ww,]$id %>% min()
+                dd_subset[ww,]$flag <- TRUE
+                print(paste("something happened at", i))
+              }
             }
           }
         }
     
         #return(dd_subset)
-        #res[[counter]] <- dd_subset %>% dplyr::select(-flag)
-        #counter <- counter + 1
+        res[[counter]] <- dd_subset %>% 
+          dplyr::select(-flag)
+        counter <- counter + 1
       }else{print(paste("echo",i,"skipin' it", round(i/nrow(dd) * 100, 3), "%"))
         #res[[counter]] <- dd[i,]
         #counter <- counter +1
@@ -361,13 +362,13 @@ for(c in conts){
     #   )
     # }
     
-    gg <- dd %>%
+    gg <- do.call('rbind', res) %>%
       group_by(id) %>%
       mutate(n = n()) %>%
       ungroup()
 
-    # hh <- dd[which(xxx == FALSE),] %>%
-    #   mutate(area_burned_ha = drop_units(st_area(.)*0.0001)) 
+    hh <- dd[which(xxx == FALSE),] %>%
+      mutate(area_burned_ha = drop_units(st_area(.)*0.0001))
     
     ii<- gg %>%
       filter(n ==1) %>%
