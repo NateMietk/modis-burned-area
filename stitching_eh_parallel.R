@@ -74,8 +74,8 @@ for(i in 1:length(edge_tile_files)){
         st_intersection(wb)%>%
         group_by(id) %>%
         st_buffer(dist = 1+(resolution/2), endCapStyle = "SQUARE") %>%
-        summarize(start_date = first(date),
-                  last_date = last(date),
+        summarize(start_date = min(date),
+                  last_date = max(date),
                   country_num = get_mode(country_num),
                   n_countries = length(unique(country_num)),
                   continent_num = get_mode(cont_num))
@@ -101,7 +101,7 @@ for(i in 1:length(edge_tile_files)){
 }
 
 
-
+# then create buffer polygons by continent ==================================
 # creating the buff # 1 min wh
 dir.create("data/eh_buffers")
 system("aws s3 sync s3://earthlab-natem/modis-burned-area/delineated_events/world/eh_buffers data/eh_buffers")
@@ -126,7 +126,7 @@ for(i in 1:length(tile_polys)) {
 }
 
 
-# rbind continents for buffers and regular polygons
+# rbind continents for buffers and regular polygons ========================
 
 system("aws s3 sync s3://earthlab-natem/modis-burned-area/delineated_events/world/eh_continent_files data/continent_files")
 
@@ -171,7 +171,7 @@ for(i in 1:length(conts)){
 
 ######------ progress thus far
 
-# Paralise any simple features analysis.
+# function to Paralise any simple features analysis. ================================
 st_parallel <- function(sf_df, sf_func, n_cores, ...){
   
   # Create a vector to split the data set up by.
@@ -208,6 +208,8 @@ st_parallel <- function(sf_df, sf_func, n_cores, ...){
   return(result)
 }
 
+# join the edges together =======================================================
+
 system(str_c("aws s3 sync ",
              "s3://earthlab-natem/modis-burned-area/delineated_events/world/eh_continent_files ",
              "data/continent_files "
@@ -220,26 +222,39 @@ for(c in conts){
   fn <- paste0("cont_",c,"_edges_stitched.gpkg")
   if(!file.exists(str_c("data/",fn))){
     oo <- st_read(paste0("data/continent_files/buffs_cont_", c, ".gpkg")) %>%
-      dplyr::select(geom)
+      dplyr::select(geom, start_date, last_date)
     
     # parallel won't work for st_overlap!!!
     # parallelize by continent first and save the matrix as an rds
     # x <- st_parallel(ff, st_overlaps, detectCores()-1)
     t0 <- Sys.time()
     #x <- st_overlaps(oo, sparse = TRUE) 
+    # oo <- oo
     registerDoParallel(detectCores()-1)
     x <- foreach(i = 1:nrow(oo))%dopar%{
-      zz<- st_overlaps(oo[i,], oo)
-      return(zz[[1]])
+      zz<- st_overlaps(oo[i,], oo)[[1]];zz
+      zzz<-vector(length=length(zz), mode = "numeric")
+      zzz<-NA
+      if(length(zz)>0){
+      for(j in 1:length(zz)){
+        if(oo[i,]$start_date %in%
+           oo[zz[j],]$start_date:oo[zz[j],]$last_date |
+           oo[i,]$last_date %in%
+           oo[zz[j],]$start_date:oo[zz[j],]$last_date){
+          zzz[j] <- zz[j]
+        }
+      }
+      
+      return(funique(na.omit(zzz)))
     }
-    
+    }
     
     #saveRDS(x, paste0("cont_",c,"overlaps.rds"))
     print(Sys.time() - t0)
     
     xx <- vector(mode = "logical", length = length(x))
     for(i in 1:length(x)){
-      xx[i] <- ifelse(length(x[[i]]) > 0, TRUE, FALSE)
+      xx[i] <- ifelse(length(na.omit(x[[i]])) > 0, TRUE, FALSE)
     }
     xxx<- xx
     dd <- st_read(paste0("data/continent_files/polys_cont_", c, ".gpkg")) %>%
