@@ -109,7 +109,7 @@ for(i in 1:length(edge_tile_files)){
 # then create buffer polygons by continent ==================================
 # creating the buff # 1 min wh
 dir.create("data/eh_buffers")
-system("aws s3 sync s3://earthlab-natem/modis-burned-area/delineated_events/world/eh_buffers data/eh_buffers")
+# system("aws s3 sync s3://earthlab-natem/modis-burned-area/delineated_events/world/eh_buffers data/eh_buffers")
 tile_polys<-list.files("data/wb_extracts", full.names = TRUE, pattern="gpkg")
 
 for(i in 1:length(tile_polys)) {
@@ -133,7 +133,7 @@ for(i in 1:length(tile_polys)) {
 
 # rbind continents for buffers and regular polygons ========================
 
-system("aws s3 sync s3://earthlab-natem/modis-burned-area/delineated_events/world/eh_continent_files data/continent_files")
+# system("aws s3 sync s3://earthlab-natem/modis-burned-area/delineated_events/world/eh_continent_files data/continent_files")
 
 buff_files <- list.files("data/eh_buffers", pattern = "gpkg", full.names = TRUE)
 
