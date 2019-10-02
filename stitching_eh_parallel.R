@@ -318,26 +318,26 @@ for(c in conts){
               
               # this is doing the same thing over and over and over but whatever who cares it doesn't add time
               # .... or we should fix it 
-              # if(length(ww) > 1){
-              #   new_id <- dd_subset[ww,]$id %>% min()
-              #   dd[rows1[ww],]$id <- new_id
-              #   print(paste("something happened at", i))
-              #   dd_subset[ww,]$flag <- TRUE
-              #   #counter = counter +1
-              # }
               if(length(ww) > 1){
-                dd_subset[ww,]$id <- dd_subset[ww,]$id %>% min()
-                dd_subset[ww,]$flag <- TRUE
+                new_id <- dd_subset[ww,]$id %>% min()
+                dd[rows1[ww],]$id <- new_id
                 print(paste("something happened at", i))
+                dd_subset[ww,]$flag <- TRUE
+                #counter = counter +1
               }
+              # if(length(ww) > 1){
+              #   dd_subset[ww,]$id <- dd_subset[ww,]$id %>% min()
+              #   dd_subset[ww,]$flag <- TRUE
+              #   print(paste("something happened at", i))
+              # }
             }
           }
         }
     
         #return(dd_subset)
-        res[[counter]] <- dd_subset %>% 
-          dplyr::select(-flag)
-        counter <- counter + 1
+        # res[[counter]] <- dd_subset %>% 
+        #   dplyr::select(-flag)
+        # counter <- counter + 1
       }else{print(paste("echo",i,"skipin' it", round(i/nrow(dd) * 100, 3), "%"))
         #res[[counter]] <- dd[i,]
         #counter <- counter +1
@@ -362,29 +362,31 @@ for(c in conts){
     #   )
     # }
     
-    gg <- do.call('rbind', res) %>%
+    # gg <- do.call('rbind', res) %>%
+    gg <-dd %>%
       group_by(id) %>%
       mutate(n = n()) %>%
       ungroup()
 
-    hh <- dd[which(xxx == FALSE),] %>%
-      mutate(area_burned_ha = drop_units(st_area(.)*0.0001))
+    # hh <- dd[which(xxx == FALSE),] %>%
+    #   mutate(area_burned_ha = drop_units(st_area(.)*0.0001))
     
     ii<- gg %>%
       filter(n ==1) %>%
       dplyr::select(-n) %>%
       mutate(area_burned_ha = drop_units(st_area(.)*0.0001)) 
     
-   
-      jj <- gg %>%
-        filter(n > 1) %>%
-        dplyr::select(-n) %>%
-        group_by(id) %>%
-        summarise(start_date = min(start_date),
-                  last_date = max(last_date)) %>%
-        mutate(area_burned_ha = drop_units(st_area(.)*0.0001)) 
-      
-      kk<- do.call("rbind", list(jj,ii,hh))
+    # this can be foreach'd
+    jj <- gg %>%
+      filter(n > 1) %>%
+      dplyr::select(-n) %>%
+      group_by(id) %>%
+      summarise(start_date = min(start_date),
+                last_date = max(last_date)) %>%
+      mutate(area_burned_ha = drop_units(st_area(.)*0.0001)) 
+    
+    # kk<- do.call("rbind", list(jj,ii,hh))
+    kk<- do.call("rbind", list(jj,ii))
     
     
     st_write(kk,paste0("data/", fn), delete_dsn=TRUE) 
