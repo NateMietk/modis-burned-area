@@ -238,7 +238,7 @@ for(c in conts){
     # x <- st_parallel(ff, st_overlaps, detectCores()-1)
     t0 <- Sys.time()
     #x <- st_overlaps(oo, sparse = TRUE) 
-    oo <- oo[1:1000,]
+    # oo <- oo[1:1000,]
     registerDoParallel(detectCores()-1)
     x <- foreach(i = 1:nrow(oo))%dopar%{
       current_tile <- oo[i,]$tile
