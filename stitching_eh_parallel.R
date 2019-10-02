@@ -296,8 +296,13 @@ for(c in conts){
               start_range <- dd_subset$start_date[j] - ttime
               end_range <- dd_subset$last_date[j] + ttime
               range <- start_range:end_range
-              ww <- which(as.numeric(dd_subset$start_date) %in% range)
-              ww <- c(ww, which(as.numeric(dd_subset$last_date) %in% range)) %>% funique
+              ww <- which(as.numeric(dd_subset[dd_subset$id != 
+                                                 dd_subset$id[j],]$start_date)
+                          %in% range)
+              ww <- c(ww, 
+                      which(as.numeric(dd_subset[dd_subset$id != 
+                                                   dd_subset$id[j],]$last_date) 
+                            %in% range)) %>% funique
               
               # this is doing the same thing over and over and over but whatever who cares it doesn't add time
               # .... or we should fix it 
