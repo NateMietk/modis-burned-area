@@ -34,7 +34,7 @@ tt <- ttime
 
 #d<-read_csv("data/edges/wh_edges.csv")
 # first create points and overlay with continent ===============================
-
+# load in world boundaries and select relevant columns =======================
 dir.create("data/wb_extracts")
 wb <- st_read("data/wb") %>%
   dplyr::select(name = NAME,
@@ -44,6 +44,7 @@ wb <- st_read("data/wb") %>%
   dplyr::select(cont_num, country_num) %>%
   st_transform(crs=st_crs(proj_modis))
 
+# convert csv to polygons and overlay with continents ========================
 edge_tile_files <- list.files("data/edge_tiles", pattern = "csv", full.names = TRUE)[57:169]
 
 system("aws s3 sync s3://earthlab-natem/modis-burned-area/delineated_events/world/wb_extracts data/wb_extracts")
@@ -56,7 +57,11 @@ for(i in 1:length(edge_tile_files)){
     system(paste("echo", tile))
     
     
-    tilenum <- paste0("1",str_sub(tile, 2,3), str_sub(tile,5,6),"0000000") %>% as.numeric
+    tilenum <- paste0("1",
+                      str_sub(tile, 2,3), 
+                      str_sub(tile,5,6),
+                      "0000000") %>% 
+      as.numeric
     
     etd <- read_csv(edge_tile_files[i]) 
     uids <- funique(etd$id)
@@ -89,7 +94,7 @@ for(i in 1:length(edge_tile_files)){
     for(c in 1:length(conts)){
       dd <- filter(etdf, continent_num == conts[c])
       fn <- paste0(tile, "_", conts[c],".gpkg")
-      st_write(etdf, file.path("data/wb_extracts",fn), delete_dsn = TRUE)
+      st_write(dd, file.path("data/wb_extracts",fn), delete_dsn = TRUE)
       system(paste0("aws s3 cp", " ",
                     "data/wb_extracts/", fn, " ",
                     "s3://earthlab-natem/modis-burned-area/delineated_events/world/wb_extracts/", fn ))
