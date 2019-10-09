@@ -56,8 +56,8 @@ foreach(c = twf, .combine = rbind)%dopar%{
     st_as_sf(coords = c("x","y"), crs = template_crs) %>%
     group_by(id)%>%
     st_buffer(dist = 1+(reso/2), endCapStyle = "SQUARE")%>%
-    summarize(start_date = first(date),
-              last_date = last(date),
+    summarise(start_date = min(date),
+              last_date = max(date),
               area_burned_ha = pix_hectares(n())) %>%
     ungroup()
   st_write(n, outputn, delete_dsn = TRUE)
