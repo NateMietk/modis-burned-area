@@ -50,7 +50,8 @@ north <- data.frame(x = c(-81.27, -81.27), y = c(26.95,26.975)) %>%
 
 p1 <- ggplot(modis_fires) +
   geom_sf(aes(fill = id), alpha = 0.5) +
-  geom_sf(data = mtbs_fires, fill = "transparent") +
+  geom_sf(data = mtbs_fires, fill = "transparent", aes(lty = Fire_Name),lwd=1) +
+  scale_linetype_discrete(name = "MTBS Name")+
   scale_fill_discrete(name = "FIRED ID")+
   ggtitle("A. FIRED events") +
   xlim(c(bb[1], bb[3])) +
@@ -59,7 +60,7 @@ p1 <- ggplot(modis_fires) +
              aes(x=X,y=Y, label = label, fill = as.factor(id)), fontface = "bold",
              alpha = 0.5, hjust = "left", size = 2.5, show.legend = FALSE)+
   theme_bw()+
-  theme(axis.title = element_blank())
+  theme(axis.title = element_blank());p1
   
 
 p2 <- ggplot(mtbs_fires) +
@@ -77,14 +78,15 @@ p2 <- ggplot(mtbs_fires) +
 
 p3 <- ggplot(gfa_fires) +
   geom_sf(aes(fill = fire_ID), alpha = 0.5)+
-  geom_sf(data = mtbs_fires, fill = "transparent") +
+  geom_sf(data = mtbs_fires, fill = "transparent", aes(lty = Fire_Name),lwd=1, show.legend = FALSE) +
+  #scale_linetype_discrete(name = "MTBS Name")+
   scale_fill_discrete(name = "GFA ID", breaks = c("23880","23891", "24490"))+
   theme_bw()+
   theme(axis.title = element_blank())+
   geom_segment(x=north$X[1], xend = north$X[2], 
                y=north$Y[1], yend = north$Y[2], 
                arrow = arrow(type = "closed", angle = 15,
-                             length = unit(0.45, "inches")), 
+                             length = unit(0.65, "inches")), 
                lwd = 2, color = "grey30")+
   geom_text(x=north$X[1], y = north$Y[1], label = "N",
             fontface="bold", color = "white", angle = -30)+
@@ -95,8 +97,10 @@ p3 <- ggplot(gfa_fires) +
  # theme(legend.position = "none") +
   ggtitle("C. Global Fire Atlas events (57 events)") +
   xlim(c(bb[1], bb[3])) +
-  ylim(c(bb[2], bb[4]))
+  ylim(c(bb[2], bb[4]));p3
 
-ggarrange(p1, p2, p3, legend = "bottom", ncol = 3, nrow=1) +
-  ggsave("images/reburn_fig.png", dpi = 300, width = 12, height = 6)
+ggarrange(p1, p3, legend = "bottom", ncol = 2, nrow=1) +
+  ggsave("images/reburn_fig.png", dpi = 300, width = 12, height = 6) +
+  ggsave("images/reburn_fig.pdf", dpi = 600, width = 12, height = 6) 
+  
 

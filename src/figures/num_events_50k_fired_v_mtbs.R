@@ -81,10 +81,7 @@ p1 <- modis_fish_ff %>%
   coord_equal() +
   scale_colour_manual(values = rev(brewer.pal(5,"RdYlBu")), 
                       name = "Fire Frequency") +
-  scale_size_discrete(range = c(.25, 2.5), name="Total burned area (km2)") +
-
-  scale_colour_manual(values = rev(brewer.pal(5,"RdYlBu"))) +
-  scale_size_discrete(range = c(.25, 2), name="Total burned area (km2)") +
+  scale_size_discrete(range = c(.25, 2.5), name=expression(Burned~Area~(km^2))) +
   theme_nothing(legend = TRUE) +
   theme(plot.title = element_text(hjust = 0, size = 12),
         strip.background = element_blank(),
@@ -96,8 +93,9 @@ p1 <- modis_fish_ff %>%
         legend.background = element_rect(fill ="transparent"),
         legend.direction = "vertical",
         legend.box = "horizontal",
-        legend.box.just = "bottom")+
-  guides(col = guide_legend(override.aes = list(shape = 15, size = 7)));p1
+        legend.box.just = "bottom",
+        legend.box.spacing = unit(1,"mm"))+
+  guides(col = guide_legend(override.aes = list(shape = 15, size = 7)))
   
 
 p2 <- mtbs_fish_ff %>%
@@ -114,10 +112,8 @@ p2 <- mtbs_fish_ff %>%
   geom_point(aes(x = long, y = lat, colour = class_freq, size = class_size)) +
   coord_equal() +
   scale_colour_manual(values = rev(brewer.pal(5,"RdYlBu"))) +
-  scale_size_discrete(range = c(.25, 2.5), name="Total burned area (km2)") +
-
-  scale_size_discrete(range = c(.25, 2), name="Total burned area (km2)") +
-  theme_nothing(legend = TRUE) +
+  scale_size_discrete(range = c(.25, 2.5)) +
+  theme_nothing(legend = FALSE) +
   theme(plot.title = element_text(hjust = 0, size = 12),
         strip.background = element_blank(),
         strip.text.x = element_blank(),
@@ -126,9 +122,9 @@ p2 <- mtbs_fish_ff %>%
         legend.position = "none")
 
 g <- ggarrange(p2,p1, nrow = 2, ncol = 1, labels = c("A. MTBS", "B. FIRED"),
-               font.label = list(face = "plain", size = 16));g
+               font.label = list(face = "bold", size = 16));g
 
-ggsave(file = file.path(draft_figs_dir, "fired_vs_mtbs.tiff"), 
+ggsave(file = file.path(draft_figs_dir, "fired_vs_mtbs.pdf"), 
        g, width = 8.5, height = 11, dpi = 600, scale = 3, units = "cm") 
 
 ggsave(file = file.path(draft_figs_dir, "fired_vs_mtbs.png"), 

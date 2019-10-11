@@ -64,18 +64,14 @@ if (!exists("fishnet_50k")) {
 
 # Import and clean the MTBS polygons
 if (!exists('mtbs_fire')) {
-  mtbs_shp <- file.path(raw_dir_mtbs)
+  mtbs_shp <- file.path(raw_dir_mtbs,'mtbs_perims_DD.shp')
   if (!file.exists(mtbs_shp)) {
     file_download(file.path(raw_dir_mtbs, 'mtbs_perims_DD.shp'),
                   raw_dir_mtbs, 
                   "https://edcintl.cr.usgs.gov/downloads/sciweb1/shared/MTBS_Fire/data/composite_data/burned_area_extent_shapefile/mtbs_perimeter_data.zip")
     }
   
-  mtbs_fire <- st_read(dsn = file.path(raw_dir_mtbs))
- 
-  
-  mtbs_fire <- st_read(dsn = file.path(raw_dir_mtbs, 'mtbs_perimeter_data'),
-                       layer = 'mtbs_perims_DD', quiet= TRUE) %>%
+  mtbs_fire <- st_read(dsn = file.path(raw_dir_mtbs))%>%
     filter(Year >= '2001') %>%
     st_transform(st_crs(states)) %>%
     mutate(discovery_date = ymd(paste(Year, StartMonth, StartDay, sep="-")),
@@ -91,7 +87,8 @@ if (!exists('mtbs_fire')) {
     sfc_as_cols(., st_centroid(geometry)) %>%
     mutate(mtbs_region = ifelse(x < -97, 'West', 'East')) %>%
     dplyr::select(-x, -y) %>%
-    st_transform(st_crs(states))}
+    st_transform(st_crs(states))
+  }
 
 # if(!file.exists(file.path(mtbs_dir, 'lvl4321_eco_mtbs.gpkg'))) {
 #   mtbs_ecoregion <- mtbs_fire %>%

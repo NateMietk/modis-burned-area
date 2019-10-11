@@ -4,6 +4,7 @@ library(sf)
 library(ggpubr)
 library(ggsn)
 
+# these files are on the guggenheim computer, need to add to project directory
 p_path <- "/home/a"
 
 #add in mtbs
@@ -46,6 +47,7 @@ ggarrange(
     theme_bw() + 
     theme(legend.position = c(0.98,0),
           legend.justification = c(1,0),
+          plot.title = element_text(face = "bold"),
           legend.background = element_blank(),
           axis.title = element_blank())+
     geom_segment(data = FIRED_p,x=north$X[1], xend = north$X[2], 
@@ -70,6 +72,7 @@ ggarrange(
     theme_bw() +
     theme(legend.position = c(0.98,0),
           legend.justification = c(1,0),
+          plot.title = element_text(face = "bold"),
           legend.background = element_blank(),
           axis.title = element_blank())+
     ggtitle("B: Rim Fire: Global Fire Atlas"),
@@ -81,6 +84,7 @@ ggarrange(
     theme(legend.position = c(0.98,0),
           legend.justification = c(1,0),
           legend.background = element_blank(),
+          plot.title = element_text(face = "bold"),
           axis.title = element_blank())+
     ggtitle("C: Rim Fire: FIRED daily"),
   ggplot(FIRED_p)+
@@ -88,6 +92,7 @@ ggarrange(
     theme_bw() +
     theme(legend.position = c(0.98,0),
           legend.justification = c(1,0),
+          plot.title = element_text(face = "bold"),
           legend.background = element_blank())+
     theme(axis.title = element_blank())+
     # xlim(c(bb[1], bb[3])) +

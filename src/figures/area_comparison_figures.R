@@ -54,9 +54,10 @@ p1 <- ggplot(d, aes(modis_ha, mtbs_hectares))+
   ylab("MTBS (hectares)") +
   scale_y_continuous(labels = comma)+
   scale_x_continuous(labels = comma)+
-  annotate("text",  x=150000, y=130000, label = "1:1 line") +
+  annotate("text",  x=153000, y=130000, label = "1:1 line") +
   annotate("text",  x=100000, y=150000, col="blue", 
-           label = rrr, parse=T)
+           label = rrr, parse=T) +
+  theme(axis.title = element_text(face="bold"))
 
 
 p2 <- ggplot(output_table, aes(max_area, r2)) +
@@ -65,10 +66,12 @@ p2 <- ggplot(output_table, aes(max_area, r2)) +
   #geom_line(aes(y= pred), col="red")+
  # coord_fixed()+
   theme_pubr(base_size = 14) +
-  ylab(expression(R^2))+
+  #ylab(expression(R^2))+
+  ylab("Variance Explained") +
   theme(axis.text = element_text(size = 10)) +
   xlab("MTBS Area (hectares)")+
-  scale_x_continuous(labels = comma) #+
+  scale_x_continuous(labels = comma) +
+  theme(axis.title = element_text(face="bold"))#+
   # annotate("text",  x=100000, y=0.4, label = paste("Linear model for every", 
   #                                                   round(max(d$mtbs_hectares)/nn), 
   #                                                 "hectare segement.",
@@ -81,7 +84,8 @@ p3 <- ggplot(output_table, aes(max_area, slope)) +
   theme(axis.text = element_text(size = 10))+
   xlab("MTBS Area (hectares)")+
   scale_x_continuous(labels = comma)+
-  ylab("Estimate")
+  ylab("Estimate")+
+  theme(axis.title = element_text(face="bold"))
 
 ggarrange(p1, p2, p3, nrow = 1, ncol=3, labels = "AUTO") +
   ggsave("images/area_analyse.pdf", dpi = 600, height = 4.5, width = 13)
