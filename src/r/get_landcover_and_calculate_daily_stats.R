@@ -6,7 +6,7 @@ lapply(libs, library, character.only =TRUE)
 
 lc_path <- "/home/a/data/MCD12Q1_mosaics"
 modis_crs <- "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
-ecoregion_path <- "/home/a/data/background/ecoregions/us_eco_l3.shp"
+ecoregion_path <- "/home/a/data/background/ecoregions/cec/us_eco_l3.shp"
 template_path <- "/home/a/data/MCD12Q1_mosaics/usa_lc_mosaic_2001.tif"
 s3_path <- "s3://earthlab-natem/modis-burned-area/delineated_events"
 s3_path1 <- "s3://earthlab-natem/modis-burned-area/derived_attributes"
@@ -152,8 +152,10 @@ ll[[cc]] <- df[df$year == 2019,] %>%
   mutate(lc = raster::extract(x=lc, y=.))
 
 df_lc <- do.call("rbind", ll) %>%
-  mutate(l1_eco = raster::extract(x=e_rast, y=.))
+  mutate(l1_eco = raster::extract(x=e_rast1, y=.))
 print(Sys.time() - t0)
+
+st_write(df_lc, "data/df_lc.gpkg")
 
 # getting the labels
 labels <- st_set_geometry(ecoregions,NULL) %>%
@@ -179,8 +181,7 @@ write_csv(lc_only_events, "data/lc_eco_events.csv")
 system(paste("aws s3 cp data/lc_eco_events.csv",
              file.path(s3_path1,"lc_eco_events.csv")))
 
-
-
+# daily stats ==================================================================
 daily <- df_lc %>%
   st_set_geometry(NULL) %>%
   group_by(id, date) %>%
@@ -215,3 +216,76 @@ daily <- df_lc %>%
 write_csv(daily,"data/daily_stats_w_landcover.csv")
 system(paste("aws s3 cp data/daily_stats_w_landcover.csv",
              file.path(s3_path1,"daily_stats_w_landcover.csv")))
+
+# making daily polygons ========================================================
+
+t0<-Sys.time()
+
+library(foreach)
+library(doParallel)
+
+corz <- detectCores()/2-1
+registerDoParallel(corz)
+df_lc <- dplyr::select(df_lc, id, date)
+daily_poly <- foreach(r = unique(df_lc$id), .combine = "rbind") %dopar% {
+  
+  pct_start <- round((which(r == unique(df_lc$id)) / length(unique(df_lc$id)))*100,1)
+  pct_next <- round(((which(r == unique(df_lc$id))+1) / length(unique(df_lc$id)))*100,1)
+  
+  if(pct_start != pct_next){
+   system(paste("echo", 
+                 pct_next,
+                 "%"
+    ))}
+  
+  daily_poly_r <- df_lc %>%
+    filter(id == r) %>%
+    group_by(id, date) %>%
+    st_buffer(dist = 1+(res(template)[1]/2), endCapStyle = "SQUARE")%>%
+    summarise() %>%
+    ungroup()
+  
+  
+ 
+  
+  return(daily_poly_r)
+}
+
+print(Sys.time()-t0)
+
+# %>%
+  # group_by(id) %>%
+  # mutate(cum_pixels = cumsum(pixels),
+  #        total_pixels = sum(pixels),
+  #        ignition_date = min(date),
+  #        last_date = max(date),
+  #        duration = as.numeric(last_date-ignition_date)+1,
+  #        simple_fsr_pixels = total_pixels/as.numeric(duration), 
+  #        simple_fsr_km2 = total_pixels/as.numeric(duration)%>% pix_km2())%>%
+  # ungroup()%>%
+  # mutate(daily_area_km2 = pixels %>% pix_km2(),
+  #        cum_area_km2 = cum_pixels %>% pix_km2(),
+  #        total_area_km2 = total_pixels %>% pix_km2(),
+  #        pct_total_area = pixels/total_pixels*100,
+  #        pct_cum_area = pixels/cum_pixels*100,
+  #        event_day = as.numeric(date - ignition_date + 1),
+  #        ratio_area_added_to_average = daily_area_km2/simple_fsr_km2,
+  #        prior_pixels = cum_pixels-pixels,
+  #        rel_fsr_per_day = ifelse(prior_pixels>0,pixels/prior_pixels, 0) 
+  #        # need to decide on a value for that (the else value) if this ends up being useful
+  # ) %>%
+  # left_join(labels1) %>%
+  # left_join(lc_labels) %>%
+  # filter(is.na(l1_eco) == F)
+
+st_write(daily_poly,"data/daily_polys.gpkg")
+system(paste("aws s3 cp data/daily_polys.gpkg",
+             file.path(s3_path1,"daily_polys.gpkg")))
+
+print(Sys.time() - t0)
+
+left_join(daily_poly, daily, by = c("id", "date")) %>%
+  na.omit() %>% # getting rid of non CUS 
+  st_write("data/daily_polys_w_stats_landcover.gpkg", delete_dsn=TRUE)
+
+joined<- st_read("data/daily_polys_w_stats_landcover.gpkg")
