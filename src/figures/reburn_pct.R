@@ -50,7 +50,8 @@ north <- data.frame(x = c(-81.27, -81.27), y = c(26.95,26.975)) %>%
 
 p1 <- ggplot(modis_fires) +
   geom_sf(aes(fill = id), alpha = 0.5) +
-  geom_sf(data = mtbs_fires, fill = "transparent", aes(lty = Fire_Name),lwd=1) +
+  geom_sf(data = mtbs_fires, fill = "transparent", 
+          aes(lty = Fire_Name),lwd=1, color="black") +
   scale_linetype_discrete(name = "MTBS Name")+
   scale_fill_discrete(name = "FIRED ID")+
   ggtitle("A. FIRED events") +
@@ -60,29 +61,39 @@ p1 <- ggplot(modis_fires) +
              aes(x=X,y=Y, label = label, fill = as.factor(id)), fontface = "bold",
              alpha = 0.5, hjust = "left", size = 2.5, show.legend = FALSE)+
   theme_bw()+
-  theme(axis.title = element_blank());p1
+  theme(axis.title = element_blank(),
+        legend.text = element_text(size=12),
+        legend.position = c(0,1),
+        legend.justification = c(0,1),
+        legend.background = element_blank());p1
   
 
-p2 <- ggplot(mtbs_fires) +
-  geom_sf(aes(fill = Fire_Name), alpha = 0.5) +
-  geom_sf(data = modis_fires,fill = "transparent") +
-  scale_fill_discrete(name = "Fire Name")+
-  ggtitle("B. MTBS events") +
-  xlim(c(bb[1], bb[3])) +
-  ylim(c(bb[2], bb[4])) +
-  geom_label(data = mtbs_labs, 
-             aes(x=X,y=Y, label = label, fill = as.factor(Fire_Name)), fontface = "bold",
-             alpha = 0.5, hjust = "left", size = 2.5, show.legend = FALSE)+
-  theme_bw()+
-  theme(axis.title = element_blank())
+# p2 <- ggplot(mtbs_fires) +
+#   geom_sf(aes(fill = Fire_Name), alpha = 0.5) +
+#   geom_sf(data = modis_fires,fill = "transparent") +
+#   scale_fill_discrete(name = "Fire Name")+
+#   ggtitle("B. MTBS events") +
+#   xlim(c(bb[1], bb[3])) +
+#   ylim(c(bb[2], bb[4])) +
+#   geom_label(data = mtbs_labs, 
+#              aes(x=X,y=Y, label = label, fill = as.factor(Fire_Name)), fontface = "bold",
+#              alpha = 0.5, hjust = "left", size = 2.5, show.legend = FALSE)+
+#   theme_bw()+
+#   theme(axis.title = element_blank())
 
 p3 <- ggplot(gfa_fires) +
   geom_sf(aes(fill = fire_ID), alpha = 0.5)+
-  geom_sf(data = mtbs_fires, fill = "transparent", aes(lty = Fire_Name),lwd=1, show.legend = FALSE) +
+  geom_sf(data = mtbs_fires, fill = "transparent", color = "black",
+          aes(lty = Fire_Name),
+          lwd=1, show.legend = FALSE) +
   #scale_linetype_discrete(name = "MTBS Name")+
   scale_fill_discrete(name = "GFA ID", breaks = c("23880","23891", "24490"))+
   theme_bw()+
-  theme(axis.title = element_blank())+
+  theme(axis.title = element_blank(),
+        legend.text = element_text(size=12),
+        legend.position = c(0,0),
+        legend.justification = c(0,0),
+        legend.background = element_blank())+
   geom_segment(x=north$X[1], xend = north$X[2], 
                y=north$Y[1], yend = north$Y[2], 
                arrow = arrow(type = "closed", angle = 15,
@@ -95,12 +106,12 @@ p3 <- ggplot(gfa_fires) +
            st.bottom = FALSE, box.fill = c("grey30", "white"), 
            location = "bottomright", st.size = 3)+
  # theme(legend.position = "none") +
-  ggtitle("C. Global Fire Atlas events (57 events)") +
+  ggtitle("B. Global Fire Atlas events (57 events)") +
   xlim(c(bb[1], bb[3])) +
   ylim(c(bb[2], bb[4]));p3
 
-ggarrange(p1, p3, legend = "bottom", ncol = 2, nrow=1) +
-  ggsave("images/reburn_fig.png", dpi = 300, width = 12, height = 6) +
-  ggsave("images/reburn_fig.pdf", dpi = 600, width = 12, height = 6) 
+ggarrange(p1, p3, ncol = 2, nrow=1) +
+  ggsave("images/reburn_fig.png", dpi = 300, width = 10, height = 5) +
+  ggsave("images/reburn_fig.pdf", dpi = 600, width = 10, height = 5) 
   
 

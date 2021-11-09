@@ -1,0 +1,8 @@
+#!/bin/bash
+for t in 3 4 5 6 7 8 9 10 11 12 13 14 15
+do
+  for s in 2 3 4 5 6 7 8 9
+  do
+    firedpy -spatial_param $s -temporal_param $t -tiles h06v03 h07v03 h08v03 h09v03 h10v03 h09v02 h11v03 h10v02 h11v02 h12v02 h13v02
+  done
+done

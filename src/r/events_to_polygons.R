@@ -29,7 +29,7 @@ template_path <- "/home/a/data/MCD12Q1_mosaics/usa_lc_mosaic_2001.tif"
 ecoregion_path <- "home/a/data/background_ecoregions"
 s3_path <- "s3://earthlab-natem/modis-burned-area/MCD64A1/C6/delineated_events"
 cus_path <- "/home/a/data/background/CUS"
-raw_events_file <- "data/modis_burn_events_00_19.csv"
+raw_events_file <- "data/fired_events_s1_t5_2020153.csv"
 landcover_eco_file <- "data/lc_eco_events.csv"
 lat_longs_file <- "data/ignition_lat_longs.csv"
 
@@ -47,6 +47,7 @@ df <- read_csv(raw_events_file) %>%
          year = as.numeric(substr(date, 1,4))) %>%
   # removing about 8000 repeat pixels (i.e. adjacent month detections)
   distinct(x,y,id, .keep_all = T)
+
 
 # writing out polygon and attribute table ======================================
 
